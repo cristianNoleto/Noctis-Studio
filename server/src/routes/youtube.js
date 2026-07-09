@@ -82,13 +82,21 @@ router.get('/search-channels', async (req, res) => {
       const enriched = []
       for (const item of channels.items || []) {
         const base = channelToJson(item)
-        let metrics = { avgViews: null, engagement: null }
+        let metrics = { avgViews: null, engagement: null, recentVideos: [] }
         try {
           metrics = await channelRecentMetrics(keys, item.id, item.contentDetails?.relatedPlaylists?.uploads)
         } catch {
           // sem métricas detalhadas ainda dá pra listar o canal
         }
-        enriched.push({ ...base, avgViews: metrics.avgViews, engagement: metrics.engagement })
+        enriched.push({
+          ...base,
+          avgViews: metrics.avgViews,
+          engagement: metrics.engagement,
+          lastUploadDaysAgo: metrics.lastUploadDaysAgo ?? null,
+          vidsPerMonth: metrics.vidsPerMonth ?? null,
+          viewsPerMonth: metrics.viewsPerMonth ?? null,
+          recentVideos: (metrics.recentVideos || []).slice(0, 3).map((v) => ({ id: v.id, thumbnail: v.thumbnail, views: v.views })),
+        })
       }
       return enriched
     })
@@ -106,19 +114,22 @@ router.get('/search-channels', async (req, res) => {
 router.get('/viral', async (req, res) => {
   try {
     const keys = parseKeys(req)
-    const { q, period, minViews, durMin, durMax } = req.query
+    const { q, period, minViews, durMinSec, after, before } = req.query
 
     let publishedAfter
     const hours = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30 }[period]
     if (hours) publishedAfter = new Date(Date.now() - hours * 3600_000).toISOString()
+    if (after) publishedAfter = new Date(`${after}T00:00:00Z`).toISOString()
+    const publishedBefore = before ? new Date(`${before}T23:59:59Z`).toISOString() : undefined
 
-    const data = await cached(`viral:${q}:${period || ''}`, 15 * 60_000, async () => {
+    const data = await cached(`viral:${q}:${period || ''}:${after || ''}:${before || ''}`, 15 * 60_000, async () => {
       const search = await ytFetch(keys, 'search', {
         part: 'snippet',
         type: 'video',
         q: q || undefined,
         order: 'viewCount',
         publishedAfter,
+        publishedBefore,
         maxResults: 25,
       })
       const videoIds = (search.items || []).map((i) => i.id.videoId).join(',')
@@ -151,8 +162,7 @@ router.get('/viral', async (req, res) => {
 
     let results = data
     if (minViews) results = results.filter((v) => v.views >= Number(minViews))
-    if (durMin) results = results.filter((v) => v.durationSeconds >= Number(durMin) * 60)
-    if (durMax) results = results.filter((v) => v.durationSeconds <= Number(durMax) * 60)
+    if (durMinSec) results = results.filter((v) => v.durationSeconds >= Number(durMinSec))
     res.json({ results })
   } catch (err) {
     handleError(res, err)

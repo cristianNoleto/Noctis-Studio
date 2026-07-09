@@ -157,21 +157,35 @@ export async function channelRecentMetrics(keys, channelId, uploadsPlaylistId) {
   if (!ids) return { avgViews: null, engagement: null, recentVideos: [] }
 
   const vids = await ytFetch(keys, 'videos', { part: 'statistics,snippet', id: ids })
-  const stats = (vids.items || []).map((v) => ({
-    id: v.id,
-    title: v.snippet.title,
-    publishedAt: v.snippet.publishedAt,
-    views: Number(v.statistics?.viewCount ?? 0),
-    likes: Number(v.statistics?.likeCount ?? 0),
-    comments: Number(v.statistics?.commentCount ?? 0),
-  }))
+  const stats = (vids.items || [])
+    .map((v) => ({
+      id: v.id,
+      title: v.snippet.title,
+      publishedAt: v.snippet.publishedAt,
+      thumbnail: v.snippet.thumbnails?.medium?.url || v.snippet.thumbnails?.default?.url,
+      views: Number(v.statistics?.viewCount ?? 0),
+      likes: Number(v.statistics?.likeCount ?? 0),
+      comments: Number(v.statistics?.commentCount ?? 0),
+    }))
+    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
   if (!stats.length) return { avgViews: null, engagement: null, recentVideos: [] }
 
   const totalViews = stats.reduce((s, v) => s + v.views, 0)
   const totalInteractions = stats.reduce((s, v) => s + v.likes + v.comments, 0)
+
+  // Cadência de postagem estimada pelos últimos uploads
+  const newest = new Date(stats[0].publishedAt).getTime()
+  const oldest = new Date(stats[stats.length - 1].publishedAt).getTime()
+  const spanDays = Math.max(1, (newest - oldest) / 86_400_000)
+  const vidsPerMonth = stats.length > 1 ? +((stats.length / spanDays) * 30).toFixed(1) : null
+  const avgViews = Math.round(totalViews / stats.length)
+
   return {
-    avgViews: Math.round(totalViews / stats.length),
+    avgViews,
     engagement: totalViews > 0 ? +((totalInteractions / totalViews) * 100).toFixed(2) : null,
+    lastUploadDaysAgo: Math.max(0, Math.round((Date.now() - newest) / 86_400_000)),
+    vidsPerMonth,
+    viewsPerMonth: vidsPerMonth != null ? Math.round(avgViews * vidsPerMonth) : null,
     recentVideos: stats,
   }
 }

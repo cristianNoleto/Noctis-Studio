@@ -65,18 +65,30 @@ INSCRITOS: ${channel.subscribers}
 VÍDEOS DE MAIOR SUCESSO:
 ${topVideos.map((v) => `- "${v.title}" (${v.views} views)`).join('\n') || '(indisponível)'}
 
-Responda neste formato JSON exato, com 3 a 5 itens por bloco:
+Responda neste formato JSON exato:
 {
-  "dna": [
-    { "title": "<gancho psicológico do canal>", "successScore": <0-100>, "difficulty": "<Fácil|Média|Difícil>",
+  "mainNiche": "<nicho principal do canal em poucas palavras>",
+  "audience": "<descrição do público-alvo em 1 frase (hipótese)>",
+  "confidence": "<alta|média|baixa — sua confiança na análise dado o volume de dados>",
+  "winningPattern": {
+    "description": "<1 frase descrevendo o padrão que faz os vídeos performarem>",
+    "tags": ["<3 a 4 tags curtas do padrão>"]
+  },
+  "howToApply": "<parágrafo prático: como o usuário aplica esse padrão no canal dele>",
+  "ideas": [
+    { "title": "<ideia de vídeo no MESMO nicho>", "successScore": <0-100>, "difficulty": "<Fácil|Média|Difícil>",
+      "isTurnaround": <true apenas na ideia mais contraintuitiva/inovadora, false nas demais>,
       "howToApply": "<como aplicar na prática, 2-3 frases>",
       "preserveVsChange": "<o que preservar do formato e o que muda>",
       "recommendedTitles": ["<até 5 variações de título>"] }
   ],
-  "ideas": [ <mesmo formato — temas adicionais no MESMO nicho> ],
-  "doubling": [ <mesmo formato — como replicar o formato em OUTROS nichos> ],
-  "market": [ <mesmo formato — adaptação/tradução para outros mercados/idiomas> ]
-}`,
+  "doubling": {
+    "summary": "<1 frase: como transpor o formato para outros nichos>",
+    "items": [ <mesmo formato dos itens de ideas, 4 itens — cada um em um nicho DIFERENTE> ]
+  },
+  "market": [ <mesmo formato dos itens de ideas, 2-3 itens — adaptação/tradução para outros mercados/idiomas> ]
+}
+Blocos "ideas" com 3 itens.`,
     })
     res.json(result)
   } catch (err) {

@@ -19,9 +19,11 @@ const emptyState = () => ({
   videos: [],
   scripts: [],
   seoReports: [],
+  boardSpaces: [],
   boardColumns: [],
   boardCards: [],
   checklistItems: [],
+  savedViralVideos: [],
   referenceFolders: [],
   referenceChannels: [],
   promptCategories: [],
@@ -52,10 +54,11 @@ function seed(base) {
   }
   if (s.removedChannels.length === 0) {
     s.removedChannels = [
-      { id: crypto.randomUUID(), name: 'Mistérios do Abismo', niche: 'Mistério/Terror', subs: 412000, removedAt: '2026-03-14', verified: true },
-      { id: crypto.randomUUID(), name: 'War Files BR', niche: 'Guerra/História', subs: 890000, removedAt: '2026-01-28', verified: true },
-      { id: crypto.randomUUID(), name: 'Dark Finanças', niche: 'Finanças', subs: 156000, removedAt: '2025-11-02', verified: false },
-      { id: crypto.randomUUID(), name: 'Contos Sombrios', niche: 'Storytelling', subs: 2300000, removedAt: '2025-09-19', verified: true },
+      { id: crypto.randomUUID(), name: 'Mistérios do Abismo', niche: 'True Crime', subs: 412000, videos: 113, removedAt: '2026-06-14', verified: true },
+      { id: crypto.randomUUID(), name: 'War Files BR', niche: 'Military', subs: 890000, videos: 82, removedAt: '2026-05-28', verified: true },
+      { id: crypto.randomUUID(), name: 'Dark Finanças', niche: 'Personal Finance', subs: 156000, videos: 31, removedAt: '2026-04-02', verified: false },
+      { id: crypto.randomUUID(), name: 'Contos Sombrios', niche: 'Relationships', subs: 2300000, videos: 54, removedAt: '2026-02-19', verified: true },
+      { id: crypto.randomUUID(), name: 'Bio Health Lab', niche: 'Self-Improvement', subs: 70300, videos: 19, removedAt: '2026-01-21', verified: false },
     ]
   }
   return s

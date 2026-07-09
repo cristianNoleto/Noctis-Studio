@@ -1,36 +1,49 @@
 import { useState } from 'react'
-import { Search, Loader2, TrendingUp, Star, ExternalLink, Zap } from 'lucide-react'
+import { Search, Loader2, TrendingUp, Bookmark, X, SlidersHorizontal, BarChart3, Target, Lightbulb, Trash2, ExternalLink } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
-import { inputCls, btnPrimary, EmptyState, formatCompact } from '../components/ui'
+import { inputCls, formatCompact } from '../components/ui'
+import { Field } from './channels/ChannelsList'
 
 const PERIODS = [
-  ['24h', 'Últimas 24h'],
-  ['7d', '7 dias'],
-  ['30d', '30 dias'],
   ['', 'Qualquer data'],
+  ['24h', 'Últimas 24 horas'],
+  ['7d', 'Últimos 7 dias'],
+  ['30d', 'Últimos 30 dias'],
 ]
+
+const initialFilters = { q: '', period: '', durMinSec: 300, after: '', before: '', minViews: '' }
 
 export default function ViralVideos() {
   const db = useDb()
-  const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-  const [period, setPeriod] = useState('7d')
-  const [minViews, setMinViews] = useState('')
-  const [durMin, setDurMin] = useState('')
-  const [durMax, setDurMax] = useState('')
+  const [filters, setFilters] = useState(initialFilters)
+  const [tab, setTab] = useState('search')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState(null)
-  const [savedIds, setSavedIds] = useState({})
+
+  const saved = db.all('savedViralVideos')
+
+  function set(k, v) {
+    setFilters((f) => ({ ...f, [k]: v }))
+  }
 
   async function search(e) {
     e?.preventDefault()
+    if (!filters.q.trim()) return
+    setTab('search')
     setLoading(true)
     setError('')
     try {
-      const { results } = await api.youtube.viralVideos({ q: query.trim(), period, minViews, durMin, durMax })
+      const { results } = await api.youtube.viralVideos({
+        q: filters.q.trim(),
+        period: filters.period,
+        durMinSec: filters.durMinSec || '',
+        after: filters.after,
+        before: filters.before,
+        minViews: filters.minViews,
+      })
       setResults(results)
     } catch (err) {
       setError(apiErrorMessage(err))
@@ -39,19 +52,178 @@ export default function ViralVideos() {
     }
   }
 
-  // "Salvar" cria um card automaticamente no Quadro de Ideias.
-  function saveToBoard(video) {
-    const columns = [...db.all('boardColumns')].sort((a, b) => a.position - b.position)
-    if (!columns.length) return
-    db.insert('boardCards', {
-      columnId: columns[0].id,
-      title: video.title,
-      color: '#2f3d4b',
-      position: db.all('boardCards').filter((c) => c.columnId === columns[0].id).length,
-      source: 'viral_videos',
-      source_ref: { videoId: video.id, channelTitle: video.channelTitle, views: video.views },
-    })
-    setSavedIds((s) => ({ ...s, [video.id]: true }))
+  return (
+    <div className="mx-auto max-w-6xl space-y-5">
+      {/* Cabeçalho */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
+          <TrendingUp size={22} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Vídeos Virais</h1>
+          <p className="text-sm text-slate-500">
+            Busca avançada com filtros de duração, data de publicação e métricas. Configure a duração mínima para controlar o tipo de conteúdo.
+          </p>
+        </div>
+      </div>
+
+      {/* Filtros de busca */}
+      <form onSubmit={search} className="rounded-xl border border-t-2 border-slate-800 border-t-cyan-500/60 bg-slate-900/40 p-5">
+        <p className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-200">
+          <SlidersHorizontal size={15} className="text-cyan-400" />
+          Filtros de Busca
+        </p>
+
+        <Field label="PALAVRAS-CHAVE PARA BUSCA *">
+          <input
+            className={inputCls}
+            required
+            placeholder="Ex: como fazer bolo, programação python..."
+            value={filters.q}
+            onChange={(e) => set('q', e.target.value)}
+          />
+        </Field>
+
+        <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3.5 py-2.5 text-xs text-slate-400">
+          💡 <b className="text-slate-300">Dica:</b> pesquise usando palavras-chave no idioma dos vídeos que deseja encontrar (Ex: "how to cook" para
+          inglês, "como cozinhar" para português)
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <Field label="PUBLICADO HÁ">
+            <select className={inputCls} value={filters.period} onChange={(e) => set('period', e.target.value)}>
+              {PERIODS.map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="DURAÇÃO MÍNIMA (SEG)">
+            <input className={inputCls} type="number" min="0" value={filters.durMinSec} onChange={(e) => set('durMinSec', e.target.value)} />
+          </Field>
+          <Field label="PUBLICADO APÓS">
+            <input className={inputCls} type="date" value={filters.after} onChange={(e) => set('after', e.target.value)} />
+          </Field>
+          <Field label="PUBLICADO ANTES">
+            <input className={inputCls} type="date" value={filters.before} onChange={(e) => set('before', e.target.value)} />
+          </Field>
+          <Field label="VISUALIZAÇÕES MÍNIMAS">
+            <input className={inputCls} type="number" min="0" placeholder="Ex: 10000" value={filters.minViews} onChange={(e) => set('minViews', e.target.value)} />
+          </Field>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="submit" disabled={loading} className="flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-50">
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+            Buscar Vídeos →
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFilters(initialFilters)
+              setResults(null)
+              setError('')
+            }}
+            className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800"
+          >
+            <X size={14} />
+            Limpar Filtros
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3.5 py-2.5 text-xs text-slate-400">
+          <p>
+            <TrendingUp size={12} className="mr-1.5 inline text-cyan-400" />
+            <b className="text-cyan-300">Busca inteligente:</b> vídeos com mais visualizações primeiro (máx: 25)
+          </p>
+          <p className="mt-1 text-[10px] text-slate-500">
+            Engajamento = views do vídeo ÷ inscritos do canal · quanto maior, mais desproporcional (viral) é o alcance 🔥
+          </p>
+        </div>
+      </form>
+
+      {/* Abas */}
+      <div className="flex gap-1 border-b border-slate-800">
+        <TabBtn active={tab === 'search'} onClick={() => setTab('search')} icon={<Search size={13} />} label="Buscar Vídeos" />
+        <TabBtn active={tab === 'saved'} onClick={() => setTab('saved')} icon={<Bookmark size={13} />} label={`Vídeos Salvos (${saved.length})`} />
+      </div>
+
+      {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
+
+      {tab === 'search' && (
+        <>
+          {loading && (
+            <div className="flex flex-col items-center py-16">
+              <Loader2 size={28} className="animate-spin text-cyan-400" />
+              <p className="mt-3 text-sm text-slate-500">Calculando VPH e engajamento...</p>
+            </div>
+          )}
+
+          {!loading && results === null && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/30 px-6 py-16 text-center">
+              <div className="text-5xl">🎯</div>
+              <p className="mt-5 text-lg font-bold text-slate-100">Pronto para descobrir vídeos virais?</p>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
+                Use a busca acima para encontrar oportunidades de conteúdo, analisar concorrentes ou identificar tendências no seu nicho
+              </p>
+              <div className="mx-auto mt-8 flex w-fit gap-8 rounded-xl border border-slate-800 bg-slate-950 px-8 py-4">
+                <MiniFeature icon={<Search size={18} className="text-cyan-400" />} label="Busque por nicho" />
+                <MiniFeature icon={<BarChart3 size={18} className="text-emerald-400" />} label="Analise métricas" />
+                <MiniFeature icon={<Target size={18} className="text-red-400" />} label="Encontre oportunidades" />
+              </div>
+            </div>
+          )}
+
+          {!loading && results !== null && <ResultsGrid videos={results} />}
+        </>
+      )}
+
+      {tab === 'saved' &&
+        (saved.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-800 px-6 py-16 text-center">
+            <Bookmark size={26} className="mx-auto text-slate-600" />
+            <p className="mt-3 text-sm text-slate-500">Nenhum vídeo salvo ainda — use o botão "Salvar" nos resultados da busca.</p>
+          </div>
+        ) : (
+          <ResultsGrid videos={saved.map((s) => s.video)} />
+        ))}
+    </div>
+  )
+}
+
+function TabBtn({ active, onClick, icon, label }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+        active ? 'border-cyan-500 text-cyan-300' : 'border-transparent text-slate-500 hover:text-slate-300'
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+function MiniFeature({ icon, label }) {
+  return (
+    <div className="flex w-24 flex-col items-center gap-2 text-center">
+      {icon}
+      <span className="text-[10px] leading-tight text-slate-500">{label}</span>
+    </div>
+  )
+}
+
+function ResultsGrid({ videos }) {
+  const db = useDb()
+  const navigate = useNavigate()
+  const saved = db.all('savedViralVideos')
+
+  function toggleSave(video) {
+    const existing = saved.find((s) => s.video.id === video.id)
+    if (existing) db.remove('savedViralVideos', existing.id)
+    else db.insert('savedViralVideos', { video })
   }
 
   function engagementColor(e) {
@@ -63,116 +235,74 @@ export default function ViralVideos() {
 
   function fmtDuration(s) {
     const m = Math.floor(s / 60)
-    const sec = String(s % 60).padStart(2, '0')
-    return `${m}:${sec}`
+    return `${m}:${String(s % 60).padStart(2, '0')}`
+  }
+
+  if (videos.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-800 px-6 py-14 text-center">
+        <Lightbulb size={24} className="mx-auto text-slate-600" />
+        <p className="mt-3 text-sm text-slate-500">Nada encontrado — ajuste os filtros ou tente outro termo.</p>
+      </div>
+    )
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-100">Vídeos Virais</h1>
-        <p className="mt-1 text-sm text-slate-500">Veja o que está bombando agora — VPH e engajamento calculados de dados reais.</p>
-      </div>
-
-      <form onSubmit={search} className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input className={`${inputCls} !pl-9`} placeholder="Busca livre (tema, nicho, palavra-chave)" value={query} onChange={(e) => setQuery(e.target.value)} />
-          </div>
-          <button type="submit" className={`${btnPrimary} flex shrink-0 items-center gap-2`} disabled={loading}>
-            {loading ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />}
-            Buscar
-          </button>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <select className={inputCls} value={period} onChange={(e) => setPeriod(e.target.value)}>
-            {PERIODS.map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-          <input className={inputCls} type="number" placeholder="Views mínimas" value={minViews} onChange={(e) => setMinViews(e.target.value)} />
-          <input className={inputCls} type="number" placeholder="Duração mín. (min)" value={durMin} onChange={(e) => setDurMin(e.target.value)} />
-          <input className={inputCls} type="number" placeholder="Duração máx. (min)" value={durMax} onChange={(e) => setDurMax(e.target.value)} />
-        </div>
-      </form>
-
-      {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
-
-      {results === null && !loading && !error && (
-        <EmptyState icon={TrendingUp} title="Busque vídeos em alta" description="Filtre por período, duração e views mínimas. Requer chaves da YouTube API em Perfil → APIs." />
-      )}
-
-      {loading && (
-        <div className="flex flex-col items-center py-16">
-          <Loader2 size={28} className="animate-spin text-cyan-400" />
-          <p className="mt-3 text-sm text-slate-500">Calculando VPH e engajamento...</p>
-        </div>
-      )}
-
-      {results !== null && !loading && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {results.map((v) => (
-            <div key={v.id} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-cyan-500/40">
-              <div className="relative">
-                {v.thumbnail && <img src={v.thumbnail} alt="" className="aspect-video w-full object-cover" />}
-                <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
-                  {fmtDuration(v.durationSeconds)}
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {videos.map((v) => {
+        const isSaved = saved.some((s) => s.video.id === v.id)
+        return (
+          <div key={v.id} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-cyan-500/40">
+            <div className="relative">
+              {v.thumbnail && <img src={v.thumbnail} alt="" className="aspect-video w-full object-cover" />}
+              <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                {fmtDuration(v.durationSeconds)}
+              </span>
+            </div>
+            <div className="p-4">
+              <a
+                href={`https://youtube.com/watch?v=${v.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="line-clamp-2 text-sm font-semibold leading-snug text-slate-100 hover:text-cyan-300"
+              >
+                {v.title}
+              </a>
+              <p className="mt-1 text-xs text-slate-500">
+                {v.channelTitle} · {formatCompact(v.channelSubs)} inscritos
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <MetricPill label="VIEWS" value={formatCompact(v.views)} />
+                <MetricPill label="VPH" value={formatCompact(v.vph)} />
+                <span
+                  title="Views do vídeo ÷ inscritos do canal"
+                  className={`ml-auto flex h-10 w-10 items-center justify-center rounded-full border-2 text-[10px] font-bold ${engagementColor(v.engagement)}`}
+                >
+                  {v.engagement != null ? `${v.engagement}x` : '—'}
                 </span>
               </div>
-              <div className="p-4">
-                <a
-                  href={`https://youtube.com/watch?v=${v.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="line-clamp-2 text-sm font-semibold leading-snug text-slate-100 hover:text-cyan-300"
+              <div className="mt-3 flex gap-2 border-t border-slate-800 pt-3">
+                <button
+                  onClick={() => toggleSave(v)}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                    isSaved ? 'bg-green-500/10 text-green-400' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
                 >
-                  {v.title}
-                </a>
-                <p className="mt-1 text-xs text-slate-500">
-                  {v.channelTitle} · {formatCompact(v.channelSubs)} inscritos
-                </p>
-                <div className="mt-3 flex items-center gap-2">
-                  <MetricPill label="VIEWS" value={formatCompact(v.views)} />
-                  <MetricPill label="VPH" value={formatCompact(v.vph)} />
-                  <span
-                    title="Views do vídeo ÷ inscritos do canal — quanto maior, mais desproporcional (viral) é o alcance"
-                    className={`ml-auto flex h-10 w-10 items-center justify-center rounded-full border-2 text-[10px] font-bold ${engagementColor(v.engagement)}`}
-                  >
-                    {v.engagement != null ? `${v.engagement}x` : '—'}
-                  </span>
-                </div>
-                <div className="mt-3 flex gap-2 border-t border-slate-800 pt-3">
-                  <button
-                    onClick={() => saveToBoard(v)}
-                    disabled={savedIds[v.id]}
-                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
-                      savedIds[v.id] ? 'bg-green-500/10 text-green-400' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-                    }`}
-                  >
-                    <Star size={13} className={savedIds[v.id] ? 'fill-green-400' : ''} />
-                    {savedIds[v.id] ? 'Salvo no Quadro' : 'Salvar'}
-                  </button>
-                  <button
-                    onClick={() => navigate(`/dobra-de-nicho?channel=${v.channelId}`)}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-cyan-500/10 py-2 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20"
-                  >
-                    <ExternalLink size={13} />
-                    Canal
-                  </button>
-                </div>
+                  {isSaved ? <Trash2 size={13} /> : <Bookmark size={13} />}
+                  {isSaved ? 'Remover' : 'Salvar'}
+                </button>
+                <button
+                  onClick={() => navigate(`/dobra-de-nicho?channel=${v.channelId}`)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-cyan-500/10 py-2 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20"
+                >
+                  <ExternalLink size={13} />
+                  Canal
+                </button>
               </div>
             </div>
-          ))}
-          {results.length === 0 && (
-            <div className="col-span-full">
-              <EmptyState icon={TrendingUp} title="Nada encontrado" description="Ajuste os filtros ou tente outro termo." />
-            </div>
-          )}
-        </div>
-      )}
+          </div>
+        )
+      })}
     </div>
   )
 }
