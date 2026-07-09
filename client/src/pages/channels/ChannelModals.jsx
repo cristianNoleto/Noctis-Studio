@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Trash2, Plus, Copy, Star } from 'lucide-react'
+import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { Trash2, Plus, Copy, Star, GripVertical, ExternalLink, X, Loader2, Save } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, formatCompact } from '../../components/ui'
@@ -28,8 +31,10 @@ export function EditChannelModal({ open, onClose, channel }) {
         name: channel.name || '',
         language: channel.language || 'pt',
         contactEmail: channel.contactEmail || '',
-        defaultPostTime: channel.defaultPostTime || '18:00',
-        weeklyFrequency: channel.weeklyFrequency || 3,
+        // Suporta múltiplos horários de postagem (compat: defaultPostTime antigo)
+        postTimes: channel.postTimes?.length ? channel.postTimes : [channel.defaultPostTime || '18:00'],
+        frequency: channel.frequency || (channel.weeklyFrequency ? `${channel.weeklyFrequency}x por semana` : '1x por semana'),
+        postedBaseline: channel.postedBaseline ?? 0,
         notes: channel.notes || '',
       })
     }
@@ -39,14 +44,29 @@ export function EditChannelModal({ open, onClose, channel }) {
     setForm((f) => ({ ...f, [k]: v }))
   }
 
+  function setTime(i, value) {
+    set('postTimes', form.postTimes.map((t, idx) => (idx === i ? value : t)))
+  }
+
   function save(e) {
     e.preventDefault()
-    db.update('channels', channel.id, { ...form, weeklyFrequency: Number(form.weeklyFrequency) || null })
+    const postTimes = form.postTimes.filter(Boolean)
+    db.update('channels', channel.id, {
+      name: form.name,
+      language: form.language,
+      contactEmail: form.contactEmail,
+      postTimes,
+      defaultPostTime: postTimes[0] || null,
+      frequency: form.frequency,
+      postedBaseline: Number(form.postedBaseline) || 0,
+      notes: form.notes,
+    })
     onClose()
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Editar Canal" wide>
+    <Modal open={open} onClose={onClose} title="Editar Canal">
+      <p className="-mt-3 mb-5 text-xs text-slate-500">Atualize as informações do canal</p>
       <form onSubmit={save} className="space-y-4">
         <Field label="NOME DO CANAL">
           <input className={inputCls} required value={form.name || ''} onChange={(e) => set('name', e.target.value)} />
@@ -61,26 +81,58 @@ export function EditChannelModal({ open, onClose, channel }) {
               ))}
             </select>
           </Field>
-          <Field label="E-MAIL DE CONTATO">
+          <Field label="E-MAIL">
             <input className={inputCls} type="email" value={form.contactEmail || ''} onChange={(e) => set('contactEmail', e.target.value)} />
           </Field>
         </div>
+
+        <Field label="HORÁRIO DE POSTAGEM">
+          <div className="flex flex-wrap gap-2">
+            {(form.postTimes || []).map((time, i) => (
+              <div key={i} className="relative">
+                <input className={`${inputCls} !w-32 ${form.postTimes.length > 1 ? '!pr-8' : ''}`} type="time" value={time} onChange={(e) => setTime(i, e.target.value)} />
+                {form.postTimes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => set('postTimes', form.postTimes.filter((_, idx) => idx !== i))}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-red-400"
+                    title="Remover horário"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => set('postTimes', [...form.postTimes, '12:00'])}
+              title="Adicionar horário"
+              className="flex h-10 w-14 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-400 transition-colors hover:border-cyan-500/50 hover:text-cyan-400"
+            >
+              <Plus size={15} />
+            </button>
+          </div>
+        </Field>
+
         <div className="grid grid-cols-2 gap-4">
-          <Field label="HORÁRIO DE POSTAGEM">
-            <input className={inputCls} type="time" value={form.defaultPostTime || ''} onChange={(e) => set('defaultPostTime', e.target.value)} />
+          <Field label="FREQUÊNCIA DE POSTAGEM">
+            <input className={inputCls} placeholder="1x por semana" value={form.frequency || ''} onChange={(e) => set('frequency', e.target.value)} />
           </Field>
-          <Field label="POSTS POR SEMANA">
-            <input className={inputCls} type="number" min="1" max="30" value={form.weeklyFrequency || ''} onChange={(e) => set('weeklyFrequency', e.target.value)} />
+          <Field label="VÍDEOS JÁ POSTADOS">
+            <input className={inputCls} type="number" min="0" value={form.postedBaseline ?? 0} onChange={(e) => set('postedBaseline', e.target.value)} />
           </Field>
         </div>
+
         <Field label="ANOTAÇÕES">
           <textarea className={`${inputCls} min-h-20 resize-y`} value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} />
         </Field>
+
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className={btnGhost} onClick={onClose}>
             Cancelar
           </button>
-          <button type="submit" className={btnPrimary}>
+          <button type="submit" className={`${btnPrimary} flex items-center gap-2`}>
+            <Save size={14} />
             Atualizar Canal
           </button>
         </div>
@@ -276,14 +328,22 @@ export function ChannelPromptsModal({ open, onClose, channelId }) {
 }
 
 // ---------------------------------------------------------------------------
-// Canais de referência vinculados ao canal
+// Canais de referência vinculados ao canal (layout do print: lista arrastável
+// para reordenar + seção "Adicionar novo canal" com nome e URL)
 // ---------------------------------------------------------------------------
 export function ChannelReferencesModal({ open, onClose, channelId }) {
   const db = useDb()
-  const refs = db.all('referenceChannels').filter((r) => r.channelId === channelId)
+  const channel = db.get('channels', channelId)
+  const refs = db
+    .all('referenceChannels')
+    .filter((r) => r.channelId === channelId)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+
+  const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   async function add(e) {
     e.preventDefault()
@@ -294,7 +354,7 @@ export function ChannelReferencesModal({ open, onClose, channelId }) {
     try {
       cached = await api.youtube.lookupChannel(url.trim())
     } catch (err) {
-      // Sem chave/quota ainda dá pra salvar a URL crua — os dados são enriquecidos depois.
+      // Sem chave/quota ainda dá pra salvar com o nome digitado — enriquece depois.
       if (err.code === 'channel_not_found') {
         setError(apiErrorMessage(err))
         setAdding(false)
@@ -303,54 +363,101 @@ export function ChannelReferencesModal({ open, onClose, channelId }) {
     }
     db.insert('referenceChannels', {
       channelId,
-      folderId: null,
       youtubeUrl: url.trim(),
       youtubeChannelId: cached?.id || null,
-      cachedStats: cached || null,
+      cachedStats: cached || (name.trim() ? { title: name.trim() } : null),
       niche: '',
       notes: '',
+      position: refs.length,
     })
+    setName('')
     setUrl('')
     setAdding(false)
   }
 
-  return (
-    <Modal open={open} onClose={onClose} title="Canais de Referência" wide>
-      <form onSubmit={add} className="flex gap-2">
-        <input className={inputCls} placeholder="URL ou @handle do canal benchmark" value={url} onChange={(e) => setUrl(e.target.value)} />
-        <button type="submit" className={`${btnPrimary} flex shrink-0 items-center gap-1.5`} disabled={adding}>
-          <Plus size={15} />
-          Adicionar
-        </button>
-      </form>
-      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+  function onDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return
+    const oldIndex = refs.findIndex((r) => r.id === active.id)
+    const newIndex = refs.findIndex((r) => r.id === over.id)
+    arrayMove(refs, oldIndex, newIndex).forEach((r, i) => db.update('referenceChannels', r.id, { position: i }))
+  }
 
-      <ul className="mt-4 space-y-2">
-        {refs.length === 0 && <p className="py-4 text-center text-sm text-slate-600">Nenhum canal de referência vinculado.</p>}
-        {refs.map((r) => (
-          <li key={r.id} className="flex items-center gap-3 rounded-lg border border-slate-800 px-3 py-2.5">
-            {r.cachedStats?.avatar ? (
-              <img src={r.cachedStats.avatar} alt="" className="h-9 w-9 rounded-full" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-slate-400">YT</div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-slate-200">{r.cachedStats?.title || r.youtubeUrl}</p>
-              {r.cachedStats && (
-                <p className="text-[11px] text-slate-500">
-                  {formatCompact(r.cachedStats.subscribers)} inscritos · {formatCompact(r.cachedStats.views)} views
-                </p>
-              )}
-            </div>
-            <a href={r.youtubeUrl.startsWith('http') ? r.youtubeUrl : `https://youtube.com/${r.youtubeUrl}`} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:text-cyan-300">
-              Abrir
-            </a>
-            <button onClick={() => db.remove('referenceChannels', r.id)} title="Excluir" className="text-slate-600 hover:text-red-400">
-              <Trash2 size={15} />
+  return (
+    <Modal open={open} onClose={onClose} title="Canais de Referência">
+      <p className="-mt-4 text-xs text-cyan-400">{channel?.name}</p>
+      <p className="mb-4 mt-1 text-xs text-slate-500">Adicione e organize canais do YouTube como referência. Arraste para reordenar.</p>
+
+      <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400">Canais adicionados ({refs.length}):</p>
+      {refs.length === 0 && <p className="rounded-lg border border-dashed border-slate-800 py-5 text-center text-xs text-slate-600">Nenhum canal de referência ainda.</p>}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={refs.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+          <ul className="space-y-2">
+            {refs.map((r) => (
+              <SortableReferenceRow key={r.id} reference={r} onRemove={() => db.remove('referenceChannels', r.id)} />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
+
+      {/* Adicionar novo canal */}
+      <div className="mt-4 rounded-lg border border-slate-800 p-3.5">
+        <p className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-red-400">
+          <Plus size={13} />
+          Adicionar novo canal
+        </p>
+        <form onSubmit={add} className="space-y-2">
+          <input className={inputCls} placeholder="Nome do canal (ex: MKBHD)" value={name} onChange={(e) => setName(e.target.value)} />
+          <div className="flex gap-2">
+            <input className={`${inputCls} font-mono text-xs`} required placeholder="https://youtube.com/@..." value={url} onChange={(e) => setUrl(e.target.value)} />
+            <button type="submit" className={`${btnGhost} flex shrink-0 items-center gap-1.5 text-xs`} disabled={adding || !url.trim()}>
+              {adding ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              Adicionar
             </button>
-          </li>
-        ))}
-      </ul>
+          </div>
+        </form>
+        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <button className={btnGhost} onClick={onClose}>
+          Fechar
+        </button>
+      </div>
     </Modal>
+  )
+}
+
+function SortableReferenceRow({ reference: r, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+  const url = r.youtubeUrl.startsWith('http') ? r.youtubeUrl : `https://youtube.com/${r.youtubeUrl}`
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2.5 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-2.5 ${isDragging ? 'z-10 opacity-90 shadow-2xl' : ''}`}
+    >
+      <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title="Arrastar para reordenar">
+        <GripVertical size={15} />
+      </button>
+      {r.cachedStats?.avatar ? (
+        <img src={r.cachedStats.avatar} alt="" className="h-8 w-8 rounded-full" referrerPolicy="no-referrer" />
+      ) : (
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-slate-400">
+          {(r.cachedStats?.title || 'YT').charAt(0).toUpperCase()}
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-slate-100">{r.cachedStats?.title || r.youtubeUrl}</p>
+        <p className="truncate text-[10px] text-slate-500">{r.youtubeUrl}</p>
+      </div>
+      <a href={url} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300" title="Abrir no YouTube">
+        <ExternalLink size={14} />
+      </a>
+      <button onClick={onRemove} title="Remover" className="text-red-400/70 hover:text-red-400">
+        <X size={15} />
+      </button>
+    </li>
   )
 }

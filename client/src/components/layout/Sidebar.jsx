@@ -117,7 +117,7 @@ export default function Sidebar() {
                         }
                       >
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-                        <span className="truncate">{ch.name}</span>
+                        <span className="sensitive truncate">{ch.name}</span>
                       </NavLink>
                     </li>
                   ))}

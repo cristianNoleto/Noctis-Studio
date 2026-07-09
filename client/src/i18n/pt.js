@@ -101,6 +101,8 @@ export default {
       '/suporte': ['Suporte', 'Comunidade & Suporte'],
       '/api-docs': ['Suporte', 'Documentação API'],
       '/perfil': ['Conta', 'Configurações'],
+      '/ajuda': ['Suporte', 'Central de Ajuda'],
+      '/admin': ['Conta', 'Administração'],
     },
   },
   dashboard: {

@@ -25,36 +25,11 @@ import { formatCompact } from '../components/ui'
 const WHATSAPP_COMMUNITY_URL = import.meta.env.VITE_WHATSAPP_COMMUNITY_URL || ''
 const DISCORD_URL = import.meta.env.VITE_DISCORD_URL || ''
 
-const platformUpdates = [
-  {
-    id: 1,
-    tag: 'NOVO',
-    tagCls: 'bg-green-500/15 text-green-400',
-    title: 'Noctis Studio no ar',
-    date: '08 de jul. de 2026',
-    recent: true,
-    description:
-      'Primeira versão da plataforma: gestão de canais completa, editor de roteiro com tempo de narração, quadro de ideias, biblioteca de prompts e referências.',
-  },
-  {
-    id: 2,
-    tag: 'NOVO',
-    tagCls: 'bg-green-500/15 text-green-400',
-    title: 'Tendências com dados reais',
-    date: '08 de jul. de 2026',
-    description:
-      'Niche Finder, Vídeos Virais e Dobra de Nicho conectados à YouTube Data API com rotação automática de até 5 chaves e análises geradas por IA (Gemini).',
-  },
-  {
-    id: 3,
-    tag: 'MELHORIA',
-    tagCls: 'bg-cyan-500/15 text-cyan-400',
-    title: 'Ferramentas de produção',
-    date: '08 de jul. de 2026',
-    description:
-      'Transcrição de áudio, gerador de SRT por tempo de leitura, divisor de texto para CapCut e banco de mídia Pexels/Pixabay.',
-  },
-]
+const TAG_CLS = {
+  NOVO: 'bg-green-500/15 text-green-400',
+  MELHORIA: 'bg-cyan-500/15 text-cyan-400',
+  ATUALIZAÇÃO: 'bg-amber-500/15 text-amber-400',
+}
 
 function formatToday(lang) {
   const locale = lang === 'pt' ? 'pt-BR' : 'en-US'
@@ -67,9 +42,18 @@ export default function Dashboard() {
   const { lang } = useI18n()
   const db = useDb()
 
-  const channels = db.all('channels')
+  const channels = db.all('channels').filter((c) => !c.archived)
   const videos = db.all('videos')
   const transcriptions = db.all('transcriptions')
+  // Novidades vêm do banco local — o admin gerencia em /admin
+  const platformUpdates = [...db.all('platformUpdates')]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((u, i) => ({
+      ...u,
+      recent: i === 0,
+      tagCls: TAG_CLS[u.tag] || TAG_CLS.NOVO,
+      date: new Date(u.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }),
+    }))
 
   const inProduction = videos.filter((v) => v.status === 'production').length
   const published = videos.filter((v) => v.status === 'published').length
@@ -265,7 +249,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-3">
                     <ChannelAvatar channel={ch} />
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-100">{ch.name}</p>
+                      <p className="sensitive truncate font-semibold text-slate-100">{ch.name}</p>
                       {ch.ytStatsUpdatedAt && (
                         <p className="text-[11px] text-slate-500">
                           Atualizado há {Math.max(1, Math.round((Date.now() - ch.ytStatsUpdatedAt) / 60000))}min
@@ -274,8 +258,8 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-3 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
-                    <Stat icon={Users} label="SUBS" value={formatCompact(ch.ytSubscribers)} />
-                    <Stat icon={Eye} label="VIEWS" value={formatCompact(ch.ytTotalViews)} />
+                    <Stat icon={Users} label="SUBS" value={formatCompact(ch.ytSubscribers)} sensitive />
+                    <Stat icon={Eye} label="VIEWS" value={formatCompact(ch.ytTotalViews)} sensitive />
                     <Stat icon={Film} label="VÍDEOS" value={chVideos.length} />
                   </div>
                 </Link>
@@ -299,10 +283,10 @@ export function ChannelAvatar({ channel, size = 'h-10 w-10' }) {
   )
 }
 
-function Stat({ icon: Icon, label, value }) {
+function Stat({ icon: Icon, label, value, sensitive }) {
   return (
     <div>
-      <p className="flex items-center justify-center gap-1 text-sm font-bold text-slate-200">
+      <p className={`flex items-center justify-center gap-1 text-sm font-bold text-slate-200 ${sensitive ? 'sensitive' : ''}`}>
         <Icon size={12} className="text-slate-500" />
         {value ?? 0}
       </p>

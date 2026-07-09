@@ -54,9 +54,17 @@ const VIEW_RANGES = [
   ['200000-', '200K+/vídeo'],
 ]
 
-function flagEmoji(country) {
+// Bandeira em imagem — emoji de bandeira não renderiza no Windows
+function CountryFlag({ country }) {
   if (!country || country.length !== 2) return null
-  return String.fromCodePoint(...[...country.toUpperCase()].map((c) => 0x1f1a5 + c.charCodeAt(0)))
+  return (
+    <img
+      src={`https://flagcdn.com/w40/${country.toLowerCase()}.png`}
+      alt={country}
+      className="absolute -right-1 -top-1 h-3 w-4 rounded-[2px] border border-slate-950 object-cover"
+      loading="lazy"
+    />
+  )
 }
 
 function timeAgo(ts) {
@@ -318,7 +326,6 @@ export default function NicheFinder() {
 
 function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling, cacheTs }) {
   const badge = TREND_TABS.slice(1).find((t) => t.test(c))
-  const flag = flagEmoji(c.country)
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-cyan-500/40">
@@ -332,7 +339,7 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
             ) : (
               <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 font-bold text-slate-300">{c.title?.charAt(0)}</div>
             )}
-            {flag && <span className="absolute -right-1 -top-1 text-xs">{flag}</span>}
+            <CountryFlag country={c.country} />
           </div>
           <div className="min-w-0 flex-1">
             <button onClick={onOpenDoubling} className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title="Analisar na Dobra de Nicho">

@@ -4,7 +4,7 @@ import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, 
 import { useDb } from '../lib/db'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
 
-const COLUMN_COLORS = ['#22d3ee', '#f59e0b', '#22c55e', '#38bdf8', '#ef4444', '#ec4899']
+const COLUMN_COLORS = ['#00f2fe', '#f59e0b', '#22c55e', '#00b8cc', '#ef4444', '#ec4899']
 
 export default function IdeaBoard() {
   const db = useDb()
@@ -128,7 +128,7 @@ function Column({ column, cards, onRename, onDelete }) {
     >
       {/* Header da coluna */}
       <div className="flex items-center gap-2 border-b border-slate-800 px-3.5 py-3">
-        <span className="h-4 w-1 rounded-full" style={{ background: column.color || '#22d3ee' }} />
+        <span className="h-4 w-1 rounded-full" style={{ background: column.color || '#00f2fe' }} />
         <p className="truncate text-xs font-bold uppercase tracking-wide text-slate-200">{column.title}</p>
         <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{cards.length}</span>
         <div className="ml-auto flex items-center gap-1">

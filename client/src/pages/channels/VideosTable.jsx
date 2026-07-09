@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
+import { importChannelVideos } from '../../lib/importVideos'
 import { Modal, inputCls, btnPrimary, btnGhost, ScoreRing, ConfirmDialog, EmptyState } from '../../components/ui'
 import { Field } from './ChannelsList'
 import ScriptDrawer from './ScriptDrawer'
@@ -48,8 +49,6 @@ export const STEPS = [
   ['renderizado', 'Renderizado'],
   ['publicado', 'Publicado'],
 ]
-
-const ALL_STEPS_DONE = Object.fromEntries(STEPS.map(([k]) => [k, true]))
 
 function matchesTab(video, tab) {
   if (tab === 'all') return true
@@ -91,40 +90,7 @@ export default function VideosTable({ channelId, channel }) {
     setImporting(true)
     setImportError('')
     try {
-      const all = []
-      let token = ''
-      do {
-        setImportMsg(`Buscando vídeos publicados... (${all.length})`)
-        const { videos: page, nextPageToken } = await api.youtube.channelVideos(channel.youtubeChannelId, token)
-        all.push(...page)
-        token = nextPageToken
-      } while (token)
-
-      // Mais antigo = Vídeo 1
-      all.sort((a, b) => new Date(a.publishedAt) - new Date(b.publishedAt))
-      const existingIds = new Set(videos.map((v) => v.ytVideoId).filter(Boolean))
-      const maxNumber = Math.max(0, ...videos.map((v) => v.videoNumber || 0))
-      let n = 0
-      let inserted = 0
-      for (const v of all) {
-        n++
-        if (!v.id || existingIds.has(v.id)) continue
-        inserted++
-        db.insert('videos', {
-          channelId,
-          ytVideoId: v.id,
-          title: v.title,
-          thumbnailUrl: v.thumbnail,
-          publishedAt: v.publishedAt,
-          youtubeUrl: `https://youtube.com/watch?v=${v.id}`,
-          status: 'published',
-          imported: true,
-          steps: { ...ALL_STEPS_DONE },
-          // Sem numeração local prévia, o mais antigo do YouTube vira "Vídeo 1";
-          // com numeração existente, continua a partir do maior número.
-          videoNumber: maxNumber > 0 ? maxNumber + inserted : n,
-        })
-      }
+      const inserted = await importChannelVideos(channelId, channel.youtubeChannelId, setImportMsg)
       setImportMsg(inserted > 0 ? `${inserted} vídeo${inserted > 1 ? 's' : ''} importado${inserted > 1 ? 's' : ''} do YouTube ✓` : 'Nenhum vídeo novo para importar.')
       setTimeout(() => setImportMsg(''), 4000)
     } catch (err) {
@@ -307,7 +273,7 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
 
       {/* Título + etapas */}
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-slate-100">{v.title}</p>
+        <p className="sensitive truncate font-semibold text-slate-100">{v.title}</p>
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
           {STEPS.map(([key, label]) => {
             const done = !!v.steps?.[key]
@@ -382,7 +348,7 @@ function RowBtn({ children, title, onClick, danger }) {
 const KANBAN_COLUMNS = [
   ['planning', 'Planejamento', '#94a3b8'],
   ['production', 'Produção', '#f59e0b'],
-  ['finished', 'Finalizado', '#22d3ee'],
+  ['finished', 'Finalizado', '#00f2fe'],
   ['scheduled_published', 'Agendado/Publicado', '#a855f7'],
 ]
 
@@ -434,7 +400,7 @@ function KanbanCard({ video: v, onOpenScript }) {
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={`cursor-grab rounded-lg border border-slate-800 bg-slate-950 p-2.5 active:cursor-grabbing ${isDragging ? 'opacity-80 shadow-2xl' : ''}`}>
       {v.thumbnailUrl && <img src={v.thumbnailUrl} alt="" className="mb-2 aspect-video w-full rounded object-cover" loading="lazy" />}
-      <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-200">{v.title}</p>
+      <p className="sensitive line-clamp-2 text-xs font-medium leading-snug text-slate-200">{v.title}</p>
       <div className="mt-1.5 flex items-center justify-between">
         {v.videoNumber != null && <span className="text-[9px] text-slate-600">Vídeo {v.videoNumber}</span>}
         <button
@@ -462,7 +428,9 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
     if (open) {
       setForm({
         title: video?.title || '',
+        thumbnailConcept: video?.thumbnailConcept || '',
         description: video?.description || '',
+        postDate: video?.publishedAt ? String(video.publishedAt).slice(0, 10) : '',
         tags: (video?.tags || []).join(', '),
         thumbnailUrl: video?.thumbnailUrl || '',
         status: video?.status || 'planning',
@@ -478,7 +446,9 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
     e.preventDefault()
     const payload = {
       title: form.title,
+      thumbnailConcept: form.thumbnailConcept || null,
       description: form.description,
+      publishedAt: form.postDate ? `${form.postDate}T12:00:00Z` : video?.publishedAt || null,
       tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
       thumbnailUrl: form.thumbnailUrl || null,
       status: form.status,
@@ -489,14 +459,40 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={video ? 'Editar Vídeo' : 'Novo Título'} wide>
+    <Modal open={open} onClose={onClose} title={video ? 'Editar Vídeo' : 'Novo Título/Vídeo'} wide>
+      <p className="-mt-3 mb-5 text-xs text-slate-500">{video ? 'Atualize as informações do vídeo' : 'Criar um novo vídeo para o canal'}</p>
       <form onSubmit={save} className="space-y-4">
-        <Field label="TÍTULO *">
-          <input className={inputCls} required value={form.title || ''} onChange={(e) => set('title', e.target.value)} />
-        </Field>
-        <Field label="DESCRIÇÃO">
-          <textarea className={`${inputCls} min-h-20 resize-y`} value={form.description || ''} onChange={(e) => set('description', e.target.value)} />
-        </Field>
+        <div>
+          <div className="mb-1.5 flex items-end justify-between">
+            <label className="block text-xs font-semibold tracking-wide text-slate-400">TÍTULO *</label>
+            <span className="text-[10px] text-slate-600">{(form.title || '').length}/100</span>
+          </div>
+          <input className={inputCls} required maxLength={100} placeholder="Digite o título do vídeo" value={form.title || ''} onChange={(e) => set('title', e.target.value)} />
+        </div>
+
+        <div>
+          <div className="mb-1.5 flex items-end justify-between">
+            <label className="block text-xs font-semibold tracking-wide text-slate-400">THUMBNAIL</label>
+            <span className="text-[10px] text-slate-600">{(form.thumbnailConcept || '').length}</span>
+          </div>
+          <input className={inputCls} placeholder="Descrição ou conceito da thumbnail" value={form.thumbnailConcept || ''} onChange={(e) => set('thumbnailConcept', e.target.value)} />
+        </div>
+
+        <div>
+          <div className="mb-1.5 flex items-end justify-between">
+            <label className="block text-xs font-semibold tracking-wide text-slate-400">DESCRIÇÃO</label>
+            <span className="text-[10px] text-slate-600">{(form.description || '').length}/5000</span>
+          </div>
+          <textarea className={`${inputCls} min-h-24 resize-y`} maxLength={5000} placeholder="Descrição do vídeo..." value={form.description || ''} onChange={(e) => set('description', e.target.value)} />
+        </div>
+
+        <div>
+          <Field label="DATA DE POSTAGEM">
+            <input className={inputCls} type="date" value={form.postDate || ''} onChange={(e) => set('postDate', e.target.value)} />
+          </Field>
+          <p className="mt-1 text-[10px] text-slate-600">Deixe vazio para definir automaticamente ao marcar como Agendado/Publicado</p>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <Field label="TAGS (separadas por vírgula)">
             <input className={inputCls} value={form.tags || ''} onChange={(e) => set('tags', e.target.value)} />
@@ -519,7 +515,7 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
             Cancelar
           </button>
           <button type="submit" className={btnPrimary}>
-            {video ? 'Salvar' : 'Criar Título'}
+            {video ? '💾 Salvar' : '💾 Criar'}
           </button>
         </div>
       </form>

@@ -129,16 +129,17 @@ export default function AuthShell({ children }) {
       <div className="relative flex w-full flex-col items-center justify-center px-6 py-12 lg:w-1/2">
         <div className="absolute right-6 top-6 flex gap-1 rounded-lg border border-slate-800 bg-slate-900 p-1 text-sm">
           {[
-            { code: 'pt', label: '🇧🇷 PT' },
-            { code: 'en', label: '🇺🇸 EN' },
-          ].map(({ code, label }) => (
+            { code: 'pt', flag: 'br', label: 'PT' },
+            { code: 'en', flag: 'us', label: 'EN' },
+          ].map(({ code, flag, label }) => (
             <button
               key={code}
               onClick={() => setLang(code)}
-              className={`rounded-md px-2.5 py-1 transition-colors ${
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors ${
                 lang === code ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
+              <img src={`https://flagcdn.com/w40/${flag}.png`} alt="" className="h-3.5 w-5 rounded-[2px] object-cover" />
               {label}
             </button>
           ))}

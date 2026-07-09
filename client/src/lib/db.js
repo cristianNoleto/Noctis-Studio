@@ -31,6 +31,8 @@ const emptyState = () => ({
   transcriptions: [],
   nicheAnalyses: [],
   removedChannels: [],
+  platformUpdates: [],
+  academyContent: [],
   settings: {},
 })
 
@@ -38,10 +40,10 @@ function seed(base) {
   const s = { ...emptyState(), ...base }
   if (s.boardColumns.length === 0) {
     s.boardColumns = [
-      { id: crypto.randomUUID(), title: 'Ideias', color: '#22d3ee', position: 0 },
+      { id: crypto.randomUUID(), title: 'Ideias', color: '#00f2fe', position: 0 },
       { id: crypto.randomUUID(), title: 'Em Roteirização', color: '#f59e0b', position: 1 },
       { id: crypto.randomUUID(), title: 'Aprovados', color: '#22c55e', position: 2 },
-      { id: crypto.randomUUID(), title: 'Publicados', color: '#38bdf8', position: 3 },
+      { id: crypto.randomUUID(), title: 'Publicados', color: '#00b8cc', position: 3 },
     ]
   }
   if (s.promptCategories.length === 0) {
@@ -59,6 +61,42 @@ function seed(base) {
       { id: crypto.randomUUID(), name: 'Dark Finanças', niche: 'Personal Finance', subs: 156000, videos: 31, removedAt: '2026-04-02', verified: false },
       { id: crypto.randomUUID(), name: 'Contos Sombrios', niche: 'Relationships', subs: 2300000, videos: 54, removedAt: '2026-02-19', verified: true },
       { id: crypto.randomUUID(), name: 'Bio Health Lab', niche: 'Self-Improvement', subs: 70300, videos: 19, removedAt: '2026-01-21', verified: false },
+    ]
+  }
+  if (s.platformUpdates.length === 0) {
+    const base = Date.now()
+    s.platformUpdates = [
+      {
+        id: crypto.randomUUID(),
+        tag: 'NOVO',
+        title: 'Noctis Studio no ar',
+        description:
+          'Primeira versão da plataforma: gestão de canais completa, editor de roteiro com tempo de narração, quadro de ideias, biblioteca de prompts e referências.',
+        createdAt: base - 2 * 86_400_000,
+      },
+      {
+        id: crypto.randomUUID(),
+        tag: 'NOVO',
+        title: 'Tendências com dados reais',
+        description:
+          'Niche Finder, Vídeos Virais e Dobra de Nicho conectados à YouTube Data API com rotação automática de até 5 chaves e análises geradas por IA.',
+        createdAt: base - 86_400_000,
+      },
+      {
+        id: crypto.randomUUID(),
+        tag: 'MELHORIA',
+        title: 'Modo privado e tema claro',
+        description: 'Use o olho no topo para esconder nomes e números (gravações de tela) e a lua para alternar o tema.',
+        createdAt: base,
+      },
+    ]
+  }
+  if (s.academyContent.length === 0) {
+    s.academyContent = [
+      { id: crypto.randomUUID(), title: 'Primeiros passos no Noctis Studio', description: 'Tour completo pela plataforma: canais, pipeline de vídeos e roteiros.', embedUrl: '', position: 0 },
+      { id: crypto.randomUUID(), title: 'Como usar tags e prompts recomendados', description: 'Monte sua biblioteca de prompts e vincule aos canais.', embedUrl: '', position: 1 },
+      { id: crypto.randomUUID(), title: 'Dobra de nicho na prática', description: 'Do canal semente ao grafo: replicando formatos vencedores.', embedUrl: '', position: 2 },
+      { id: crypto.randomUUID(), title: 'Rotação de chaves da YouTube API', description: 'Configure 5 chaves e nunca mais pare por cota estourada.', embedUrl: '', position: 3 },
     ]
   }
   return s

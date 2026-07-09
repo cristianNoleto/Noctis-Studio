@@ -20,6 +20,8 @@ import TextTools from './pages/TextTools'
 import Academy from './pages/Academy'
 import Support from './pages/Support'
 import ComingSoon from './pages/ComingSoon'
+import Help from './pages/Help'
+import Admin from './pages/Admin'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -61,6 +63,8 @@ export default function App() {
         <Route path="/transcricao" element={<Transcription />} />
         <Route path="/ferramentas-texto" element={<TextTools />} />
         <Route path="/academia" element={<Academy />} />
+        <Route path="/ajuda" element={<Help />} />
+        <Route path="/admin" element={<Admin />} />
         <Route path="/suporte" element={<Support />} />
         <Route path="/text-to-speech" element={<ComingSoon phase={8} feature="Text to Speech" />} />
         <Route path="/app" element={<ComingSoon phase={8} feature="Noctis App (desktop)" />} />

@@ -5,6 +5,12 @@ const AuthContext = createContext(null)
 
 const LOCAL_SESSION_KEY = 'dp_local_session'
 const LOCAL_USERS_KEY = 'dp_local_users'
+const LOCAL_ADMIN_KEY = 'dp_local_admin'
+
+// Modo local: a primeira conta criada vira o administrador da instalação.
+function ensureLocalAdmin(email) {
+  if (!localStorage.getItem(LOCAL_ADMIN_KEY)) localStorage.setItem(LOCAL_ADMIN_KEY, email)
+}
 
 function readLocalSession() {
   try {
@@ -20,7 +26,9 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (isLocalMode) {
-      setUser(readLocalSession())
+      const session = readLocalSession()
+      if (session?.email) ensureLocalAdmin(session.email)
+      setUser(session)
       setLoading(false)
       return
     }
@@ -43,6 +51,7 @@ export function AuthProvider({ children }) {
       }
       const session = { email, name: found.name, plan: 'MASTER' }
       localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(session))
+      ensureLocalAdmin(email)
       setUser(session)
       return
     }
@@ -57,6 +66,7 @@ export function AuthProvider({ children }) {
       localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users))
       const session = { email, name, plan: 'MASTER' }
       localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(session))
+      ensureLocalAdmin(email)
       setUser(session)
       return
     }
@@ -98,9 +108,12 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
   }, [])
 
+  // Admin: no modo local é a primeira conta criada; no Supabase virá de app_metadata.
+  const isAdmin = isLocalMode ? !!user?.email && localStorage.getItem(LOCAL_ADMIN_KEY) === user.email : !!user?.isAdmin
+
   const value = useMemo(
-    () => ({ user, loading, signIn, signUp, signInWithGoogle, resetPassword, signOut, isLocalMode }),
-    [user, loading, signIn, signUp, signInWithGoogle, resetPassword, signOut],
+    () => ({ user, loading, signIn, signUp, signInWithGoogle, resetPassword, signOut, isLocalMode, isAdmin }),
+    [user, loading, signIn, signUp, signInWithGoogle, resetPassword, signOut, isAdmin],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

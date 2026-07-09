@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Tv, Search, Loader2, Users, Eye, Film } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
+import { importChannelVideos } from '../../lib/importVideos'
 import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, formatCompact } from '../../components/ui'
 import { ChannelAvatar } from '../Dashboard'
 
@@ -86,12 +87,12 @@ export default function ChannelsList() {
               <Link
                 key={ch.id}
                 to={`/canais/${ch.id}`}
-                className="group rounded-xl border border-slate-800 bg-slate-900/40 p-5 transition-colors hover:border-cyan-500/50"
+                className="group card-hover rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-cyan-500/50"
               >
                 <div className="flex items-center gap-3">
                   <ChannelAvatar channel={ch} size="h-12 w-12" />
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-slate-100 group-hover:text-cyan-300">{ch.name}</p>
+                    <p className="sensitive truncate font-semibold text-slate-100 group-hover:text-cyan-300">{ch.name}</p>
                     <div className="mt-0.5 flex items-center gap-2">
                       <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold text-red-400">YouTube</span>
                       <span className="text-xs text-slate-500">{LANGUAGES.find(([c]) => c === ch.language)?.[1] || ch.language}</span>
@@ -132,6 +133,8 @@ export function CreateChannelModal({ open, onClose }) {
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState('')
   const [imported, setImported] = useState(null)
+  const [creating, setCreating] = useState(false)
+  const [creatingMsg, setCreatingMsg] = useState('')
 
   const [form, setForm] = useState({
     name: '',
@@ -161,21 +164,38 @@ export function CreateChannelModal({ open, onClose }) {
     }
   }
 
-  function handleCreate(e) {
+  async function handleCreate(e) {
     e.preventDefault()
-    db.insert('channels', {
+    if (creating) return
+    const channel = db.insert('channels', {
       name: form.name,
       language: form.language,
       contactEmail: form.contactEmail,
       defaultPostTime: form.defaultPostTime,
+      postTimes: [form.defaultPostTime].filter(Boolean),
       weeklyFrequency: Number(form.weeklyFrequency) || null,
       notes: form.notes,
       avatarUrl: imported?.avatar || null,
       youtubeChannelId: imported?.id || null,
       ytSubscribers: imported?.subscribers ?? null,
       ytTotalViews: imported?.views ?? null,
+      ytVideoCount: imported?.videoCount ?? null,
       ytStatsUpdatedAt: imported ? Date.now() : null,
     })
+
+    // Canal ativo importado do YouTube → já traz todos os vídeos publicados
+    // (thumb, título, data, link, tag Agendado/Publicado e etapas concluídas).
+    if (imported?.id && imported.videoCount > 0) {
+      setCreating(true)
+      try {
+        await importChannelVideos(channel.id, imported.id, setCreatingMsg)
+      } catch {
+        // sem cota/offline: o botão "Importar do YouTube" dentro do canal refaz depois
+      }
+      setCreating(false)
+      setCreatingMsg('')
+    }
+
     setForm({ name: '', language: 'pt', contactEmail: '', defaultPostTime: '18:00', weeklyFrequency: 3, notes: '' })
     setImported(null)
     setImportQuery('')
@@ -244,12 +264,18 @@ export function CreateChannelModal({ open, onClose }) {
         <Field label="ANOTAÇÕES">
           <textarea className={`${inputCls} min-h-20 resize-y`} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
         </Field>
+        {creating && (
+          <p className="flex items-center gap-2 rounded-lg bg-cyan-500/10 px-3 py-2 text-xs text-cyan-300">
+            <Loader2 size={13} className="animate-spin" />
+            {creatingMsg || 'Importando vídeos publicados do YouTube...'}
+          </p>
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className={btnGhost} onClick={onClose}>
             Cancelar
           </button>
-          <button type="submit" className={btnPrimary}>
-            Criar Canal
+          <button type="submit" className={btnPrimary} disabled={creating}>
+            {creating ? 'Criando...' : 'Criar Canal'}
           </button>
         </div>
       </form>

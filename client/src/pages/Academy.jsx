@@ -1,41 +1,12 @@
 import { useState } from 'react'
 import { GraduationCap, PlayCircle, X, FileDown } from 'lucide-react'
-
-// Conteúdo institucional — no backend real vira a tabela academy_content
-// gerenciada por um painel admin.
-const CONTENT = [
-  {
-    id: 1,
-    title: 'Primeiros passos no Noctis Studio',
-    description: 'Tour completo pela plataforma: canais, pipeline de vídeos e roteiros.',
-    embedUrl: '',
-    materials: [],
-  },
-  {
-    id: 2,
-    title: 'Como usar tags e prompts recomendados',
-    description: 'Monte sua biblioteca de prompts e vincule aos canais.',
-    embedUrl: '',
-    materials: [],
-  },
-  {
-    id: 3,
-    title: 'Dobra de Nicho na prática',
-    description: 'Do canal semente ao mapa radial: replicando formatos vencedores.',
-    embedUrl: '',
-    materials: [],
-  },
-  {
-    id: 4,
-    title: 'Rotação de chaves da YouTube API',
-    description: 'Configure 5 chaves e nunca mais pare por cota estourada.',
-    embedUrl: '',
-    materials: [],
-  },
-]
+import { useDb } from '../lib/db'
 
 export default function Academy() {
+  const db = useDb()
   const [playing, setPlaying] = useState(null)
+  // Conteúdo gerenciado pelo admin em /admin → Academia
+  const CONTENT = [...db.all('academyContent')].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">

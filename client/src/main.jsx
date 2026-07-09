@@ -6,6 +6,10 @@ import { AuthProvider } from './auth/AuthContext'
 import App from './App'
 import './index.css'
 
+// Restaura tema e modo privado antes do primeiro paint
+document.documentElement.dataset.theme = localStorage.getItem('noctis_theme') || 'dark'
+document.documentElement.dataset.privacy = localStorage.getItem('noctis_privacy') || '0'
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>

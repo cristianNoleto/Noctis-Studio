@@ -1,13 +1,13 @@
 @import 'tailwindcss';
 
 /*
-  Paleta Noctis Studio
+  Paleta Noctis Studio (definida pelo Cristian)
   Fundo principal:      #0d0e12 (cinza quase preto)
   Superfícies (cards):  #16171d
   Bordas:               #23252e
   Texto principal:      #f3f4f6
-  Destaque:             cian elétrico (dados/tecnologia)
-  Vermelho #ff4747:     reservado para YouTube e ações destrutivas
+  Destaque:             #00f2fe (cian ELÉTRICO — tom de dados/tecnologia)
+  Vermelho #ff4747:     YouTube e ações destrutivas
 */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
@@ -16,6 +16,33 @@
   --color-slate-800: #23252e;
   --color-slate-100: #f3f4f6;
   --color-red-500: #ff4747;
+  /* Cian elétrico no lugar do cyan padrão do Tailwind (que puxa pro azul) */
+  --color-cyan-300: #7df9ff;
+  --color-cyan-400: #00f2fe;
+  --color-cyan-500: #00b8cc;
+  --color-cyan-600: #0096a8;
+  /* Gradientes/acentos secundários também em cian, sem azul */
+  --color-sky-400: #33e6f5;
+  --color-sky-500: #00c9dd;
+}
+
+/* ---------------------------------------------------------------------------
+   Modo claro — a lua do header alterna. Como todo o app usa os tokens slate,
+   basta remapear as variáveis (superfícies claras, textos escuros).
+--------------------------------------------------------------------------- */
+html[data-theme='light'] {
+  --color-slate-950: #f2f3f7; /* fundo */
+  --color-slate-900: #ffffff; /* superfícies */
+  --color-slate-800: #dfe2ea; /* bordas */
+  --color-slate-700: #c3c8d4;
+  --color-slate-600: #8b93a5;
+  --color-slate-500: #636b7e;
+  --color-slate-400: #4a5163;
+  --color-slate-300: #343b4c;
+  --color-slate-200: #232936;
+  --color-slate-100: #14171f; /* texto principal */
+  --color-cyan-300: #007d8a;
+  --color-cyan-400: #008c9b; /* acentos precisam escurecer no claro */
 }
 
 html,
@@ -28,21 +55,39 @@ body {
   @apply bg-slate-950 text-slate-100 font-sans antialiased;
 }
 
-/* Scrollbar dark */
+/* Scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #23252e transparent;
+  scrollbar-color: var(--color-slate-800) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #23252e;
+  background: var(--color-slate-800);
   border-radius: 4px;
 }
 
 /* Ponto de status online com brilho */
 .online-dot {
   box-shadow: 0 0 6px 1px rgb(74 222 128 / 0.7);
+}
+
+/* ---------------------------------------------------------------------------
+   Modo privado — o olho do header alterna. Tudo que carrega a classe
+   .sensitive (nomes de canais, títulos de vídeos, contagens) fica borrado.
+--------------------------------------------------------------------------- */
+html[data-privacy='1'] .sensitive {
+  filter: blur(6px);
+  user-select: none;
+}
+
+/* Animação suave padrão dos cards (hover mais vivo) */
+.card-hover {
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 30px -12px rgb(0 242 254 / 0.15);
 }
