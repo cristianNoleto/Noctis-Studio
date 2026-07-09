@@ -191,12 +191,12 @@ function PromptCard({ prompt: p, category, channelName, onEdit, onDelete }) {
           </div>
         )}
 
-        <p className="mt-2.5 font-bold leading-snug text-slate-100">{p.name}</p>
-        <p className="mt-0.5 text-[11px] text-slate-500">{channelName || 'Prompts Globais'}</p>
+        <p className="sensitive mt-2.5 font-bold leading-snug text-slate-100">{p.name}</p>
+        <p className="sensitive mt-0.5 text-[11px] text-slate-500">{channelName || "Prompts Globais"}</p>
 
         {/* Preview do conteúdo */}
         <div className="mt-2.5 max-h-28 flex-1 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5">
-          <p className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-slate-400">{p.content.slice(0, 400)}</p>
+          <p className="sensitive whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-slate-400">{p.content.slice(0, 400)}</p>
         </div>
 
         {(p.tags || []).length > 0 && (

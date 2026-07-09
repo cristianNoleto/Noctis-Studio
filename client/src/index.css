@@ -83,6 +83,17 @@ html[data-privacy='1'] .sensitive {
   user-select: none;
 }
 
+/* Avatares no modo privado: a foto some e entra um "?" */
+.avatar-question {
+  display: none;
+}
+html[data-privacy='1'] .avatar-real {
+  display: none;
+}
+html[data-privacy='1'] .avatar-question {
+  display: flex;
+}
+
 /* Animação suave padrão dos cards (hover mais vivo) */
 .card-hover {
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;

@@ -108,7 +108,7 @@ export default function Dashboard() {
                 <Icon size={18} />
               </div>
             </div>
-            <p className="mt-2 text-4xl font-bold text-slate-100">{value}</p>
+            <p className="sensitive mt-2 text-4xl font-bold text-slate-100">{value}</p>
             {sub && <span className={`mt-3 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${subCls}`}>{sub}</span>}
           </div>
         ))}
@@ -260,7 +260,7 @@ export default function Dashboard() {
                   <div className="mt-3 grid grid-cols-3 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
                     <Stat icon={Users} label="SUBS" value={formatCompact(ch.ytSubscribers)} sensitive />
                     <Stat icon={Eye} label="VIEWS" value={formatCompact(ch.ytTotalViews)} sensitive />
-                    <Stat icon={Film} label="VÍDEOS" value={chVideos.length} />
+                    <Stat icon={Film} label="VÍDEOS" value={chVideos.length} sensitive />
                   </div>
                 </Link>
               )
@@ -272,14 +272,21 @@ export default function Dashboard() {
   )
 }
 
+// No modo privado a foto/inicial some e entra um "?" (classe avatar-question)
 export function ChannelAvatar({ channel, size = 'h-10 w-10' }) {
-  if (channel.avatarUrl) {
-    return <img src={channel.avatarUrl} alt="" className={`${size} shrink-0 rounded-full object-cover`} referrerPolicy="no-referrer" />
-  }
   return (
-    <div className={`${size} flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-sky-500 font-bold text-white`}>
-      {channel.name?.charAt(0).toUpperCase()}
-    </div>
+    <span className="relative shrink-0">
+      {channel.avatarUrl ? (
+        <img src={channel.avatarUrl} alt="" className={`avatar-real ${size} shrink-0 rounded-full object-cover`} referrerPolicy="no-referrer" />
+      ) : (
+        <span className={`avatar-real ${size} flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-sky-500 font-bold text-white`}>
+          {channel.name?.charAt(0).toUpperCase()}
+        </span>
+      )}
+      <span className={`avatar-question ${size} shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 font-bold text-slate-500`}>
+        ?
+      </span>
+    </span>
   )
 }
 

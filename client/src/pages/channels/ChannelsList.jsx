@@ -118,7 +118,7 @@ export default function ChannelsList() {
 function MiniStat({ icon: Icon, value, label }) {
   return (
     <div>
-      <p className="flex items-center justify-center gap-1 text-sm font-bold text-slate-200">
+      <p className="sensitive flex items-center justify-center gap-1 text-sm font-bold text-slate-200">
         <Icon size={12} className="text-slate-500" />
         {value}
       </p>

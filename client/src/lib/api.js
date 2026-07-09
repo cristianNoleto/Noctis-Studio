@@ -55,6 +55,7 @@ export const api = {
     topVideos: (channelId) => request(`/youtube/top-videos?id=${encodeURIComponent(channelId)}`),
     channelVideos: (channelId, pageToken = '') =>
       request(`/youtube/channel-videos?id=${encodeURIComponent(channelId)}&pageToken=${encodeURIComponent(pageToken)}`),
+    checkChannels: (ids) => request(`/youtube/check-channels?ids=${encodeURIComponent(ids.join(','))}`),
   },
   ai: {
     seoReport: (payload) => request('/ai/seo-report', { method: 'POST', body: payload }),

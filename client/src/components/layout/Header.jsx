@@ -6,6 +6,8 @@ import { useI18n } from '../../i18n'
 import { useDb } from '../../lib/db'
 
 const planStyles = {
+  // FUNDADOR = criador do sistema (admin) — acima de qualquer plano
+  FUNDADOR: 'border-amber-500/50 bg-gradient-to-r from-amber-500/25 to-red-500/15 text-amber-300',
   MASTER: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
   PRO: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
   FREE: 'bg-slate-700/40 text-slate-400 border-slate-600/40',
@@ -40,8 +42,11 @@ export default function Header() {
   const basePath = '/' + (location.pathname.split('/')[1] || '')
   const crumb = t(`header.breadcrumb.${basePath === '/' ? '/' : basePath}`)
   const [group, page] = Array.isArray(crumb) ? crumb : ['', crumb]
-  const plan = user?.plan || 'FREE'
-  const initial = (user?.name || '?').charAt(0).toUpperCase()
+  // O criador do sistema exibe FUNDADOR no lugar do plano
+  const plan = isAdmin ? 'FUNDADOR' : user?.plan || 'FREE'
+  const displayName = db.getSetting('displayName') || user?.name
+  const avatarDataUrl = db.getSetting('avatarDataUrl')
+  const initial = (displayName || '?').charAt(0).toUpperCase()
 
   // Notificações = novidades da plataforma ainda não lidas
   const updates = [...db.all('platformUpdates')].sort((a, b) => b.createdAt - a.createdAt)
@@ -141,12 +146,18 @@ export default function Header() {
             onClick={() => setMenuOpen((v) => !v)}
             className="flex items-center gap-2.5 rounded-full border border-slate-800 bg-slate-900 py-1.5 pl-3.5 pr-1.5 transition-colors hover:border-slate-700"
           >
-            <span className="max-w-[180px] truncate text-sm text-slate-200">{user?.name}</span>
-            <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${planStyles[plan] || planStyles.FREE}`}>{plan}</span>
+            <span className="max-w-[180px] truncate text-sm text-slate-200">{displayName}</span>
+            <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${planStyles[plan] || planStyles.FREE}`}>
+              {plan === 'FUNDADOR' ? '👑 FUNDADOR' : plan}
+            </span>
             <div className="relative">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 text-xs font-bold text-slate-950">
-                {initial}
-              </div>
+              {avatarDataUrl ? (
+                <img src={avatarDataUrl} alt="" className="h-7 w-7 rounded-full border border-slate-700 object-cover" />
+              ) : (
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 text-xs font-bold text-slate-950">
+                  {initial}
+                </div>
+              )}
               <span className="online-dot absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-400" />
             </div>
           </button>

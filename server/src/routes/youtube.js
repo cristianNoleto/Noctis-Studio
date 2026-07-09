@@ -111,7 +111,7 @@ router.get('/search-channels', async (req, res) => {
       const ids = (search.items || []).map((i) => i.snippet.channelId)
       if (!ids.length) return { results: [], nextPageToken: null }
       // channels.list aceita até 50 ids numa chamada só
-      const channels = await ytFetch(keys, 'channels', { part: 'snippet,statistics,contentDetails', id: ids.join(',') })
+      const channels = await ytFetch(keys, 'channels', { part: 'snippet,statistics,contentDetails,topicDetails', id: ids.join(',') })
       const results = await enrichChannels(keys, channels.items || [])
       return { results, nextPageToken: search.nextPageToken || null }
     })
@@ -120,6 +120,25 @@ router.get('/search-channels', async (req, res) => {
     if (minSubs) results = results.filter((c) => c.subscribers >= Number(minSubs))
     if (maxSubs) results = results.filter((c) => c.subscribers <= Number(maxSubs))
     res.json({ results, nextPageToken: data.nextPageToken })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// GET /api/youtube/check-channels?ids=UC1,UC2,...  (detecção de canais removidos)
+// Devolve quais ids ainda EXISTEM no YouTube — os ausentes foram removidos/
+// encerrados. Sem cache: o objetivo é justamente detectar mudanças.
+router.get('/check-channels', async (req, res) => {
+  try {
+    const keys = parseKeys(req)
+    const ids = String(req.query.ids || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 50)
+    if (!ids.length) return res.json({ found: [] })
+    const data = await ytFetch(keys, 'channels', { part: 'id', id: ids.join(','), maxResults: 50 })
+    res.json({ found: (data.items || []).map((i) => i.id) })
   } catch (err) {
     handleError(res, err)
   }
@@ -179,7 +198,7 @@ router.get('/viral', async (req, res) => {
       })
       const videoIds = (search.items || []).map((i) => i.id.videoId).join(',')
       if (!videoIds) return []
-      const videos = await ytFetch(keys, 'videos', { part: 'snippet,statistics,contentDetails', id: videoIds })
+      const videos = await ytFetch(keys, 'videos', { part: 'snippet,statistics,contentDetails,topicDetails', id: videoIds })
 
       const channelIds = [...new Set((videos.items || []).map((v) => v.snippet.channelId))].join(',')
       const channels = channelIds ? await ytFetch(keys, 'channels', { part: 'statistics', id: channelIds }) : { items: [] }

@@ -69,10 +69,11 @@ function SavedFlash({ show }) {
 
 // ---------------------------------------------------------------------------
 function ProfileTab() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const db = useDb()
   const [name, setName] = useState(db.getSetting('displayName', user?.name || ''))
   const [saved, setSaved] = useState(false)
+  const avatarDataUrl = db.getSetting('avatarDataUrl')
 
   function save(e) {
     e.preventDefault()
@@ -81,14 +82,54 @@ function ProfileTab() {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  // Redimensiona para 128px e salva como dataURL no dispositivo
+  function handlePhoto(file) {
+    if (!file) return
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const size = 128
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      const min = Math.min(img.width, img.height)
+      ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size)
+      db.setSetting('avatarDataUrl', canvas.toDataURL('image/jpeg', 0.85))
+      URL.revokeObjectURL(img.src)
+    }
+    img.src = URL.createObjectURL(file)
+  }
+
   return (
     <Card title="Dados do Perfil" subtitle="Como você aparece na plataforma.">
       <form onSubmit={save} className="space-y-4">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-sky-500 text-xl font-bold text-white">
-            {(name || '?').charAt(0).toUpperCase()}
+          {avatarDataUrl ? (
+            <img src={avatarDataUrl} alt="" className="h-16 w-16 rounded-full border border-slate-700 object-cover" />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-sky-500 text-xl font-bold text-slate-950">
+              {(name || '?').charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {isAdmin && (
+              <span className="inline-block rounded border border-amber-500/40 bg-gradient-to-r from-amber-500/20 to-red-500/10 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
+                👑 FUNDADOR
+              </span>
+            )}
+            <div className="flex gap-2">
+              <label className="cursor-pointer rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300">
+                📷 {avatarDataUrl ? 'Trocar foto' : 'Adicionar foto'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} />
+              </label>
+              {avatarDataUrl && (
+                <button type="button" onClick={() => db.setSetting('avatarDataUrl', null)} className="rounded-lg px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
+                  Remover
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-600">A foto fica salva neste dispositivo (128px). Com o Supabase ativo, sobe para o storage.</p>
           </div>
-          <p className="text-xs text-slate-500">O avatar usa a inicial do seu nome. Upload de foto chega junto com o backend Supabase (storage).</p>
         </div>
         <Field label="NOME DE EXIBIÇÃO">
           <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />

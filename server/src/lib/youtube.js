@@ -129,6 +129,57 @@ export async function resolveChannel(keys, query) {
   return channelToJson(item)
 }
 
+// Mapa dos tópicos do YouTube (topicDetails → categorias em PT)
+const TOPIC_LABELS = {
+  Music: 'Música',
+  'Pop_music': 'Música',
+  'Rock_music': 'Música',
+  'Hip_hop_music': 'Música',
+  'Electronic_music': 'Música',
+  'Country_music': 'Música',
+  'Religious_music': 'Música Religiosa',
+  'Video_game_culture': 'Games',
+  'Action_game': 'Games',
+  'Role-playing_video_game': 'Games',
+  Sport: 'Esportes',
+  'Association_football': 'Futebol',
+  Entertainment: 'Entretenimento',
+  Humour: 'Comédia',
+  Film: 'Filmes',
+  'Television_program': 'TV',
+  'Performing_arts': 'Artes',
+  'Lifestyle_(sociology)': 'Lifestyle',
+  'Physical_fitness': 'Fitness',
+  Health: 'Saúde',
+  Food: 'Comida',
+  Cooking: 'Culinária',
+  Tourism: 'Viagem',
+  Vehicles: 'Veículos',
+  'Motor_vehicle': 'Veículos',
+  'Physical_attractiveness': 'Beleza',
+  Fashion: 'Moda',
+  Hobby: 'Hobbies',
+  Pet: 'Pets',
+  Technology: 'Tecnologia',
+  Knowledge: 'Educação',
+  Society: 'Sociedade',
+  Politics: 'Política',
+  Religion: 'Religião',
+  Christianity: 'Cristão',
+  Business: 'Negócios',
+  Military: 'Militar',
+  History: 'História',
+}
+
+function parseTopics(item) {
+  const urls = item.topicDetails?.topicCategories || []
+  const labels = urls
+    .map((u) => decodeURIComponent(u.split('/wiki/')[1] || ''))
+    .filter(Boolean)
+    .map((slug) => TOPIC_LABELS[slug] || slug.replaceAll('_', ' '))
+  return [...new Set(labels)]
+}
+
 export function channelToJson(item) {
   return {
     id: item.id,
@@ -140,6 +191,7 @@ export function channelToJson(item) {
     subscribers: Number(item.statistics?.subscriberCount ?? 0),
     views: Number(item.statistics?.viewCount ?? 0),
     videoCount: Number(item.statistics?.videoCount ?? 0),
+    topics: parseTopics(item),
   }
 }
 

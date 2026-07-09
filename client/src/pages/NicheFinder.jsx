@@ -26,17 +26,67 @@ import { inputCls, EmptyState, formatCompact } from '../components/ui'
 const DEFAULT_QUERY = 'curiosidades documentário histórias'
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6h — depois disso o auto-load renova
 
-// Badges de tendência: classificações calculadas por faixas sobre métricas
-// reais (não vêm prontas da API).
+// Idade do canal em dias (desde a criação no YouTube)
+function ageDays(c) {
+  return Math.max(0, Math.round((Date.now() - new Date(c.publishedAt).getTime()) / 86_400_000))
+}
+
+// -----------------------------------------------------------------------------
+// Badges de tendência — mesma mecânica do sistema de referência: cada faixa
+// cruza IDADE DO CANAL × VOLUME DE VIEWS, do mais explosivo ao mais maduro.
+// Canal recém-criado fazendo número alto = maior oportunidade de nicho.
+// -----------------------------------------------------------------------------
 const TREND_TABS = [
-  { key: 'all', label: 'Todos', Icon: LayoutGrid, desc: 'Todos os canais carregados', test: () => true },
-  { key: 'exploding', label: 'Explodindo Agora', Icon: Flame, desc: 'Postou há menos de 15 dias e faz mais de 100 mil views por vídeo', test: (c) => (c.lastUploadDaysAgo ?? 99) <= 15 && c.avgViews >= 100_000 },
-  { key: 'rising', label: 'Subindo Rápido', Icon: TrendingUp, desc: 'Views médias acima de 50% da base de inscritos', test: (c) => c.avgViews != null && c.subscribers > 0 && c.avgViews / c.subscribers >= 0.5 },
-  { key: 'traction', label: 'Alta Tração', Icon: Zap, desc: 'Mais de 500 mil views por mês na cadência atual', test: (c) => (c.viewsPerMonth ?? 0) >= 500_000 },
-  { key: 'potential', label: 'Potencial Forte', Icon: Gem, desc: 'Média acima de 100 mil views por vídeo', test: (c) => (c.avgViews ?? 0) >= 100_000 },
-  { key: 'recent', label: 'Tração Recente', Icon: Activity, desc: 'Canal criado há menos de 1 ano', test: (c) => Date.now() - new Date(c.publishedAt).getTime() < 365 * 86_400_000 },
-  { key: 'smallbig', label: 'Poucos Inscritos, Muitas Views', Icon: Eye, desc: 'Menos de 100 mil inscritos com views médias maiores que a base', test: (c) => c.subscribers < 100_000 && (c.avgViews ?? 0) > c.subscribers },
-  { key: 'new', label: 'Canais Novos', Icon: Sprout, desc: 'Canal criado há menos de 6 meses', test: (c) => Date.now() - new Date(c.publishedAt).getTime() < 180 * 86_400_000 },
+  { key: 'all', label: 'Todos os Resultados', Icon: LayoutGrid, desc: 'Todos os canais carregados nesta busca', test: () => true },
+  {
+    key: 'exploding',
+    label: 'Explodindo Agora',
+    Icon: Flame,
+    desc: 'Menos de 15 dias de canal e mais de 100 mil views — viral imediato',
+    test: (c) => ageDays(c) <= 15 && c.views >= 100_000,
+  },
+  {
+    key: 'rising',
+    label: 'Subindo Rápido',
+    Icon: TrendingUp,
+    desc: 'Menos de 15 dias de canal e entre 50 e 100 mil views',
+    test: (c) => ageDays(c) <= 15 && c.views >= 50_000 && c.views < 100_000,
+  },
+  {
+    key: 'traction',
+    label: 'Alta Tração',
+    Icon: Zap,
+    desc: 'Entre 15 e 60 dias de canal e mais de 500 mil views',
+    test: (c) => ageDays(c) > 15 && ageDays(c) <= 60 && c.views >= 500_000,
+  },
+  {
+    key: 'potential',
+    label: 'Potencial Forte',
+    Icon: Gem,
+    desc: 'Entre 15 e 60 dias de canal e entre 100 e 500 mil views',
+    test: (c) => ageDays(c) > 15 && ageDays(c) <= 60 && c.views >= 100_000 && c.views < 500_000,
+  },
+  {
+    key: 'recent',
+    label: 'Tração Recente',
+    Icon: Activity,
+    desc: 'Entre 60 e 90 dias de canal e mais de 200 mil views',
+    test: (c) => ageDays(c) > 60 && ageDays(c) <= 90 && c.views >= 200_000,
+  },
+  {
+    key: 'smallbig',
+    label: 'Poucos Inscritos, Muitas Views',
+    Icon: Eye,
+    desc: 'Views médias por vídeo maiores que a base de inscritos (até 100 mil subs) — o algoritmo está empurrando',
+    test: (c) => c.subscribers < 100_000 && (c.avgViews ?? 0) > c.subscribers,
+  },
+  {
+    key: 'new',
+    label: 'Canais Novos',
+    Icon: Sprout,
+    desc: 'Canal criado há menos de 30 dias',
+    test: (c) => ageDays(c) <= 30,
+  },
 ]
 
 const SUB_RANGES = [
@@ -83,6 +133,7 @@ export default function NicheFinder() {
   const [subRange, setSubRange] = useState('')
   const [viewRange, setViewRange] = useState('')
   const [language, setLanguage] = useState('')
+  const [category, setCategory] = useState('')
   const [order, setOrder] = useState('avgViews')
   const [showFavorites, setShowFavorites] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -146,8 +197,12 @@ export default function NicheFinder() {
   const base = showFavorites ? favorites : results
   const text = query.trim().toLowerCase()
 
+  // Categorias reais dos canais carregados (topicDetails da API)
+  const categories = [...new Set(base.flatMap((c) => c.topics || []))].sort()
+
   let filtered = base.filter((c) => activeTab.test(c))
-  if (text) filtered = filtered.filter((c) => `${c.title} ${c.description || ''}`.toLowerCase().includes(text))
+  if (category) filtered = filtered.filter((c) => (c.topics || []).includes(category))
+  if (text) filtered = filtered.filter((c) => `${c.title} ${c.description || ''} ${(c.topics || []).join(' ')}`.toLowerCase().includes(text))
   if (subRange) {
     const [min, max] = subRange.split('-')
     filtered = filtered.filter((c) => c.subscribers >= Number(min || 0) && (!max || c.subscribers <= Number(max)))
@@ -256,6 +311,14 @@ export default function NicheFinder() {
             </option>
           ))}
         </select>
+        <select className={`${inputCls} !w-auto`} value={category} onChange={(e) => setCategory(e.target.value)}>
+          <option value="">Categoria</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
         <select className={`${inputCls} !w-auto`} value={order} onChange={(e) => setOrder(e.target.value)}>
           <option value="avgViews">Ordenar: Views médias</option>
           <option value="subscribers">Ordenar: Inscritos</option>
@@ -328,9 +391,10 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
   const badge = TREND_TABS.slice(1).find((t) => t.test(c))
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-cyan-500/40">
+    <div className="card-hover overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 hover:border-cyan-500/40">
       <div className="border-t-2 border-cyan-500/60" />
-      <div className="p-3.5">
+      {/* modo privado: o card inteiro fica embaçado */}
+      <div className="sensitive p-3.5">
         {/* Cabeçalho do card */}
         <div className="flex items-start gap-2.5">
           <div className="relative shrink-0">
@@ -345,7 +409,10 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
             <button onClick={onOpenDoubling} className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title="Analisar na Dobra de Nicho">
               {c.title}
             </button>
-            <p className="truncate text-[11px] text-slate-500">{c.description || 'Sem descrição'}</p>
+            <p className="truncate text-[11px] text-slate-500">
+              {(c.topics || []).length > 0 && <span className="text-cyan-400/80">{c.topics[0]} · </span>}
+              {c.description || 'Sem descrição'}
+            </p>
             {badge && (
               <span className="mt-1 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{badge.label}</span>
             )}
@@ -379,7 +446,8 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
         <div className="mt-3 space-y-1 border-t border-slate-800 pt-2.5 text-[10px] text-slate-500">
           <p className="flex items-center gap-1.5">
             <Calendar size={10} />
-            {c.lastUploadDaysAgo != null ? `${c.lastUploadDaysAgo}d desde o último post` : 'cadência indisponível'}
+            {ageDays(c) <= 90 ? `${ageDays(c)}d postando` : `${Math.round(ageDays(c) / 30)}m postando`}
+            {c.lastUploadDaysAgo != null && ` · último há ${c.lastUploadDaysAgo}d`}
             {c.vidsPerMonth != null && ` · ${c.vidsPerMonth} vid/mês`}
             {c.viewsPerMonth != null && ` · ${formatCompact(c.viewsPerMonth)} views/mês`}
           </p>
