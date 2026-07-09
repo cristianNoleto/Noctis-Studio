@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import Logo from '../Logo'
 import { useI18n } from '../../i18n'
+import { useDb } from '../../lib/db'
 
 const groups = [
   { key: 'overview', items: [{ to: '/', label: 'dashboard', Icon: LayoutDashboard }] },
@@ -63,6 +64,8 @@ const groups = [
 
 export default function Sidebar() {
   const { t } = useI18n()
+  const db = useDb()
+  const myChannels = db.all('channels').filter((c) => !c.archived)
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-slate-800/70 bg-slate-950">
@@ -100,6 +103,34 @@ export default function Sidebar() {
                   </NavLink>
                 </li>
               ))}
+              {/* Lista de canais do usuário (como no layout original) */}
+              {group.key === 'channels' && (
+                <>
+                  {myChannels.map((ch) => (
+                    <li key={ch.id}>
+                      <NavLink
+                        to={`/canais/${ch.id}`}
+                        className={({ isActive }) =>
+                          `flex items-center gap-2 rounded-lg py-1.5 pl-8 pr-2.5 text-xs transition-colors ${
+                            isActive ? 'bg-cyan-500/10 text-cyan-300' : 'text-slate-500 hover:bg-slate-900 hover:text-slate-300'
+                          }`
+                        }
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+                        <span className="truncate">{ch.name}</span>
+                      </NavLink>
+                    </li>
+                  ))}
+                  <li>
+                    <NavLink
+                      to="/canais?novo=1"
+                      className="flex items-center gap-2 rounded-lg py-1.5 pl-8 pr-2.5 text-xs text-slate-600 transition-colors hover:text-cyan-400"
+                    >
+                      + Novo Canal
+                    </NavLink>
+                  </li>
+                </>
+              )}
             </ul>
           </div>
         ))}

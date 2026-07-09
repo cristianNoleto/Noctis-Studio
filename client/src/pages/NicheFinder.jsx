@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search,
+  Plus,
   Loader2,
   Compass,
   Heart,
@@ -79,6 +80,7 @@ export default function NicheFinder() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const [loadingMore, setLoadingMore] = useState(false)
   const cache = db.getSetting('nicheFinderCache')
   const results = cache?.results || []
   const favorites = db.getSetting('nicheFavorites', [])
@@ -94,12 +96,36 @@ export default function NicheFinder() {
     setLoading(true)
     setError('')
     try {
-      const { results } = await api.youtube.searchChannels({ q, language })
-      db.setSetting('nicheFinderCache', { ts: Date.now(), query: q, results })
+      const { results, nextPageToken } = await api.youtube.searchChannels({ q, language })
+      db.setSetting('nicheFinderCache', { ts: Date.now(), query: q, results, nextPageToken })
     } catch (err) {
       setError(apiErrorMessage(err))
     } finally {
       setLoading(false)
+    }
+  }
+
+  // "Mostrar mais": continua paginando a mesma busca até o YouTube esgotar a listagem.
+  async function loadMore() {
+    if (!cache?.nextPageToken || loadingMore) return
+    setLoadingMore(true)
+    setError('')
+    try {
+      const { results: more, nextPageToken } = await api.youtube.searchChannels({
+        q: cache.query,
+        language,
+        pageToken: cache.nextPageToken,
+      })
+      const seen = new Set(results.map((c) => c.id))
+      db.setSetting('nicheFinderCache', {
+        ...cache,
+        results: [...results, ...more.filter((c) => !seen.has(c.id))],
+        nextPageToken,
+      })
+    } catch (err) {
+      setError(apiErrorMessage(err))
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -268,6 +294,23 @@ export default function NicheFinder() {
 
       {!loading && results.length > 0 && filtered.length === 0 && (
         <EmptyState icon={TrendingUp} title="Nenhum canal com esses filtros" description="Troque a aba de tendência ou limpe os filtros." />
+      )}
+
+      {/* Mostrar mais (50 por página até acabar a listagem) */}
+      {!loading && !showFavorites && filtered.length > 0 && cache?.nextPageToken && (
+        <div className="flex justify-center pb-4">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-6 py-2.5 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
+          >
+            {loadingMore ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+            {loadingMore ? 'Carregando mais 50 canais...' : 'Mostrar mais'}
+          </button>
+        </div>
+      )}
+      {!loading && !showFavorites && results.length > 0 && !cache?.nextPageToken && (
+        <p className="pb-4 text-center text-xs text-slate-600">Fim da listagem do YouTube para esta busca.</p>
       )}
     </div>
   )

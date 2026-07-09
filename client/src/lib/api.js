@@ -11,6 +11,9 @@ function apiHeaders() {
   const gemini = db.getSetting('geminiKey')
   if (gemini) headers['x-gemini-key'] = gemini
   headers['x-gemini-model'] = db.getSetting('geminiModel', 'gemini-2.0-flash')
+  headers['x-ai-provider'] = db.getSetting('aiProvider', 'gemini')
+  const groq = db.getSetting('groqKey')
+  if (groq) headers['x-groq-key'] = groq
   const pexels = db.getSetting('pexelsKey')
   if (pexels) headers['x-pexels-key'] = pexels
   const pixabay = db.getSetting('pixabayKey')
@@ -50,6 +53,8 @@ export const api = {
     searchChannels: (params) => request(`/youtube/search-channels?${new URLSearchParams(params)}`),
     viralVideos: (params) => request(`/youtube/viral?${new URLSearchParams(params)}`),
     topVideos: (channelId) => request(`/youtube/top-videos?id=${encodeURIComponent(channelId)}`),
+    channelVideos: (channelId, pageToken = '') =>
+      request(`/youtube/channel-videos?id=${encodeURIComponent(channelId)}&pageToken=${encodeURIComponent(pageToken)}`),
   },
   ai: {
     seoReport: (payload) => request('/ai/seo-report', { method: 'POST', body: payload }),
@@ -80,7 +85,10 @@ export function apiErrorMessage(err) {
     missing_yt_keys: 'Nenhuma chave da YouTube API configurada. Adicione em Perfil → APIs.',
     all_keys_exhausted:
       'A cota diária de todas as chaves configuradas foi atingida. Tente novamente amanhã ou adicione mais uma chave em Perfil → APIs.',
-    missing_gemini_key: 'Chave da API Gemini não configurada. Adicione em Perfil → APIs.',
+    missing_gemini_key: 'Chave da API Gemini não configurada. Adicione em Perfil → APIs (aistudio.google.com/apikey).',
+    missing_groq_key: 'Chave da API Groq não configurada. Adicione em Perfil → APIs (console.groq.com/keys).',
+    ai_rate_limited:
+      'Cota gratuita da IA atingida neste minuto/dia. O sistema já tentou os modelos alternativos — aguarde ~1 min, use o modelo gemini-2.0-flash, ou configure uma chave Groq (grátis) como reserva em Perfil → APIs.',
     missing_media_keys: 'Configure as chaves do Pexels e/ou Pixabay em Perfil → APIs.',
     missing_assembly_key: 'Configure a chave da API de transcrição (AssemblyAI) em Perfil → APIs.',
     channel_not_found: 'Canal não encontrado no YouTube. Confira a URL ou o handle.',

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Tv, Search, Loader2, Users, Eye, Film } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
@@ -18,9 +18,21 @@ const LANGUAGES = [
 
 export default function ChannelsList() {
   const db = useDb()
+  const [params, setParams] = useSearchParams()
   const [createOpen, setCreateOpen] = useState(false)
-  const channels = db.all('channels')
+  const [showArchived, setShowArchived] = useState(false)
+  const all = db.all('channels')
+  const archivedCount = all.filter((c) => c.archived).length
+  const channels = all.filter((c) => (showArchived ? c.archived : !c.archived))
   const videos = db.all('videos')
+
+  // Atalho "+ Novo Canal" da sidebar abre o modal direto
+  useEffect(() => {
+    if (params.get('novo') === '1') {
+      setCreateOpen(true)
+      setParams({}, { replace: true })
+    }
+  }, [params, setParams])
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -29,11 +41,29 @@ export default function ChannelsList() {
           <h1 className="text-2xl font-bold text-slate-100">Gestão de Canais</h1>
           <p className="mt-1 text-sm text-slate-500">Opere todos os seus canais dark em um só lugar.</p>
         </div>
-        <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setCreateOpen(true)}>
-          <Plus size={16} />
-          Criar Canal
-        </button>
+        <div className="flex items-center gap-2">
+          {archivedCount > 0 && (
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                showArchived ? 'border-amber-500/50 bg-amber-500/10 text-amber-400' : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
+              }`}
+            >
+              {showArchived ? '← Voltar aos ativos' : `Arquivados (${archivedCount})`}
+            </button>
+          )}
+          <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setCreateOpen(true)}>
+            <Plus size={16} />
+            Criar Canal
+          </button>
+        </div>
       </div>
+
+      {showArchived && channels.length > 0 && (
+        <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-xs text-amber-300/80">
+          Canais arquivados — clique num canal e use o menu ⋮ para desarquivar (Editar Canal mantém tudo intacto).
+        </p>
+      )}
 
       {channels.length === 0 ? (
         <EmptyState

@@ -1,30 +1,40 @@
-import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  MoreVertical,
   Pencil,
+  Link2,
   Share2,
+  Unlink,
+  Archive,
   Trash2,
-  Settings,
   RefreshCw,
   ExternalLink,
   Film,
   CheckCircle,
   Clock,
+  BarChart3,
   Users,
   Eye,
-  Sparkles,
-  Heart,
-  AudioLines,
+  MessageSquare,
+  Bookmark,
+  Mic,
   Loader2,
+  Mail,
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
-import { btnGhost, ConfirmDialog, formatCompact } from '../../components/ui'
+import { ConfirmDialog, formatCompact } from '../../components/ui'
 import { ChannelAvatar } from '../Dashboard'
 import { EditChannelModal, CustomButtonsModal, ShareChannelModal, ChannelPromptsModal, ChannelReferencesModal } from './ChannelModals'
 import VideosTable from './VideosTable'
 
 const STATS_REFRESH_COOLDOWN_MS = 10 * 60 * 1000 // máx. 1x a cada 10 min (economia de cota)
+
+const LANG_LABEL = { pt: 'Português', en: 'Inglês', es: 'Espanhol', de: 'Alemão', fr: 'Francês', it: 'Italiano', ja: 'Japonês' }
 
 export default function ChannelDetail() {
   const { id } = useParams()
@@ -32,21 +42,33 @@ export default function ChannelDetail() {
   const db = useDb()
   const channel = db.get('channels', id)
 
-  const [modal, setModal] = useState(null) // edit | buttons | share | prompts | references | delete
+  const [modal, setModal] = useState(null) // edit | buttons | share | prompts | references | delete | unlink | archive
+  const [menuOpen, setMenuOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [statsError, setStatsError] = useState('')
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
 
   if (!channel) {
     return <p className="p-10 text-center text-slate-500">Canal não encontrado.</p>
   }
 
+  const allChannels = db.all('channels').filter((c) => !c.archived)
+  const chIndex = allChannels.findIndex((c) => c.id === id)
+  const prevChannel = allChannels[chIndex - 1]
+  const nextChannel = allChannels[chIndex + 1]
+
   const videos = db.all('videos').filter((v) => v.channelId === id)
-  const posted = videos.filter((v) => v.status === 'published').length
+  const posted = videos.filter((v) => ['published', 'scheduled'].includes(v.status)).length
   const pending = videos.length - posted
-  const buttons = db
-    .all('channelButtons')
-    .filter((b) => b.channelId === id)
-    .sort((a, b) => a.position - b.position)
+  const buttons = db.all('channelButtons').filter((b) => b.channelId === id).sort((a, b) => a.position - b.position)
   const promptsCount = db.all('prompts').filter((p) => p.channelId === id).length
   const refsCount = db.all('referenceChannels').filter((r) => r.channelId === id).length
 
@@ -62,6 +84,7 @@ export default function ChannelDetail() {
       db.update('channels', id, {
         ytSubscribers: data.subscribers,
         ytTotalViews: data.views,
+        ytVideoCount: data.videoCount,
         ytStatsUpdatedAt: Date.now(),
       })
     } catch (err) {
@@ -79,124 +102,173 @@ export default function ChannelDetail() {
     navigate('/canais')
   }
 
+  const statsAge = channel.ytStatsUpdatedAt ? Math.round((Date.now() - channel.ytStatsUpdatedAt) / 60000) : null
+
+  const menuItems = [
+    { icon: Pencil, label: 'Editar Canal', cls: 'text-sky-300', action: () => setModal('edit') },
+    { icon: Link2, label: 'Criar Atalhos', action: () => setModal('buttons') },
+    { icon: Share2, label: 'Compartilhar', action: () => setModal('share') },
+    ...(channel.youtubeChannelId ? [{ icon: Unlink, label: 'Desvincular YouTube', action: () => setModal('unlink') }] : []),
+    channel.archived
+      ? { icon: Archive, label: 'Desarquivar Canal', action: () => db.update('channels', id, { archived: false }) }
+      : { icon: Archive, label: 'Arquivar Canal', action: () => setModal('archive') },
+    { icon: Trash2, label: 'Excluir Canal', cls: 'text-red-400', action: () => setModal('delete') },
+  ]
+
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      {/* Header do canal */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-        <div className="flex flex-wrap items-center gap-4">
-          <ChannelAvatar channel={channel} size="h-14 w-14" />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-xl font-bold text-slate-100">{channel.name}</h1>
-              <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold text-red-400">YouTube</span>
-            </div>
-            {channel.notes && <p className="mt-0.5 max-w-xl truncate text-xs text-slate-500">{channel.notes}</p>}
-          </div>
-
-          <div className="ml-auto flex items-center gap-1.5">
-            <IconBtn title="Editar canal" onClick={() => setModal('edit')}>
-              <Pencil size={15} />
-            </IconBtn>
-            <IconBtn title="Compartilhar canal" onClick={() => setModal('share')}>
-              <Share2 size={15} />
-            </IconBtn>
-            <IconBtn title="Excluir canal" danger onClick={() => setModal('delete')}>
-              <Trash2 size={15} />
-            </IconBtn>
-          </div>
-        </div>
-
-        {/* Botões customizados */}
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-4">
-          {buttons.map((b) => (
-            <a
-              key={b.id}
-              href={b.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
-            >
-              {b.label}
-              <ExternalLink size={11} className="text-slate-600" />
-            </a>
-          ))}
-          {buttons.length === 0 && <span className="text-xs text-slate-600">Nenhum atalho configurado ainda.</span>}
-          <button
-            onClick={() => setModal('buttons')}
-            title="Configurar botões personalizados"
-            className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-700 px-3 py-1.5 text-xs text-slate-500 transition-colors hover:border-cyan-500/50 hover:text-cyan-400"
-          >
-            <Settings size={12} />
-            Configurar
-          </button>
+    <div className="mx-auto max-w-7xl space-y-4">
+      {/* Navegação superior */}
+      <div className="flex items-center justify-between">
+        <Link to="/canais" className="flex items-center gap-1.5 text-sm text-cyan-400 hover:text-cyan-300">
+          <ArrowLeft size={15} />← Voltar para Canais
+        </Link>
+        <div className="flex gap-1.5">
+          <NavArrow disabled={!prevChannel} onClick={() => prevChannel && navigate(`/canais/${prevChannel.id}`)}>
+            <ChevronLeft size={15} />
+          </NavArrow>
+          <NavArrow disabled={!nextChannel} onClick={() => nextChannel && navigate(`/canais/${nextChannel.id}`)}>
+            <ChevronRight size={15} />
+          </NavArrow>
         </div>
       </div>
 
-      {/* Métricas operacionais + YouTube Stats */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Film} label="TOTAL DE VÍDEOS" value={videos.length} color="text-cyan-400 bg-cyan-500/10" />
-        <MetricCard icon={CheckCircle} label="POSTADOS" value={posted} color="text-green-400 bg-green-500/10" />
-        <MetricCard icon={Clock} label="PENDENTES" value={pending} color="text-amber-400 bg-amber-500/10" />
+      {/* Header do canal */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/40">
+        <div className="border-t-2 border-cyan-500/60" />
+        <div className="flex items-center gap-4 p-5">
+          <ChannelAvatar channel={channel} size="h-14 w-14" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-xl font-bold text-slate-100">{channel.name}</h1>
+              <span className="flex items-center gap-1 rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">▶ YouTube</span>
+            </div>
+            <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
+              <span>🌐 {LANG_LABEL[channel.language] || channel.language}</span>
+              {channel.defaultPostTime && (
+                <span className="flex items-center gap-1">
+                  <Clock size={11} />
+                  {channel.defaultPostTime}
+                </span>
+              )}
+              {channel.contactEmail && (
+                <span className="flex items-center gap-1">
+                  <Mail size={11} />
+                  {channel.contactEmail}
+                </span>
+              )}
+            </div>
+          </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-          <div className="flex items-start justify-between">
-            <p className="text-xs font-semibold tracking-wider text-slate-500">YOUTUBE STATS</p>
+          {/* Atalhos personalizados */}
+          <div className="hidden flex-wrap items-center gap-1.5 lg:flex">
+            {buttons.map((b) => (
+              <a
+                key={b.id}
+                href={b.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+              >
+                {b.label}
+                <ExternalLink size={11} className="text-slate-600" />
+              </a>
+            ))}
+          </div>
+
+          {/* Menu 3 pontinhos */}
+          <div className="relative" ref={menuRef}>
             <button
-              onClick={refreshStats}
-              disabled={!canRefresh || refreshing}
-              title={
-                !channel.youtubeChannelId
-                  ? 'Importe o canal do YouTube para habilitar'
-                  : cooldownLeft > 0
-                    ? `Aguarde ${Math.ceil(cooldownLeft / 60000)}min para atualizar de novo`
-                    : 'Atualizar estatísticas'
-              }
-              className="text-slate-500 transition-colors hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-400 transition-colors hover:border-slate-700 hover:text-slate-200"
             >
-              {refreshing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+              <MoreVertical size={16} />
             </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full z-30 mt-2 w-52 rounded-xl border border-slate-800 bg-slate-900 p-1.5 shadow-xl">
+                {menuItems.map(({ icon: Icon, label, cls, action }) => (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      action()
+                    }}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-slate-800 ${cls || 'text-slate-300'}`}
+                  >
+                    <Icon size={14} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="mt-2 flex items-center gap-5">
-            <div>
-              <p className="flex items-center gap-1.5 text-lg font-bold text-slate-100">
-                <Users size={14} className="text-slate-500" />
-                {formatCompact(channel.ytSubscribers)}
+        </div>
+      </div>
+
+      {/* Métricas + YouTube Stats */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard icon={Film} label="TOTAL DE VÍDEOS" value={videos.length} color="text-cyan-400" />
+        <MetricCard icon={CheckCircle} label="POSTADOS" value={posted} color="text-green-400" />
+        <MetricCard icon={Clock} label="PENDENTES" value={pending} color="text-amber-400" />
+
+        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+          <div className="border-t-2 border-cyan-500/60" />
+          <div className="p-4">
+            <div className="flex items-start justify-between">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-500">
+                <BarChart3 size={12} className="text-cyan-400" />
+                YOUTUBE STATS
               </p>
-              <p className="text-[10px] font-semibold tracking-wider text-slate-600">INSCRITOS</p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] text-slate-600">
+                  {statsAge == null ? 'nunca atualizado' : statsAge < 1 ? 'Atualizado agora' : `Atualizado há ${statsAge}min`}
+                </span>
+                <button
+                  onClick={refreshStats}
+                  disabled={!canRefresh || refreshing}
+                  title={
+                    !channel.youtubeChannelId
+                      ? 'Importe o canal do YouTube para habilitar'
+                      : cooldownLeft > 0
+                        ? `Aguarde ${Math.ceil(cooldownLeft / 60000)}min`
+                        : 'Atualizar estatísticas'
+                  }
+                  className="text-slate-500 transition-colors hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {refreshing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                </button>
+              </div>
             </div>
-            <div>
-              <p className="flex items-center gap-1.5 text-lg font-bold text-slate-100">
-                <Eye size={14} className="text-slate-500" />
-                {formatCompact(channel.ytTotalViews)}
-              </p>
-              <p className="text-[10px] font-semibold tracking-wider text-slate-600">VIEWS TOTAIS</p>
+            <div className="mt-2.5 grid grid-cols-3 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
+              <YtStat icon={Users} value={formatCompact(channel.ytSubscribers)} label="Inscritos" />
+              <YtStat icon={Eye} value={formatCompact(channel.ytTotalViews)} label="Views" />
+              <YtStat icon={Film} value={channel.ytVideoCount ?? (videos.filter((v) => v.imported).length || '—')} label="Vídeos" />
             </div>
+            {statsError && <p className="mt-2 text-[10px] text-red-400">{statsError}</p>}
           </div>
-          {statsError && <p className="mt-2 text-[11px] text-red-400">{statsError}</p>}
         </div>
       </div>
 
       {/* Cards de controle central */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <ControlCard
-          icon={Sparkles}
+          icon={MessageSquare}
           title="Prompts do Canal"
-          desc={`${promptsCount} prompt${promptsCount === 1 ? '' : 's'} vinculado${promptsCount === 1 ? '' : 's'}`}
+          desc={promptsCount > 0 ? `${promptsCount} prompt${promptsCount === 1 ? '' : 's'} salvo${promptsCount === 1 ? '' : 's'}` : '0 prompts salvos'}
           actionLabel="Gerenciar"
           onAction={() => setModal('prompts')}
         />
         <ControlCard
-          icon={Heart}
+          icon={Bookmark}
           title="Canais de Referência"
-          desc={`${refsCount} canal${refsCount === 1 ? '' : 'is'} benchmark`}
+          desc={refsCount > 0 ? `${refsCount} referência${refsCount === 1 ? '' : 's'} vinculada${refsCount === 1 ? '' : 's'}` : 'Nenhuma referência vinculada'}
           actionLabel="Gerenciar"
           onAction={() => setModal('references')}
         />
-        <ControlCard icon={AudioLines} title="Narrador" desc="Vozes por IA para este canal" actionLabel="Em breve" disabled />
+        <ControlCard icon={Mic} title="Narrador" desc="Não configurado" actionLabel="Configurar" disabled title2="Em breve (fase TTS)" />
       </div>
 
-      {/* Tabela Títulos & Vídeos */}
-      <VideosTable channelId={id} />
+      {/* Títulos & Vídeos */}
+      <VideosTable channelId={id} channel={channel} />
 
       {/* Modais */}
       <EditChannelModal open={modal === 'edit'} onClose={() => setModal(null)} channel={channel} />
@@ -204,6 +276,27 @@ export default function ChannelDetail() {
       <ShareChannelModal open={modal === 'share'} onClose={() => setModal(null)} channelId={id} />
       <ChannelPromptsModal open={modal === 'prompts'} onClose={() => setModal(null)} channelId={id} />
       <ChannelReferencesModal open={modal === 'references'} onClose={() => setModal(null)} channelId={id} />
+      <ConfirmDialog
+        open={modal === 'unlink'}
+        onClose={() => setModal(null)}
+        onConfirm={() =>
+          db.update('channels', id, { youtubeChannelId: null, ytSubscribers: null, ytTotalViews: null, ytVideoCount: null, ytStatsUpdatedAt: null })
+        }
+        title="Desvincular YouTube"
+        message="O canal continua no sistema, mas perde a conexão com o YouTube (stats e importação de vídeos). Os vídeos já importados são mantidos."
+        confirmLabel="Desvincular"
+      />
+      <ConfirmDialog
+        open={modal === 'archive'}
+        onClose={() => setModal(null)}
+        onConfirm={() => {
+          db.update('channels', id, { archived: true })
+          navigate('/canais')
+        }}
+        title="Arquivar canal"
+        message={`"${channel.name}" sai da lista principal, mas nada é apagado — você pode desarquivar em Gestão de Canais.`}
+        confirmLabel="Arquivar"
+      />
       <ConfirmDialog
         open={modal === 'delete'}
         onClose={() => setModal(null)}
@@ -215,14 +308,12 @@ export default function ChannelDetail() {
   )
 }
 
-function IconBtn({ children, title, onClick, danger }) {
+function NavArrow({ children, onClick, disabled }) {
   return (
     <button
-      title={title}
       onClick={onClick}
-      className={`flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 transition-colors ${
-        danger ? 'text-red-400 hover:border-red-500/50 hover:bg-red-500/10' : 'text-slate-400 hover:border-slate-700 hover:text-slate-200'
-      }`}
+      disabled={disabled}
+      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-400 transition-colors hover:border-slate-700 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
     >
       {children}
     </button>
@@ -231,30 +322,48 @@ function IconBtn({ children, title, onClick, danger }) {
 
 function MetricCard({ icon: Icon, label, value, color }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-      <div className="flex items-start justify-between">
-        <p className="text-xs font-semibold tracking-wider text-slate-500">{label}</p>
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${color}`}>
-          <Icon size={17} />
-        </div>
+    <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+      <div className="border-t-2 border-cyan-500/60" />
+      <div className="p-4">
+        <p className={`flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-500`}>
+          <Icon size={12} className={color} />
+          {label}
+        </p>
+        <p className="mt-2 text-3xl font-bold text-slate-100">{value}</p>
       </div>
-      <p className="mt-2 text-3xl font-bold text-slate-100">{value}</p>
     </div>
   )
 }
 
-function ControlCard({ icon: Icon, title, desc, actionLabel, onAction, disabled }) {
+function YtStat({ icon: Icon, value, label }) {
+  return (
+    <div>
+      <p className="flex items-center justify-center gap-1 text-sm font-bold text-slate-100">
+        <Icon size={11} className="text-slate-500" />
+        {value}
+      </p>
+      <p className="text-[9px] text-slate-600">{label}</p>
+    </div>
+  )
+}
+
+function ControlCard({ icon: Icon, title, desc, actionLabel, onAction, disabled, title2 }) {
   return (
     <div className="flex items-center gap-3.5 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
-        <Icon size={20} />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+        <Icon size={18} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-semibold text-slate-100">{title}</p>
+        <p className="text-sm font-semibold text-slate-100">{title}</p>
         <p className="truncate text-xs text-slate-500">{desc}</p>
       </div>
-      <button className={`${btnGhost} shrink-0 !px-3 !py-1.5 text-xs`} onClick={onAction} disabled={disabled}>
-        {actionLabel}
+      <button
+        onClick={onAction}
+        disabled={disabled}
+        title={title2}
+        className="shrink-0 rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        ✏️ {actionLabel}
       </button>
     </div>
   )

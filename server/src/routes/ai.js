@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { geminiGenerateJson, AiError } from '../lib/gemini.js'
+import { aiGenerateJson, AiError } from '../lib/gemini.js'
 
 const router = Router()
 
@@ -18,7 +18,7 @@ router.post('/seo-report', async (req, res) => {
     const { title, description = '', tags = [] } = req.body || {}
     if (!title) return res.status(400).json({ error: 'missing_title' })
 
-    const result = await geminiGenerateJson(req, {
+    const result = await aiGenerateJson(req, {
       system:
         'Você é um especialista em SEO e CTR do YouTube para canais dark (conteúdo narrado sem rosto). ' +
         'Responda SEMPRE em JSON válido, em português do Brasil.',
@@ -53,7 +53,7 @@ router.post('/niche-doubling', async (req, res) => {
     const { channel, topVideos = [] } = req.body || {}
     if (!channel?.title) return res.status(400).json({ error: 'missing_channel' })
 
-    const result = await geminiGenerateJson(req, {
+    const result = await aiGenerateJson(req, {
       system:
         'Você é um estrategista de canais dark do YouTube, especialista em replicar formatos vencedores em novos nichos. ' +
         'Responda SEMPRE em JSON válido, em português do Brasil. Os scores são estimativas suas baseadas em padrões, não métricas garantidas.',

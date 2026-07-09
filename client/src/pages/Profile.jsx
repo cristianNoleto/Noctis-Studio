@@ -166,6 +166,8 @@ function ApisTab() {
   })
   const [geminiKey, setGeminiKey] = useState(db.getSetting('geminiKey', ''))
   const [geminiModel, setGeminiModel] = useState(db.getSetting('geminiModel', 'gemini-2.0-flash'))
+  const [aiProvider, setAiProvider] = useState(db.getSetting('aiProvider', 'gemini'))
+  const [groqKey, setGroqKey] = useState(db.getSetting('groqKey', ''))
   const [assemblyKey, setAssemblyKey] = useState(db.getSetting('assemblyKey', ''))
   const [pexelsKey, setPexelsKey] = useState(db.getSetting('pexelsKey', ''))
   const [pixabayKey, setPixabayKey] = useState(db.getSetting('pixabayKey', ''))
@@ -176,6 +178,8 @@ function ApisTab() {
     db.setSetting('ytKeys', ytKeys.map((k) => k.trim()))
     db.setSetting('geminiKey', geminiKey.trim())
     db.setSetting('geminiModel', geminiModel)
+    db.setSetting('aiProvider', aiProvider)
+    db.setSetting('groqKey', groqKey.trim())
     db.setSetting('assemblyKey', assemblyKey.trim())
     db.setSetting('pexelsKey', pexelsKey.trim())
     db.setSetting('pixabayKey', pixabayKey.trim())
@@ -224,9 +228,36 @@ function ApisTab() {
         </p>
       </Card>
 
-      <Card title="Gemini API — IA do sistema" subtitle="Usada nos relatórios de SEO/CTR e na Dobra de Nicho. Chave do Google AI Studio (BYOK).">
+      <Card title="Inteligência Artificial — SEO/CTR e Dobra de Nicho" subtitle="Escolha o provedor. As duas opções têm plano gratuito — as chaves são suas (BYOK).">
         <div className="space-y-4">
-          <Field label="MODELO">
+          <Field label="PROVEDOR PRINCIPAL">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {[
+                ['gemini', 'Gemini (Google)', 'aistudio.google.com/apikey — recomendado'],
+                ['groq', 'Groq (Llama 3.3 70B)', 'console.groq.com/keys — alternativa gratuita'],
+              ].map(([value, name, hint]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setAiProvider(value)}
+                  className={`rounded-lg border p-3 text-left transition-colors ${
+                    aiProvider === value ? 'border-cyan-500 bg-cyan-500/10' : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-slate-200">{name}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-500">{hint}</p>
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2.5 text-[11px] leading-relaxed text-amber-300/80">
+            ⚠️ <b>Sobre "cota atingida":</b> o free tier do Gemini tem limite <b>por modelo</b> — o gemini-1.5-pro grátis aguenta só ~2
+            chamadas/min e 50/dia; o gemini-2.0-flash aguenta 15/min e 1.500/dia. Se estourar, o sistema tenta automaticamente os outros
+            modelos gratuitos do Gemini e, por último, o Groq (se a chave estiver configurada abaixo). Aguardar ~1 minuto também resolve.
+          </div>
+
+          <Field label="MODELO GEMINI PREFERIDO">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {[
                 ['gemini-2.0-flash', 'Recomendado', 'text-green-400 bg-green-500/10'],
@@ -247,7 +278,10 @@ function ApisTab() {
               ))}
             </div>
           </Field>
-          <Field label="CHAVE DA API GEMINI">{keyInput(geminiKey, (e) => setGeminiKey(e.target.value), 'AIza...')}</Field>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="CHAVE DA API GEMINI (aistudio.google.com/apikey)">{keyInput(geminiKey, (e) => setGeminiKey(e.target.value), 'AIza...')}</Field>
+            <Field label="CHAVE DA API GROQ (console.groq.com/keys)">{keyInput(groqKey, (e) => setGroqKey(e.target.value), 'gsk_...')}</Field>
+          </div>
         </div>
       </Card>
 

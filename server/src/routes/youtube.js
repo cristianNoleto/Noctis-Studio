@@ -63,48 +63,93 @@ router.get('/channel-stats', async (req, res) => {
   }
 })
 
-// GET /api/youtube/search-channels?q=&maxSubs=&minSubs=  (Niche Finder)
+// Enriquecimento com concorrência limitada (50 canais → chunks paralelos)
+async function enrichChannels(keys, items) {
+  const enriched = new Array(items.length)
+  const CONCURRENCY = 8
+  let idx = 0
+  async function worker() {
+    while (idx < items.length) {
+      const i = idx++
+      const item = items[i]
+      const base = channelToJson(item)
+      let metrics = { avgViews: null, engagement: null, recentVideos: [] }
+      try {
+        metrics = await channelRecentMetrics(keys, item.id, item.contentDetails?.relatedPlaylists?.uploads)
+      } catch {
+        // sem métricas detalhadas ainda dá pra listar o canal
+      }
+      enriched[i] = {
+        ...base,
+        avgViews: metrics.avgViews,
+        engagement: metrics.engagement,
+        lastUploadDaysAgo: metrics.lastUploadDaysAgo ?? null,
+        vidsPerMonth: metrics.vidsPerMonth ?? null,
+        viewsPerMonth: metrics.viewsPerMonth ?? null,
+        recentVideos: (metrics.recentVideos || []).slice(0, 3).map((v) => ({ id: v.id, thumbnail: v.thumbnail, views: v.views })),
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, worker))
+  return enriched
+}
+
+// GET /api/youtube/search-channels?q=&pageToken=  (Niche Finder — 50 por página)
 router.get('/search-channels', async (req, res) => {
   try {
     const keys = parseKeys(req)
-    const { q, minSubs, maxSubs, language } = req.query
-    const data = await cached(`sc:${q}:${language || ''}`, 30 * 60_000, async () => {
+    const { q, minSubs, maxSubs, language, pageToken } = req.query
+    const data = await cached(`sc:${q}:${language || ''}:${pageToken || ''}`, 30 * 60_000, async () => {
       const search = await ytFetch(keys, 'search', {
         part: 'snippet',
         type: 'channel',
         q,
-        maxResults: 12,
+        maxResults: 50,
+        pageToken: pageToken || undefined,
         relevanceLanguage: language || undefined,
       })
-      const ids = (search.items || []).map((i) => i.snippet.channelId).join(',')
-      if (!ids) return []
-      const channels = await ytFetch(keys, 'channels', { part: 'snippet,statistics,contentDetails', id: ids })
-      const enriched = []
-      for (const item of channels.items || []) {
-        const base = channelToJson(item)
-        let metrics = { avgViews: null, engagement: null, recentVideos: [] }
-        try {
-          metrics = await channelRecentMetrics(keys, item.id, item.contentDetails?.relatedPlaylists?.uploads)
-        } catch {
-          // sem métricas detalhadas ainda dá pra listar o canal
-        }
-        enriched.push({
-          ...base,
-          avgViews: metrics.avgViews,
-          engagement: metrics.engagement,
-          lastUploadDaysAgo: metrics.lastUploadDaysAgo ?? null,
-          vidsPerMonth: metrics.vidsPerMonth ?? null,
-          viewsPerMonth: metrics.viewsPerMonth ?? null,
-          recentVideos: (metrics.recentVideos || []).slice(0, 3).map((v) => ({ id: v.id, thumbnail: v.thumbnail, views: v.views })),
-        })
-      }
-      return enriched
+      const ids = (search.items || []).map((i) => i.snippet.channelId)
+      if (!ids.length) return { results: [], nextPageToken: null }
+      // channels.list aceita até 50 ids numa chamada só
+      const channels = await ytFetch(keys, 'channels', { part: 'snippet,statistics,contentDetails', id: ids.join(',') })
+      const results = await enrichChannels(keys, channels.items || [])
+      return { results, nextPageToken: search.nextPageToken || null }
     })
 
-    let results = data
+    let results = data.results
     if (minSubs) results = results.filter((c) => c.subscribers >= Number(minSubs))
     if (maxSubs) results = results.filter((c) => c.subscribers <= Number(maxSubs))
-    res.json({ results })
+    res.json({ results, nextPageToken: data.nextPageToken })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
+// GET /api/youtube/channel-videos?id=UC...&pageToken=  (importação de vídeos publicados)
+router.get('/channel-videos', async (req, res) => {
+  try {
+    const keys = parseKeys(req)
+    const channelId = req.query.id
+    const pageToken = req.query.pageToken || ''
+    const data = await cached(`cv:${channelId}:${pageToken}`, 10 * 60_000, async () => {
+      const det = await ytFetch(keys, 'channels', { part: 'contentDetails', id: channelId })
+      const uploads = det.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
+      if (!uploads) return { videos: [], nextPageToken: null }
+      const items = await ytFetch(keys, 'playlistItems', {
+        part: 'snippet',
+        playlistId: uploads,
+        maxResults: 50,
+        pageToken: pageToken || undefined,
+      })
+      const videos = (items.items || []).map((i) => ({
+        id: i.snippet.resourceId?.videoId,
+        title: i.snippet.title,
+        thumbnail: i.snippet.thumbnails?.medium?.url || i.snippet.thumbnails?.default?.url,
+        publishedAt: i.snippet.publishedAt,
+      }))
+      return { videos, nextPageToken: items.nextPageToken || null }
+    })
+    res.json(data)
   } catch (err) {
     handleError(res, err)
   }
