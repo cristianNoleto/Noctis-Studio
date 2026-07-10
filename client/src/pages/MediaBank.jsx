@@ -1,19 +1,29 @@
 import { useState } from 'react'
 import { Search, Loader2, Image as ImageIcon, Film, Download, X } from 'lucide-react'
 import { api, apiErrorMessage } from '../lib/api'
-import { inputCls, btnPrimary, EmptyState } from '../components/ui'
+import { inputCls, btnPrimary } from '../components/ui'
 
+// Layout do original: pílulas Imagens/Vídeos, busca, FONTES (Pexels/Pixabay
+// multi-seleção) e ORIENTAÇÃO (Horizontal/Vertical/Quadrada/Todas).
 const ORIENTATIONS = [
-  ['all', 'Todos'],
   ['horizontal', 'Horizontal'],
   ['vertical', 'Vertical'],
-  ['square', 'Quadrado'],
+  ['square', 'Quadrada'],
+  ['all', 'Todas'],
 ]
+
+const pill = (active) =>
+  `inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+    active
+      ? 'border-cyan-500 bg-gradient-to-br from-cyan-500 to-cyan-600 text-white'
+      : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+  }`
 
 export default function MediaBank() {
   const [type, setType] = useState('image')
   const [query, setQuery] = useState('')
   const [orientation, setOrientation] = useState('all')
+  const [sources, setSources] = useState({ Pexels: true, Pixabay: true })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState(null)
@@ -34,6 +44,14 @@ export default function MediaBank() {
     }
   }
 
+  function toggleSource(name) {
+    setSources((s) => {
+      const next = { ...s, [name]: !s[name] }
+      // pelo menos uma fonte sempre ativa
+      return next.Pexels || next.Pixabay ? next : s
+    })
+  }
+
   function resBadge(item) {
     const w = item.width || 0
     if (w >= 3840) return '4K'
@@ -41,56 +59,81 @@ export default function MediaBank() {
     return 'SD'
   }
 
+  const visible = (results || []).filter((r) => sources[r.source])
+
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-5">
+      {/* Cabeçalho como no original */}
       <div>
         <h1 className="text-2xl font-bold text-slate-100">Vídeos e Imagens</h1>
-        <p className="mt-1 text-sm text-slate-500">Banco de mídia gratuito agregando Pexels e Pixabay (configure as chaves em Perfil → APIs).</p>
+        <p className="mt-1 text-sm text-slate-500">Busque e baixe imagens e vídeos gratuitos para os seus projetos.</p>
       </div>
 
-      <form onSubmit={search} className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-        <div className="flex flex-wrap gap-2">
-          <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-950 p-1">
-            {[
-              ['image', 'Imagens', ImageIcon],
-              ['video', 'Vídeos', Film],
-            ].map(([v, l, Icon]) => (
+      <form onSubmit={search} className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+        {/* Tipo + busca + Buscar */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => { setType('image'); if (results) search(null, 'image') }} className={pill(type === 'image')}>
+            <ImageIcon size={13} />
+            Imagens
+          </button>
+          <button type="button" onClick={() => { setType('video'); if (results) search(null, 'video') }} className={pill(type === 'video')}>
+            <Film size={13} />
+            Vídeos
+          </button>
+          <div className="relative min-w-48 flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              className={`${inputCls} !pl-9`}
+              placeholder="Busque por um tema: natureza, cidade, tecnologia..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <button type="submit" className={`${btnPrimary} flex min-w-32 items-center justify-center gap-2`} disabled={loading}>
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+            Buscar
+          </button>
+        </div>
+
+        {/* Fontes + Orientação */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold tracking-wider text-slate-500">FONTES</span>
+            {['Pexels', 'Pixabay'].map((name) => (
+              <button key={name} type="button" onClick={() => toggleSource(name)} className={pill(sources[name])}>
+                {name}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold tracking-wider text-slate-500">ORIENTAÇÃO</span>
+            {ORIENTATIONS.map(([v, l]) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => {
-                  setType(v)
-                  if (results) search(null, v)
+                  setOrientation(v)
+                  if (results) search()
                 }}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ${type === v ? 'bg-cyan-500 text-white' : 'text-slate-400'}`}
+                className={pill(orientation === v)}
               >
-                <Icon size={13} />
                 {l}
               </button>
             ))}
           </div>
-          <div className="relative min-w-48 flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input className={`${inputCls} !pl-9`} placeholder="Busque por tema (ex: dark forest, storm...)" value={query} onChange={(e) => setQuery(e.target.value)} />
-          </div>
-          <select className={`${inputCls} !w-auto`} value={orientation} onChange={(e) => setOrientation(e.target.value)}>
-            {ORIENTATIONS.map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className={`${btnPrimary} flex items-center gap-2`} disabled={loading}>
-            {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-            Buscar
-          </button>
         </div>
       </form>
 
       {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
 
       {results === null && !loading && !error && (
-        <EmptyState icon={ImageIcon} title="Busque mídia livre de direitos" description="Imagens e vídeos em 4K/HD do Pexels e Pixabay, prontos para seus vídeos dark." />
+        <div className="rounded-xl border border-dashed border-slate-800 px-6 py-16 text-center">
+          <ImageIcon size={26} className="mx-auto text-slate-600" />
+          <p className="mt-4 font-semibold text-slate-200">Busque mídias para começar</p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+            Digite um tema e escolha entre imagens ou vídeos. Os resultados vêm direto dos bancos públicos.
+          </p>
+        </div>
       )}
 
       {loading && (
@@ -101,7 +144,7 @@ export default function MediaBank() {
 
       {results !== null && !loading && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-          {results.map((item) => (
+          {visible.map((item) => (
             <button key={item.id} onClick={() => setPreview(item)} className="group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
               <img src={item.thumb} alt="" className="aspect-video w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
               <span className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{resBadge(item)}</span>
@@ -113,9 +156,10 @@ export default function MediaBank() {
               )}
             </button>
           ))}
-          {results.length === 0 && (
-            <div className="col-span-full">
-              <EmptyState icon={Search} title="Nada encontrado" description="Tente outro termo (os bancos respondem melhor em inglês)." />
+          {visible.length === 0 && (
+            <div className="col-span-full rounded-xl border border-dashed border-slate-800 px-6 py-14 text-center">
+              <Search size={22} className="mx-auto text-slate-600" />
+              <p className="mt-3 text-sm text-slate-500">Nada encontrado — tente outro termo (os bancos respondem melhor em inglês).</p>
             </div>
           )}
         </div>

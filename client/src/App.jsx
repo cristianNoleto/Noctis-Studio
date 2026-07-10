@@ -22,6 +22,8 @@ import Support from './pages/Support'
 import ComingSoon from './pages/ComingSoon'
 import Help from './pages/Help'
 import Admin from './pages/Admin'
+import MyPlan from './pages/MyPlan'
+import ApiDocs from './pages/ApiDocs'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -66,9 +68,10 @@ export default function App() {
         <Route path="/ajuda" element={<Help />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/suporte" element={<Support />} />
+        <Route path="/meu-plano" element={<MyPlan />} />
+        <Route path="/api-docs" element={<ApiDocs />} />
         <Route path="/text-to-speech" element={<ComingSoon phase={8} feature="Text to Speech" />} />
         <Route path="/app" element={<ComingSoon phase={8} feature="Noctis App (desktop)" />} />
-        <Route path="/api-docs" element={<ComingSoon phase={8} feature="Documentação da API" />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -7,7 +7,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:3001',
+      // barra no final: sem ela o proxy também captura a rota do app /api-docs
+      '/api/': 'http://localhost:3001',
     },
   },
 })

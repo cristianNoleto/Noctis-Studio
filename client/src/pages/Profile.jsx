@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { User, Shield, KeyRound, SlidersHorizontal, Crown, Eye, EyeOff, Check } from 'lucide-react'
+import { User, Shield, KeyRound, SlidersHorizontal, Wrench, Eye, EyeOff, Check, Camera, DownloadCloud, UploadCloud, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
-import { inputCls, btnPrimary } from '../components/ui'
+import { inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
+import { downloadFile } from '../lib/text'
 import { Field } from './channels/ChannelsList'
 
+// Abas do original: Perfil | Segurança | APIs | Preferências | Avançado
 const TABS = [
   ['profile', 'Perfil', User],
   ['security', 'Segurança', Shield],
   ['apis', 'APIs', KeyRound],
   ['prefs', 'Preferências', SlidersHorizontal],
-  ['plan', 'Meu Plano', Crown],
+  ['advanced', 'Avançado', Wrench],
 ]
 
 export default function Profile() {
@@ -20,7 +22,7 @@ export default function Profile() {
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-100">Configurações</h1>
-        <p className="mt-1 text-sm text-slate-500">Gerencie sua conta, segurança, chaves de API e plano.</p>
+        <p className="mt-1 text-sm text-slate-500">Gerencie seu perfil, segurança e preferências</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -42,7 +44,7 @@ export default function Profile() {
       {tab === 'security' && <SecurityTab />}
       {tab === 'apis' && <ApisTab />}
       {tab === 'prefs' && <PrefsTab />}
-      {tab === 'plan' && <PlanTab />}
+      {tab === 'advanced' && <AdvancedTab />}
     </div>
   )
 }
@@ -88,7 +90,7 @@ function ProfileTab() {
     const img = new Image()
     img.onload = () => {
       const canvas = document.createElement('canvas')
-      const size = 128
+      const size = 256
       canvas.width = size
       canvas.height = size
       const ctx = canvas.getContext('2d')
@@ -101,46 +103,51 @@ function ProfileTab() {
   }
 
   return (
-    <Card title="Dados do Perfil" subtitle="Como você aparece na plataforma.">
+    <Card title="Perfil">
       <form onSubmit={save} className="space-y-4">
-        <div className="flex items-center gap-4">
-          {avatarDataUrl ? (
-            <img src={avatarDataUrl} alt="" className="h-16 w-16 rounded-full border border-slate-700 object-cover" />
-          ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-sky-500 text-xl font-bold text-slate-950">
-              {(name || '?').charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div className="space-y-1.5">
-            {isAdmin && (
-              <span className="inline-block rounded border border-amber-500/40 bg-gradient-to-r from-amber-500/20 to-red-500/10 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
-                👑 FUNDADOR
-              </span>
+        {/* Avatar com ícone de câmera, como no original */}
+        <div className="flex flex-col items-center gap-2 pb-2 text-center">
+          <label className="group relative cursor-pointer">
+            {avatarDataUrl ? (
+              <img src={avatarDataUrl} alt="" className="h-20 w-20 rounded-full border border-slate-700 object-cover" />
+            ) : (
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-sky-500 text-2xl font-bold text-slate-950">
+                {(name || '?').charAt(0).toUpperCase()}
+              </div>
             )}
-            <div className="flex gap-2">
-              <label className="cursor-pointer rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300">
-                📷 {avatarDataUrl ? 'Trocar foto' : 'Adicionar foto'}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} />
-              </label>
-              {avatarDataUrl && (
-                <button type="button" onClick={() => db.setSetting('avatarDataUrl', null)} className="rounded-lg px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
-                  Remover
-                </button>
-              )}
-            </div>
-            <p className="text-[10px] text-slate-600">A foto fica salva neste dispositivo (128px). Com o Supabase ativo, sobe para o storage.</p>
-          </div>
+            <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 transition-colors group-hover:border-cyan-500/60 group-hover:text-cyan-400">
+              <Camera size={13} />
+            </span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} />
+          </label>
+          {isAdmin && (
+            <span className="rounded border border-amber-500/40 bg-gradient-to-r from-amber-500/20 to-red-500/10 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
+              👑 FUNDADOR
+            </span>
+          )}
+          <p className="text-xs text-slate-500">Clique no ícone da câmera para adicionar sua foto</p>
+          <p className="text-[10px] text-slate-600">
+            Formatos: JPG, PNG, WebP • Tamanho máximo: 10MB
+            <br />
+            (Será comprimida automaticamente para ~300KB)
+          </p>
+          {avatarDataUrl && (
+            <button type="button" onClick={() => db.setSetting('avatarDataUrl', null)} className="text-[11px] text-red-400 hover:underline">
+              Remover foto
+            </button>
+          )}
         </div>
-        <Field label="NOME DE EXIBIÇÃO">
+        <Field label="NOME">
           <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="E-MAIL">
+        <Field label="EMAIL">
           <input className={`${inputCls} opacity-60`} value={user?.email || ''} disabled />
+          <p className="mt-1 text-[10px] text-slate-600">O email não pode ser alterado</p>
         </Field>
         <div className="flex items-center justify-end gap-3">
           <SavedFlash show={saved} />
           <button type="submit" className={btnPrimary}>
-            Salvar alterações
+            Salvar Alterações
           </button>
         </div>
       </form>
@@ -349,12 +356,18 @@ function ApisTab() {
 // ---------------------------------------------------------------------------
 function PrefsTab() {
   const db = useDb()
-  const [theme, setTheme] = useState(db.getSetting('theme', 'dark'))
+  const [theme, setThemeState] = useState(document.documentElement.dataset.theme || 'dark')
   const [emailNotif, setEmailNotif] = useState(db.getSetting('emailNotifications', true))
   const [saved, setSaved] = useState(false)
 
+  // Sincroniza com o botão de lua/sol do header (mesmo storage)
+  function setTheme(next) {
+    setThemeState(next)
+    document.documentElement.dataset.theme = next
+    localStorage.setItem('noctis_theme', next)
+  }
+
   function save() {
-    db.setSetting('theme', theme)
     db.setSetting('emailNotifications', emailNotif)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -366,13 +379,13 @@ function PrefsTab() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-200">Tema</p>
-            <p className="text-xs text-slate-500">O tema claro chega em uma atualização futura.</p>
+            <p className="text-xs text-slate-500">Vale para toda a interface — também dá para alternar pela lua/sol no topo.</p>
           </div>
           <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-900 p-1 text-xs">
             <button onClick={() => setTheme('dark')} className={`rounded px-3 py-1.5 ${theme === 'dark' ? 'bg-cyan-500 text-white' : 'text-slate-400'}`}>
               Escuro
             </button>
-            <button disabled className="cursor-not-allowed rounded px-3 py-1.5 text-slate-600" title="Em breve">
+            <button onClick={() => setTheme('light')} className={`rounded px-3 py-1.5 ${theme === 'light' ? 'bg-cyan-500 text-white' : 'text-slate-400'}`}>
               Claro
             </button>
           </div>
@@ -396,73 +409,119 @@ function PrefsTab() {
 }
 
 // ---------------------------------------------------------------------------
-const PLANS = [
-  { name: 'Grátis', price: 'R$ 0', features: ['1 canal', 'Ferramentas de texto', 'Quadro de ideias'], cls: 'border-slate-800' },
-  { name: 'Basic', price: 'R$ 47/mês', features: ['3 canais', 'Niche Finder + Virais', '10 relatórios IA/mês'], cls: 'border-slate-800' },
-  { name: 'Lite', price: 'R$ 97/mês', features: ['10 canais', 'Dobra de Nicho', '50 relatórios IA/mês'], cls: 'border-slate-800' },
-  { name: 'Pro', price: 'R$ 197/mês', features: ['Canais ilimitados', 'Tudo do Lite', 'Compartilhamento de equipe'], cls: 'border-cyan-500/50', highlight: true },
-]
-
-function PlanTab() {
-  const { user } = useAuth()
+// Aba Avançado: backup completo dos dados locais + zona de perigo
+function AdvancedTab() {
   const db = useDb()
-  const reports = db.all('seoReports').length + db.all('nicheAnalyses').length
-  const transcriptions = db.all('transcriptions').length
+  const [importError, setImportError] = useState('')
+  const [importOk, setImportOk] = useState(false)
+  const [pendingImport, setPendingImport] = useState(null)
+  const [wipeOpen, setWipeOpen] = useState(false)
+
+  const counts = {
+    canais: db.all('channels').length,
+    vídeos: db.all('videos').length,
+    prompts: db.all('prompts').length,
+    referências: db.all('referenceChannels').length,
+    análises: db.all('nicheAnalyses').length,
+  }
+
+  function exportBackup() {
+    const stamp = new Date().toISOString().slice(0, 10)
+    downloadFile(`noctis-backup-${stamp}.json`, JSON.stringify(db.exportAll(), null, 2))
+  }
+
+  function handleImportFile(file) {
+    if (!file) return
+    setImportError('')
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const payload = JSON.parse(reader.result)
+        if (payload?.app !== 'noctis-studio' || !payload?.data) throw new Error('invalid')
+        setPendingImport(payload) // confirma antes de sobrescrever
+      } catch {
+        setImportError('Arquivo inválido — selecione um backup .json exportado pelo Noctis Studio.')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  function confirmImport() {
+    try {
+      db.importAll(pendingImport)
+      setImportOk(true)
+      setTimeout(() => setImportOk(false), 3000)
+    } catch {
+      setImportError('Não foi possível importar este backup.')
+    } finally {
+      setPendingImport(null)
+    }
+  }
 
   return (
     <div className="space-y-4">
-      <Card>
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
-            <Crown size={22} />
-          </div>
-          <div>
-            <p className="text-lg font-bold text-slate-100">
-              Plano <span className="text-amber-400">{user?.plan || 'FREE'}</span>
-            </p>
-            <p className="text-xs text-slate-500">Acesso completo a todas as ferramentas da plataforma.</p>
-          </div>
+      <Card title="Backup dos dados" subtitle="Tudo que está salvo neste dispositivo (canais, vídeos, roteiros, prompts, referências, quadro, análises e configurações).">
+        <div className="mb-4 flex flex-wrap gap-2">
+          {Object.entries(counts).map(([label, n]) => (
+            <span key={label} className="rounded-full border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] text-slate-400">
+              <b className="text-slate-200">{n}</b> {label}
+            </span>
+          ))}
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-4">
-          <UsageBar label="Gerações de IA (SEO + Dobra de Nicho)" used={reports} limit={100} />
-          <UsageBar label="Transcrições" used={transcriptions} limit={30} />
+        <div className="flex flex-wrap gap-2">
+          <button onClick={exportBackup} className={`${btnPrimary} flex items-center gap-2`}>
+            <DownloadCloud size={15} />
+            Exportar backup (JSON)
+          </button>
+          <label className={`${btnGhost} flex cursor-pointer items-center gap-2`}>
+            <UploadCloud size={15} />
+            Importar backup
+            <input type="file" accept=".json,application/json" className="hidden" onChange={(e) => { handleImportFile(e.target.files?.[0]); e.target.value = '' }} />
+          </label>
+        </div>
+        {importError && <p className="mt-3 text-xs text-red-400">{importError}</p>}
+        {importOk && (
+          <p className="mt-3 flex items-center gap-1.5 text-xs text-green-400">
+            <Check size={13} />
+            Backup importado com sucesso — os dados já estão no ar.
+          </p>
+        )}
+        <p className="mt-3 text-[11px] text-slate-600">
+          As chaves de API entram no backup. Guarde o arquivo em local seguro — quem tiver ele consegue usar suas chaves.
+        </p>
+      </Card>
+
+      <Card title="Zona de perigo">
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-semibold text-red-400">
+              <AlertTriangle size={14} />
+              Apagar todos os dados locais
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">Remove canais, vídeos, prompts e configurações deste dispositivo. Exporte um backup antes.</p>
+          </div>
+          <button onClick={() => setWipeOpen(true)} className="shrink-0 rounded-lg border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/10">
+            Apagar tudo
+          </button>
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {PLANS.map((p) => (
-          <div key={p.name} className={`rounded-xl border bg-slate-900/40 p-5 ${p.cls}`}>
-            {p.highlight && <span className="mb-2 inline-block rounded bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold text-cyan-400">POPULAR</span>}
-            <p className="font-bold text-slate-100">{p.name}</p>
-            <p className="mt-1 text-xl font-extrabold text-slate-100">{p.price}</p>
-            <ul className="mt-3 space-y-1.5">
-              {p.features.map((f) => (
-                <li key={f} className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <Check size={12} className="text-cyan-400" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function UsageBar({ label, used, limit }) {
-  const pct = Math.min(100, Math.round((used / limit) * 100))
-  return (
-    <div className="rounded-lg border border-slate-800 p-4">
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-slate-400">{label}</span>
-        <span className="font-semibold text-slate-200">
-          {used}/{limit}
-        </span>
-      </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
-        <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500" style={{ width: `${pct}%` }} />
-      </div>
+      <ConfirmDialog
+        open={pendingImport !== null}
+        onClose={() => setPendingImport(null)}
+        onConfirm={confirmImport}
+        title="Importar backup"
+        message={`O backup de ${pendingImport?.exportedAt ? new Date(pendingImport.exportedAt).toLocaleString('pt-BR') : 'data desconhecida'} vai SUBSTITUIR todos os dados atuais deste dispositivo. Continuar?`}
+        confirmLabel="Substituir dados"
+      />
+      <ConfirmDialog
+        open={wipeOpen}
+        onClose={() => setWipeOpen(false)}
+        onConfirm={() => db.wipeAll()}
+        title="Apagar todos os dados"
+        message="Isso remove TUDO que está salvo neste dispositivo e não pode ser desfeito. Tem certeza?"
+        confirmLabel="Apagar tudo"
+      />
     </div>
   )
 }

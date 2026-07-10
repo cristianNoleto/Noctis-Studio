@@ -57,6 +57,8 @@ router.get('/:id/status', async (req, res) => {
     const out = { id: data.id, status: mapStatus(data.status) }
     if (data.status === 'completed') {
       out.text = data.text
+      // Palavras com tempo (ms) — o client gera os 3 formatos de SRT com isso
+      out.words = (data.words || []).map((w) => ({ s: w.start, e: w.end, t: w.text }))
       // Blocos por tempo (~frases) para a UI de copiar/exportar
       out.blocks = (data.words || []).reduce((blocks, w) => {
         const last = blocks[blocks.length - 1]

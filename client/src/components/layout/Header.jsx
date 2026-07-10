@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { Bell, ChevronRight, Eye, EyeOff, HelpCircle, LogOut, Moon, Settings, ShieldCheck, Sun, Sparkles } from 'lucide-react'
+import { Bell, BookOpen, ChevronRight, Crown, Eye, EyeOff, HelpCircle, LogOut, Moon, Settings, ShieldCheck, Sun, Sparkles } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
 import { useDb } from '../../lib/db'
@@ -164,11 +164,19 @@ export default function Header() {
               </div>
               <Link to="/perfil" onClick={() => setMenuOpen(false)} className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
                 <Settings size={15} />
-                {t('nav.profile')}
+                Meu Perfil
+              </Link>
+              <Link to="/meu-plano" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
+                <Crown size={15} />
+                Meu Plano
               </Link>
               <Link to="/ajuda" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
                 <HelpCircle size={15} />
                 Central de Ajuda
+              </Link>
+              <Link to="/api-docs" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
+                <BookOpen size={15} />
+                Documentação da API
               </Link>
               {isAdmin && (
                 <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-amber-400 hover:bg-slate-800">
@@ -178,7 +186,7 @@ export default function Header() {
               )}
               <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-400 hover:bg-slate-800">
                 <LogOut size={15} />
-                {t('nav.logout')}
+                Encerrar sessão
               </button>
             </div>
           )}

@@ -157,6 +157,27 @@ export const db = {
     state.settings = { ...state.settings, [key]: value }
     persist()
   },
+  // ------ Backup (Configurações → Avançado) ------
+  exportAll() {
+    return { app: 'noctis-studio', version: 1, exportedAt: new Date().toISOString(), data: state }
+  },
+  importAll(payload) {
+    if (!payload || payload.app !== 'noctis-studio' || !payload.data || typeof payload.data !== 'object') {
+      throw new Error('invalid_backup')
+    }
+    // só aceita coleções conhecidas — ignora chaves estranhas do arquivo
+    const clean = emptyState()
+    for (const key of Object.keys(clean)) {
+      if (key === 'settings') clean.settings = { ...(payload.data.settings || {}) }
+      else if (Array.isArray(payload.data[key])) clean[key] = payload.data[key]
+    }
+    state = clean
+    persist()
+  },
+  wipeAll() {
+    state = seed({})
+    persist()
+  },
 }
 
 function subscribe(fn) {

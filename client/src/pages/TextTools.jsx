@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { FileText, Captions, Scissors, Copy, FileDown } from 'lucide-react'
 import { inputCls, btnPrimary, btnGhost } from '../components/ui'
-import { countWords, countParagraphs, fleschPt, generateSrt, splitTextByLimit, narrationSeconds, formatDuration, downloadFile } from '../lib/text'
+import { countWords, countParagraphs, generateSrt, splitTextByLimit, formatDuration, downloadFile } from '../lib/text'
 
 const TABS = [
   ['editor', 'Editor de Texto', FileText],
   ['srt', 'Gerador de SRT', Captions],
-  ['splitter', 'Divisor de Texto (CapCut)', Scissors],
+  ['splitter', 'Divisor de Texto', Scissors],
 ]
 
 export default function TextTools() {
@@ -16,7 +16,7 @@ export default function TextTools() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-100">Ferramentas de Texto</h1>
-        <p className="mt-1 text-sm text-slate-500">Editor com legibilidade, gerador de SRT por tempo de leitura e divisor para CapCut/Shorts.</p>
+        <p className="mt-1 text-sm text-slate-500">Editor, gerador de legendas e divisor de texto em um só lugar</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -41,6 +41,13 @@ export default function TextTools() {
   )
 }
 
+// Velocidades de narração do original: Normal 155, Lento 130, Rápido 183 wpm
+const NARRATION_SPEEDS = [
+  ['Normal', 155],
+  ['Lento/Pausado', 130],
+  ['Rápido/Dinâmico', 183],
+]
+
 function EditorTab() {
   const [text, setText] = useState('')
   const stats = useMemo(
@@ -48,34 +55,64 @@ function EditorTab() {
       words: countWords(text),
       chars: text.length,
       paragraphs: countParagraphs(text),
-      readability: fleschPt(text),
-      duration: formatDuration(narrationSeconds(text)),
     }),
     [text],
   )
 
-  const readabilityLabel = stats.readability >= 75 ? 'Muito fácil' : stats.readability >= 50 ? 'Fácil' : stats.readability >= 25 ? 'Média' : 'Difícil'
-
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <StatBox label="Palavras" value={stats.words.toLocaleString('pt-BR')} />
-        <StatBox label="Caracteres" value={stats.chars.toLocaleString('pt-BR')} />
-        <StatBox label="Parágrafos" value={stats.paragraphs} />
-        <StatBox label="Legibilidade (Flesch-PT)" value={`${stats.readability} · ${readabilityLabel}`} />
-        <StatBox label="Narração (150 WPM)" value={stats.duration} accent />
+      {/* Contadores como no original: CARACTERES / PALAVRAS / PARÁGRAFOS */}
+      <div className="grid grid-cols-3 gap-3">
+        <StatBox label="CARACTERES" value={stats.chars.toLocaleString('pt-BR')} />
+        <StatBox label="PALAVRAS" value={stats.words.toLocaleString('pt-BR')} />
+        <StatBox label="PARÁGRAFOS" value={stats.paragraphs} />
       </div>
-      <textarea
-        className={`${inputCls} min-h-96 resize-y font-mono text-sm leading-relaxed`}
-        placeholder="Escreva ou cole seu texto aqui..."
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-      <div className="flex justify-end">
+
+      {/* Tempo de Narração (padrão) — 3 velocidades */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+        <p className="mb-3 text-xs font-semibold text-slate-300">Tempo de Narração (padrão)</p>
+        <div className="grid grid-cols-3 gap-3">
+          {NARRATION_SPEEDS.map(([label, wpm]) => (
+            <div key={label} className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2.5 text-center">
+              <p className="text-[11px] font-medium text-slate-400">{label}</p>
+              <p className="mt-0.5 text-lg font-bold text-cyan-400">{formatDuration(Math.round((stats.words / wpm) * 60))}</p>
+              <p className="text-[10px] text-slate-600">{wpm} palavras/min</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Área de Texto */}
+      <div>
+        <p className="mb-2 text-xs font-semibold text-slate-300">Área de Texto</p>
+        <textarea
+          className={`${inputCls} min-h-80 resize-y font-mono text-sm leading-relaxed`}
+          placeholder="Escreva ou cole seu texto aqui..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <button className={`${btnGhost} flex items-center gap-2`} onClick={() => downloadFile('legendas.srt', generateSrt(text))} disabled={!text.trim()}>
+          <Captions size={15} />
+          Baixar SRT
+        </button>
         <button className={`${btnGhost} flex items-center gap-2`} onClick={() => downloadFile('texto.txt', text)} disabled={!text.trim()}>
           <FileDown size={15} />
           Baixar TXT
         </button>
+      </div>
+
+      {/* Dicas de Uso — como no original */}
+      <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+        <p className="mb-2 text-xs font-semibold text-cyan-300">Dicas de Uso</p>
+        <ul className="space-y-1.5 text-[11px] leading-relaxed text-slate-400">
+          <li>• Cada parágrafo (separado por linha em branco) vira uma legenda com tempo calculado automaticamente</li>
+          <li>• Baixar TXT baixa o texto puro sem formatação adicional</li>
+          <li>• O tempo é calculado com base em velocidades padrão de fala (155 palavras/min para normal)</li>
+          <li>• Separe com linha dupla (Enter duas vezes) para melhor organização no SRT</li>
+        </ul>
       </div>
     </div>
   )
