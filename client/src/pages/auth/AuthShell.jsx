@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Volume2, Compass, Flame, LineChart, Monitor } from 'lucide-react'
+import { Compass, Flame, LineChart } from 'lucide-react'
 import Logo from '../../components/Logo'
 import WhatsAppWidget from '../../components/WhatsAppWidget'
 import { useI18n } from '../../i18n'
@@ -9,14 +9,10 @@ const DISCORD_URL = import.meta.env.VITE_DISCORD_URL || 'https://discord.com'
 const YOUTUBE_URL = import.meta.env.VITE_YOUTUBE_URL || 'https://youtube.com'
 
 const features = [
-  { key: 'audio', Icon: Volume2 },
   { key: 'niche', Icon: Compass },
   { key: 'viral', Icon: Flame },
   { key: 'insights', Icon: LineChart },
-  { key: 'app', Icon: Monitor },
 ]
-
-const avatarColors = ['bg-rose-500', 'bg-amber-500', 'bg-emerald-500', 'bg-cyan-500', 'bg-sky-500']
 
 function YoutubeIcon({ size = 20 }) {
   return (
@@ -90,12 +86,8 @@ export default function AuthShell({ children }) {
             </div>
           </div>
 
+          {/* Sem as bolinhas de avatar — só o texto e o ícone */}
           <div className="flex items-center gap-3">
-            <div className="flex -space-x-2">
-              {avatarColors.map((c) => (
-                <div key={c} className={`h-8 w-8 rounded-full border-2 border-slate-950 ${c}`} />
-              ))}
-            </div>
             <span className="text-sm text-slate-400">{t('auth.socialProof')}</span>
             <span className="text-indigo-400">
               <DiscordIcon size={18} />

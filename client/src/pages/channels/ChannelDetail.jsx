@@ -21,7 +21,6 @@ import {
   Eye,
   MessageSquare,
   Bookmark,
-  Mic,
   Loader2,
   Mail,
 } from 'lucide-react'
@@ -258,7 +257,7 @@ export default function ChannelDetail() {
       </div>
 
       {/* Cards de controle central */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <ControlCard
           icon={MessageSquare}
           title="Prompts do Canal"
@@ -267,7 +266,6 @@ export default function ChannelDetail() {
           onAction={() => setModal('prompts')}
         />
         <ReferenceControlCard channelId={id} count={refsCount} onManage={() => setModal('references')} />
-        <ControlCard icon={Mic} title="Narrador" desc="Não configurado" actionLabel="Configurar" disabled title2="Em breve (fase TTS)" />
       </div>
 
       {/* Títulos & Vídeos */}

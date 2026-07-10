@@ -19,7 +19,6 @@ import Transcription from './pages/Transcription'
 import TextTools from './pages/TextTools'
 import Academy from './pages/Academy'
 import Support from './pages/Support'
-import ComingSoon from './pages/ComingSoon'
 import Help from './pages/Help'
 import Admin from './pages/Admin'
 import MyPlan from './pages/MyPlan'
@@ -70,8 +69,6 @@ export default function App() {
         <Route path="/suporte" element={<Support />} />
         <Route path="/meu-plano" element={<MyPlan />} />
         <Route path="/api-docs" element={<ApiDocs />} />
-        <Route path="/text-to-speech" element={<ComingSoon phase={8} feature="Text to Speech" />} />
-        <Route path="/app" element={<ComingSoon phase={8} feature="Noctis App (desktop)" />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

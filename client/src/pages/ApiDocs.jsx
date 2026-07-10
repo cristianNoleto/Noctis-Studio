@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, Copy, Check, KeyRound, FileDown, Play } from 'lucide-react'
 
 // Documentação da API — clone da página do original (API pública de áudio),
-// com a marca Noctis. A API em si entra no ar junto com a fase de TTS.
+// com a marca Noctis. A API em si ainda não está disponível.
 const BASE = 'https://app.noctis.studio/api/v1/audio'
 
 const ENDPOINTS = [
@@ -194,8 +194,8 @@ export default function ApiDocs() {
             </div>
           </div>
           <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2.5 text-xs text-amber-300/90">
-            <b>Assinatura ativa obrigatória.</b> A API de áudio está disponível nos planos Pro e Plus, com os mesmos limites diários do
-            dashboard — e entra no ar junto com a fase Text to Speech do Noctis.{' '}
+            <b>Assinatura ativa obrigatória.</b> A API estará disponível nos planos Pro e Plus, com os mesmos limites diários do
+            dashboard — ainda não está no ar.{' '}
             <Link to="/meu-plano" className="underline hover:text-amber-200">
               Gerencie sua assinatura
             </Link>
@@ -216,7 +216,7 @@ export default function ApiDocs() {
                 limite diário do dashboard.
               </p>
             </div>
-            <button disabled title="Disponível na fase Text to Speech" className="flex cursor-not-allowed items-center gap-2 rounded-lg bg-cyan-500/40 px-4 py-2 text-xs font-bold text-white/70">
+            <button disabled title="Disponível em breve" className="flex cursor-not-allowed items-center gap-2 rounded-lg bg-cyan-500/40 px-4 py-2 text-xs font-bold text-white/70">
               <KeyRound size={13} />
               Gerar Chave de API
             </button>
@@ -298,7 +298,7 @@ export default function ApiDocs() {
             <Link to="/meu-plano" className="text-cyan-400 underline hover:text-cyan-300">
               Meu Plano
             </Link>{' '}
-            quando a fase Text to Speech estiver no ar.
+            quando a API estiver no ar.
           </p>
         </div>
 

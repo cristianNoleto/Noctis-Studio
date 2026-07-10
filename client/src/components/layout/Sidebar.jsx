@@ -7,8 +7,6 @@ import {
   Heart,
   Image,
   Mic,
-  AudioLines,
-  Monitor,
   FileText,
   Kanban,
   Compass,
@@ -39,9 +37,7 @@ const groups = [
   {
     key: 'tools',
     items: [
-      { to: '/text-to-speech', label: 'tts', Icon: AudioLines },
       { to: '/transcricao', label: 'transcription', Icon: Mic },
-      { to: '/app', label: 'app', Icon: Monitor, badge: 'NOVO' },
       { to: '/ferramentas-texto', label: 'textTools', Icon: FileText },
       { to: '/quadro-ideias', label: 'ideaBoard', Icon: Kanban },
     ],

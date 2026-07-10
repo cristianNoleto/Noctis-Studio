@@ -4,13 +4,11 @@ import {
   Clapperboard,
   CheckCircle,
   CalendarClock,
-  AudioLines,
   Compass,
   TrendingUp,
+  GitBranch,
   ArrowRight,
   Sparkles,
-  Monitor,
-  Puzzle,
   MessageCircle,
   Users,
   Eye,
@@ -84,9 +82,9 @@ export default function Dashboard() {
   ]
 
   const shortcuts = [
-    { to: '/text-to-speech', label: 'Gerar Áudio', sub: 'Vozes premium por IA', Icon: AudioLines, soon: true },
     { to: '/niche-finder', label: 'Niche Finder', sub: 'Canais que estão bombando', Icon: Compass },
     { to: '/videos-virais', label: 'Vídeos Virais', sub: 'Filtros avançados de busca', Icon: TrendingUp },
+    { to: '/dobra-de-nicho', label: 'Dobra de Nicho', sub: 'Grafo de oportunidades por IA', Icon: GitBranch },
     { to: '/canais', label: 'Gestão de Canais', sub: 'Pipeline dos seus canais', Icon: Tv },
   ]
 
@@ -182,21 +180,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Coluna direita: Downloads + Comunidade */}
+        {/* Coluna direita: Comunidade */}
         <div className="space-y-6">
-          <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
-            <div className="flex items-center justify-between border-b border-cyan-500/40 px-5 py-4">
-              <h2 className="flex items-center gap-2 font-semibold text-slate-100">
-                <Monitor size={16} className="text-cyan-400" />
-                Downloads
-              </h2>
-            </div>
-            <div className="space-y-3 p-4">
-              <DownloadRow Icon={Monitor} title="App Desktop" sub="Automatize e sincronize seus canais" meta="Windows · macOS" />
-              <DownloadRow Icon={Puzzle} title="Extensão Chrome" sub="Para automação no navegador" />
-            </div>
-          </div>
-
           <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
             <div className="border-b border-cyan-500/40 px-5 py-4">
               <h2 className="flex items-center gap-2 font-semibold text-slate-100">
@@ -306,24 +291,6 @@ function Stat({ icon: Icon, label, value, sensitive }) {
         {sensitive ? <Masked mask="••">{value ?? 0}</Masked> : (value ?? 0)}
       </p>
       <p className="text-[10px] font-semibold tracking-wider text-slate-600">{label}</p>
-    </div>
-  )
-}
-
-function DownloadRow({ Icon, title, sub, meta }) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
-        <Icon size={17} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 text-sm font-semibold text-slate-200">
-          {title}
-          {meta && <span className="text-[10px] font-normal text-slate-500">{meta}</span>}
-        </p>
-        <p className="truncate text-xs text-slate-500">{sub}</p>
-      </div>
-      <span className="shrink-0 rounded bg-slate-800 px-2 py-1 text-[10px] font-bold text-slate-400">EM BREVE</span>
     </div>
   )
 }

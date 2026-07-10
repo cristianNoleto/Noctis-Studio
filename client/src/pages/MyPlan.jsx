@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Crown, Check, X, ChevronDown, MessageCircle, AudioLines } from 'lucide-react'
+import { Crown, Check, X, ChevronDown, MessageCircle, Sparkles } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
 
@@ -7,11 +7,9 @@ import { useDb } from '../lib/db'
 // Mensal/Trimestral com features e FAQ), com a marca Noctis.
 const FEATURES = [
   'Gestão de Canais',
-  'Extensão YouTube',
   'Similar Channels',
   'Niche Finder',
   'Vídeos Virais',
-  'App Noctis',
   'Acesso à API',
   'Acesso à comunidade',
 ]
@@ -22,9 +20,9 @@ const PLANS = [
     name: 'Noctis Free',
     monthly: 0,
     quarterly: 0,
-    summary: '5 áudios no total · até 80 mil caracteres',
-    credits: '400 mil créditos no total',
-    desc: 'Equivalente a 400 mil créditos no total para testar (não renovam). Cada geração conta como 1 áudio, então você pode fazer 5 áudios no total, e cada um pode ter até 80 mil caracteres.',
+    summary: '5 gerações de IA no total',
+    credits: '1 canal · ferramentas de texto',
+    desc: 'Para testar a plataforma: relatórios de SEO, Dobra de Nicho e títulos por IA em até 5 gerações (não renovam), com 1 canal no pipeline.',
     sub: 'Sem cartão de crédito',
     features: 2,
   },
@@ -32,29 +30,29 @@ const PLANS = [
     name: 'Noctis Basic',
     monthly: 49.99,
     quarterly: 39.99,
-    summary: '15 áudios/dia · até 80 mil caracteres',
-    credits: '1,2 mi créditos/dia',
-    desc: 'Equivalente a 1,2 mi créditos por dia para gerar áudio. Cada geração conta como 1 áudio, então você pode fazer 15 áudios por dia, e cada áudio pode ter até 80 mil caracteres. Renovam todos os dias.',
-    features: 5,
+    summary: '15 gerações de IA/dia',
+    credits: '3 canais',
+    desc: 'Relatórios de SEO/CTR, Dobra de Nicho e títulos por IA com 15 gerações por dia, renovando todos os dias, e até 3 canais no pipeline.',
+    features: 4,
   },
   {
     name: 'Noctis Lite',
     monthly: 79.99,
     quarterly: 63.99,
-    summary: '25 áudios/dia · até 120 mil caracteres',
-    credits: '3 mi créditos/dia',
-    desc: 'Equivalente a 3 mi créditos por dia para gerar áudio. Cada geração conta como 1 áudio, então você pode fazer 25 áudios por dia, e cada áudio pode ter até 120 mil caracteres. Renovam todos os dias.',
-    features: 7,
+    summary: '25 gerações de IA/dia',
+    credits: '10 canais',
+    desc: 'Tudo do Basic com 25 gerações de IA por dia, até 10 canais no pipeline e acesso completo às ferramentas de tendências.',
+    features: 5,
   },
   {
     name: 'Noctis Pro',
     monthly: 109.99,
     quarterly: 87.99,
-    summary: '50 áudios/dia · até 150 mil caracteres',
-    credits: '7,5 mi créditos/dia',
-    desc: 'Equivalente a 7,5 mi créditos por dia para gerar áudio. Cada geração conta como 1 áudio, então você pode fazer 50 áudios por dia, e cada áudio pode ter até 150 mil caracteres. Renovam todos os dias.',
+    summary: '50 gerações de IA/dia',
+    credits: 'Canais ilimitados',
+    desc: 'Para operações grandes: 50 gerações de IA por dia, canais ilimitados, acesso à API e à comunidade. Renovam todos os dias.',
     popular: true,
-    features: 8,
+    features: 6,
   },
 ]
 
@@ -64,8 +62,8 @@ const FAQ = [
     'Quando quiser. Sua assinatura permanece ativa até a data de renovação e não há multa de cancelamento.',
   ],
   [
-    'Como funcionam os caracteres e os créditos?',
-    'Cada caractere de texto conta como 1 crédito. Cada plano tem um limite de áudios por dia e de caracteres por áudio, e o limite de caracteres vale para cada áudio (não é somado). Por exemplo, no plano Pro você pode fazer até 50 áudios por dia, cada um com até 150 mil caracteres, o equivalente a 7,5 milhões de créditos por dia. Os créditos renovam todos os dias e não acumulam de um dia para o outro. No plano Free são 5 áudios no total para testar, que não renovam.',
+    'Como funcionam as gerações de IA?',
+    'Cada relatório de SEO/CTR, análise de Dobra de Nicho ou lote de títulos conta como 1 geração. Cada plano tem um limite de gerações por dia, que renova todos os dias e não acumula. No plano Free são 5 gerações no total para testar, que não renovam.',
   ],
   ['Sou cobrado por cada geração?', 'Não — o plano é uma mensalidade fixa. As gerações consomem apenas o limite diário incluso.'],
   [
@@ -113,8 +111,8 @@ export default function MyPlan() {
         <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-2 text-sm font-semibold text-slate-200">
-              <AudioLines size={15} className="text-cyan-400" />
-              Uso de áudios
+              <Sparkles size={15} className="text-cyan-400" />
+              Uso de IA
             </p>
             <span className="text-xs font-semibold text-slate-300">
               {usedToday} de {LIMIT} hoje
@@ -124,7 +122,7 @@ export default function MyPlan() {
             <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500" style={{ width: `${pct}%` }} />
           </div>
           <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Até 120.000 caracteres por áudio</span>
+            <span>Relatórios SEO · Dobra de Nicho · Títulos · Transcrições</span>
             <span>Renova todos os dias</span>
           </div>
         </div>
