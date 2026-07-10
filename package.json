@@ -1,0 +1,12 @@
+{
+  "name": "noctis-studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:client": "npm --prefix client run dev",
+    "dev:server": "npm --prefix server run dev"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

@@ -157,9 +157,8 @@ export default function Transcription() {
     setError('')
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append('file', file)
-      const { id } = await api.transcription.create(form)
+      // upload direto do navegador para a AssemblyAI (BYOK)
+      const { id } = await api.transcription.create(file)
       db.insert('transcriptions', { fileName: file.name, remoteId: id, status: 'preparing', sourceType: 'upload' })
     } catch (err) {
       setError(apiErrorMessage(err))

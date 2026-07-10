@@ -46,6 +46,39 @@ async function request(path, { method = 'GET', body, raw } = {}) {
   return data
 }
 
+// ---------------------------------------------------------------------------
+// Transcrição — o navegador fala DIRETO com a AssemblyAI (sem passar pelo
+// nosso backend): não há limite de upload de função serverless e funciona
+// igual no modo local. A chave é do usuário (BYOK) e já vive no dispositivo.
+// ---------------------------------------------------------------------------
+const ASSEMBLY_BASE = 'https://api.assemblyai.com/v2'
+
+function assemblyKey() {
+  const key = db.getSetting('assemblyKey', '')
+  if (!key) throw new ApiError('missing_assembly_key')
+  return key
+}
+
+async function assemblyFetch(path, options = {}) {
+  let res
+  try {
+    res = await fetch(`${ASSEMBLY_BASE}${path}`, {
+      ...options,
+      headers: { authorization: assemblyKey(), ...(options.headers || {}) },
+    })
+  } catch {
+    throw new ApiError('assembly_unreachable')
+  }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    if (res.status === 401) throw new ApiError('invalid_key')
+    throw new ApiError('transcription_failed', data?.error)
+  }
+  return data
+}
+
+const assemblyStatusMap = (s) => ({ queued: 'preparing', processing: 'transcribing', completed: 'done', error: 'error' }[s] || s)
+
 export const api = {
   youtube: {
     lookupChannel: (q) => request(`/youtube/channel?q=${encodeURIComponent(q)}`),
@@ -67,17 +100,38 @@ export const api = {
     search: (params) => request(`/media/search?${new URLSearchParams(params)}`),
   },
   transcription: {
-    create: (formData) =>
-      fetch('/api/transcribe', {
+    // Envia o arquivo de áudio direto para a AssemblyAI e abre o job
+    async create(file) {
+      const { upload_url: audioUrl } = await assemblyFetch('/upload', { method: 'POST', body: file })
+      const data = await assemblyFetch('/transcript', {
         method: 'POST',
-        headers: { 'x-assembly-key': db.getSetting('assemblyKey', '') },
-        body: formData,
-      }).then(async (r) => {
-        const d = await r.json().catch(() => ({}))
-        if (!r.ok) throw new ApiError(d.error || 'request_failed', d.message)
-        return d
-      }),
-    status: (id) => request(`/transcribe/${id}/status`),
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ audio_url: audioUrl, language_code: 'pt' }),
+      })
+      return { id: data.id, status: assemblyStatusMap(data.status) }
+    },
+    async status(id) {
+      const data = await assemblyFetch(`/transcript/${id}`)
+      const out = { id: data.id, status: assemblyStatusMap(data.status) }
+      if (data.status === 'completed') {
+        out.text = data.text
+        // Palavras com tempo (ms) — os 3 formatos de SRT são gerados com isso
+        out.words = (data.words || []).map((w) => ({ s: w.start, e: w.end, t: w.text }))
+        // Blocos por tempo (~frases) para a UI de copiar/exportar
+        out.blocks = (data.words || []).reduce((blocks, w) => {
+          const last = blocks[blocks.length - 1]
+          if (!last || w.start - last.end > 1200 || last.text.length > 220) {
+            blocks.push({ start: w.start, end: w.end, text: w.text })
+          } else {
+            last.end = w.end
+            last.text += ` ${w.text}`
+          }
+          return blocks
+        }, [])
+      }
+      if (data.status === 'error') out.message = data.error
+      return out
+    },
   },
 }
 
@@ -94,6 +148,7 @@ export function apiErrorMessage(err) {
       'Cota gratuita da IA atingida neste minuto/dia. O sistema já tentou os modelos alternativos — aguarde ~1 min, use o modelo gemini-2.0-flash, ou configure uma chave Groq (grátis) como reserva em Perfil → APIs.',
     missing_media_keys: 'Configure as chaves do Pexels e/ou Pixabay em Perfil → APIs.',
     missing_assembly_key: 'Configure a chave da API de transcrição (AssemblyAI) em Perfil → APIs.',
+    assembly_unreachable: 'Não foi possível falar com a AssemblyAI — confira sua conexão com a internet.',
     channel_not_found: 'Canal não encontrado no YouTube. Confira a URL ou o handle.',
     invalid_key: 'A chave de API informada foi rejeitada pelo provedor. Confira em Perfil → APIs.',
   }

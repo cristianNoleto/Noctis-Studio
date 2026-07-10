@@ -1,71 +1,56 @@
-# Deploy do Noctis Studio — Vercel + Supabase
+# Deploy do Noctis Studio — 100% Vercel + Supabase
 
-O sistema tem **duas partes** e cada uma vai para um lugar:
+Tudo roda na Vercel, num único deploy e de graça:
 
-| Parte | O que é | Onde hospedar |
+| Parte | O que é | Onde roda |
 |---|---|---|
-| `client/` | O site (React/Vite, arquivos estáticos) | **Vercel** |
-| `server/` | A API Express (proxy BYOK do YouTube/Gemini/AssemblyAI/Pexels) | **Render** (a Vercel não roda um Express `app.listen` direto) |
-| Supabase | Login real (e-mail/senha e Google) | **Supabase** (nuvem) |
+| `client/` | O site (React/Vite) | Vercel (estático — abre instantâneo) |
+| `api/[...path].js` | A API (proxy BYOK YouTube/Gemini/Pexels/Pixabay) | Vercel Functions (acorda em ~1s, sem os 40s do Render) |
+| Transcrição | Navegador fala **direto** com a AssemblyAI | não passa pelo backend |
+| Supabase | Login real (e-mail/senha e Google) | Supabase (nuvem) |
 
-Siga na ordem: servidor → Supabase → Vercel.
+O `vercel.json` da **raiz do repositório** já configura o build do client, o fallback de SPA (F5 em qualquer rota funciona) e as funções.
 
----
-
-## 1. Subir o servidor (Render — grátis)
-
-1. Suba o repositório para o GitHub (repo privado serve).
-2. Crie conta em https://render.com → **New → Web Service** → conecte o repo.
-3. Configure:
-   - **Root Directory**: `server`
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm start`
-   - **Instance Type**: Free
-4. Em **Environment**, adicione:
-   - `CLIENT_ORIGIN` = `https://SEU-PROJETO.vercel.app` (a URL que a Vercel vai te dar no passo 3 — pode voltar aqui depois para preencher)
-5. Deploy. Anote a URL gerada, ex.: `https://noctis-api.onrender.com`.
-6. Teste: abra `https://noctis-api.onrender.com/api/health` — deve responder `{"ok":true,...}`.
-
-> ⚠️ No plano Free o Render "dorme" após 15 min sem uso — a primeira chamada do dia demora ~40s para acordar. Se incomodar, o plano pago resolve, ou use Railway/Fly.io.
-
-> 🔑 Nenhuma chave de API vai no servidor: o sistema é BYOK — as chaves ficam no navegador de cada usuário e são enviadas por header a cada chamada.
-
-## 2. Criar o projeto no Supabase (login real)
+## 1. Criar o projeto no Supabase (login real)
 
 1. Crie conta em https://supabase.com → **New project** (região São Paulo, senha forte do banco).
 2. **Auth por e-mail**: já vem ligado. Em *Authentication → Providers → Email*, deixe "Confirm email" como preferir (desligado = entra direto sem confirmar).
-3. **Login com Google** (opcional): *Authentication → Providers → Google* → ative. Você vai precisar criar um OAuth Client no Google Cloud Console (APIs & Services → Credentials → OAuth client ID → Web) usando o redirect que o Supabase mostra na mesma tela; cole o Client ID e o Secret no Supabase.
-4. **Tabelas** (opcional hoje — veja "O que já funciona" abaixo): *SQL Editor* → cole o conteúdo de `supabase/schema.sql` → Run.
-5. Pegue as credenciais em *Settings → API*:
-   - **Project URL** → vai virar `VITE_SUPABASE_URL`
-   - **anon public key** → vai virar `VITE_SUPABASE_ANON_KEY`
-6. Em *Authentication → URL Configuration*, adicione a URL da Vercel (passo 3) em **Site URL** e **Redirect URLs**.
+3. **Login com Google** (opcional): *Authentication → Providers → Google* → ative. Crie um OAuth Client no Google Cloud Console (APIs & Services → Credentials → OAuth client ID → Web) usando o redirect que o Supabase mostra nessa tela; cole Client ID e Secret no Supabase.
+4. **Tabelas** (opcional hoje — veja "O que já funciona"): *SQL Editor* → cole `supabase/schema.sql` → Run.
+5. Copie em *Settings → API*:
+   - **Project URL** → vira `VITE_SUPABASE_URL`
+   - **anon public key** → vira `VITE_SUPABASE_ANON_KEY`
 
-## 3. Subir o site (Vercel)
+## 2. Subir na Vercel
 
-1. Edite `client/vercel.json` e troque `https://SEU-SERVIDOR.onrender.com` pela URL real do Render (passo 1). Commit + push.
-2. Crie conta em https://vercel.com → **Add New → Project** → importe o repo.
+1. Suba o repositório para o GitHub (repo privado serve).
+2. https://vercel.com → **Add New → Project** → importe o repo.
 3. Configure:
-   - **Root Directory**: `client`
-   - **Framework Preset**: Vite (detecta sozinho; Build `vite build`, Output `dist`)
-4. Em **Environment Variables**, adicione:
+   - **Root Directory**: deixe a **raiz** (não escolha `client` — o `vercel.json` da raiz cuida de tudo).
+   - Framework: Other/None (o buildCommand do vercel.json manda).
+4. **Environment Variables**:
    - `VITE_SUPABASE_URL` = Project URL do Supabase
    - `VITE_SUPABASE_ANON_KEY` = anon key do Supabase
    - (opcionais) `VITE_WHATSAPP_COMMUNITY_URL`, `VITE_DISCORD_URL`, `VITE_YOUTUBE_URL`, `VITE_WHATSAPP_PHONE`, `VITE_SUPPORT_EMAIL`
 5. **Deploy**. A URL final fica tipo `https://noctis-studio.vercel.app`.
-6. Volte no Render e preencha `CLIENT_ORIGIN` com essa URL; volte no Supabase e preencha a URL Configuration (passo 2.6).
+6. Volte no Supabase → *Authentication → URL Configuration* → preencha **Site URL** e **Redirect URLs** com essa URL.
 
-O `vercel.json` já resolve os dois pontos críticos:
-- `/api/*` é repassado para o servidor no Render (o site chama `/api/...` como se fosse local);
-- qualquer outra rota cai no `index.html` (sem 404 ao dar F5 em `/niche-finder` etc.).
+Teste rápido: `https://SEU-PROJETO.vercel.app/api/health` deve responder `{"ok":true,"runtime":"vercel",...}`.
 
-## 4. Checklist final
+## 3. Checklist final
 
-- [ ] `https://...vercel.app` abre a tela de login
+- [ ] O site abre na tela de login
 - [ ] Criar conta / entrar funciona (Supabase Auth)
 - [ ] Perfil → APIs → salvar suas 5 chaves do YouTube + Gemini
-- [ ] Niche Finder busca canais (prova de que o rewrite `/api` → Render funciona)
+- [ ] Niche Finder busca canais (prova de que as functions estão no ar)
+- [ ] Transcrição: subir um MP3 funciona (navegador → AssemblyAI direto)
 - [ ] Configurações → Avançado → Exportar backup funciona
+
+## Notas de arquitetura
+
+- **BYOK**: nenhuma chave vai para a Vercel — as chaves de API são do usuário, ficam no navegador dele e são enviadas por header a cada chamada.
+- **Cache/rotação em serverless**: o cache de buscas e o estado "chave esgotada" vivem por instância aquecida; num cold start eles zeram. Sem impacto real: a rotação de chaves acontece dentro da própria requisição quando o YouTube devolve 403.
+- **Desenvolvimento local** continua igual: `npm run dev` em `server/` (porta 3001) + `npm run dev` em `client/` — o proxy do Vite aponta `/api/` para o Express local, que usa exatamente as mesmas rotas da função da Vercel.
 
 ## O que já funciona e o que ainda é local
 
