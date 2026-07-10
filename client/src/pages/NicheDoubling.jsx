@@ -128,6 +128,119 @@ export default function NicheDoubling() {
     downloadFile(`dobra-de-nicho-${current.channel.title}.txt`, txt)
   }
 
+  // PDF padronizado com a marca Noctis Studio (baseado no relatório do original):
+  // abre uma janela com o relatório diagramado e dispara a impressão em PDF.
+  function exportPdf() {
+    const r = normalizeResult(current.result)
+    const ch = current.channel
+    const out = computeOutliers(current.topVideos)
+    const esc = (s) => String(s ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    const today = new Date().toLocaleDateString('pt-BR')
+
+    const itemCard = (i, idx, color) => `
+      <div class="item" style="border-left-color:${color}">
+        <div class="item-head">
+          <span class="num" style="background:${color}1f;color:${color}">${idx}</span>
+          <h3>${esc(i.title)}</h3>
+          <span class="score">Sucesso ~${esc(i.successScore)}%</span>
+          <span class="diff">${esc(i.difficulty)}</span>
+        </div>
+        <p class="lbl">Como aplicar</p><p>${esc(i.howToApply)}</p>
+        <p class="lbl">O que preservar / o que muda</p><p>${esc(i.preserveVsChange)}</p>
+        ${(i.recommendedTitles || []).length ? `<p class="lbl">Títulos recomendados</p><ul>${i.recommendedTitles.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+      </div>`
+
+    const section = (title, color, items) =>
+      items.length
+        ? `<div class="section"><h2 style="color:${color}"><span class="dot" style="background:${color}"></span>${title}</h2>${items
+            .map((i, idx) => itemCard(i, idx + 1, color))
+            .join('')}</div>`
+        : ''
+
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Dobra de Nicho — ${esc(ch.title)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d0e12; color: #e2e8f0; padding: 0; }
+  .page { max-width: 800px; margin: 0 auto; padding: 36px 40px; }
+  .brand { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #00f2fe; padding-bottom: 18px; }
+  .mark { width: 42px; height: 42px; border-radius: 11px; background: linear-gradient(135deg, #00f2fe, #00b8cc); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .brand h1 { font-size: 20px; color: #f1f5f9; } .brand h1 b { color: #00f2fe; }
+  .brand .meta { margin-left: auto; text-align: right; font-size: 11px; color: #64748b; }
+  .channel { display: flex; gap: 16px; align-items: center; margin-top: 24px; background: #16171d; border: 1px solid #1e293b; border-radius: 14px; padding: 18px; }
+  .channel img { width: 62px; height: 62px; border-radius: 50%; border: 2px solid #00f2fe55; }
+  .channel h2 { font-size: 22px; color: #f8fafc; }
+  .channel p { font-size: 12px; color: #94a3b8; margin-top: 3px; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 700; color: #00f2fe; border: 1px solid #00f2fe44; background: #00f2fe12; border-radius: 99px; padding: 2px 9px; margin-top: 6px; }
+  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 14px; }
+  .stat { background: #16171d; border: 1px solid #1e293b; border-radius: 10px; padding: 10px; text-align: center; }
+  .stat b { display: block; font-size: 16px; color: #f8fafc; }
+  .stat span { font-size: 8.5px; letter-spacing: 1px; color: #64748b; font-weight: 700; }
+  .pattern { margin-top: 14px; background: #16171d; border: 1px solid #00f2fe33; border-radius: 12px; padding: 14px 16px; }
+  .pattern .lbl, .lbl { font-size: 9.5px; letter-spacing: 1.4px; font-weight: 700; color: #00f2fe; margin-top: 10px; }
+  .pattern p.desc { font-size: 13px; color: #e2e8f0; margin-top: 5px; }
+  .chips { margin-top: 8px; } .chips span { display: inline-block; font-size: 10px; color: #94a3b8; border: 1px solid #334155; border-radius: 99px; padding: 2px 9px; margin: 2px 3px 0 0; }
+  .section { margin-top: 26px; page-break-inside: avoid; }
+  .section h2 { font-size: 15px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .item { background: #16171d; border: 1px solid #1e293b; border-left: 3px solid; border-radius: 10px; padding: 13px 15px; margin-bottom: 10px; page-break-inside: avoid; }
+  .item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .item h3 { font-size: 13.5px; color: #f1f5f9; flex: 1; }
+  .num { font-size: 11px; font-weight: 800; border-radius: 99px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
+  .score, .diff { font-size: 10px; font-weight: 700; border-radius: 99px; padding: 2px 8px; background: #1e293b; color: #cbd5e1; }
+  .item p { font-size: 11.5px; color: #a9b4c4; line-height: 1.55; margin-top: 3px; }
+  .item ul { margin: 4px 0 0 16px; } .item li { font-size: 11.5px; color: #cbd5e1; margin-top: 2px; }
+  .foot { margin-top: 28px; border-top: 1px solid #1e293b; padding-top: 12px; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { margin: 10mm; background: #0d0e12; }
+  }
+</style></head><body><div class="page">
+  <div class="brand">
+    <div class="mark">🌙</div>
+    <h1>Noctis <b>Studio</b><div style="font-size:11px;font-weight:400;color:#94a3b8">Relatório de Dobra de Nicho</div></h1>
+    <div class="meta">Gerado em ${today}<br/>noctis.studio</div>
+  </div>
+
+  <div class="channel">
+    ${ch.avatar ? `<img src="${esc(ch.avatar)}" referrerpolicy="no-referrer"/>` : ''}
+    <div>
+      <h2>${esc(ch.title)}</h2>
+      <p><b style="color:#00f2fe">Nicho principal:</b> ${esc(r.mainNiche || '—')}</p>
+      <p><b>Público:</b> ${esc(r.audience || '—')}</p>
+      <span class="tag">Confiança ${esc((r.confidence || 'alta').toUpperCase())}</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>${formatCompact(ch.subscribers)}</b><span>INSCRITOS</span></div>
+    <div class="stat"><b>${formatCompact(ch.views)}</b><span>VIEWS TOTAIS</span></div>
+    <div class="stat"><b>${ch.videoCount ?? '—'}</b><span>PUBLICADOS</span></div>
+    <div class="stat"><b>${current.topVideos?.length ?? '—'}</b><span>ANALISADOS</span></div>
+    <div class="stat"><b>${out.count}</b><span>OUTLIERS</span></div>
+    <div class="stat"><b>${out.biggest ? `${out.biggest}x` : '—'}</b><span>MAIOR OUTLIER</span></div>
+  </div>
+
+  ${r.winningPattern ? `<div class="pattern"><p class="lbl" style="margin-top:0">PADRÃO VENCEDOR</p><p class="desc">${esc(r.winningPattern.description)}</p><div class="chips">${(r.winningPattern.tags || []).map((t) => `<span>${esc(t)}</span>`).join('')}</div></div>` : ''}
+  ${r.howToApply ? `<div class="pattern"><p class="lbl" style="margin-top:0">COMO APLICAR NA PRÁTICA</p><p class="desc">${esc(r.howToApply)}</p></div>` : ''}
+
+  ${section('MAR DE IDEIAS', '#2dd4bf', r.ideas)}
+  ${section(`DOBRA DE NICHO${r.doubling.summary ? ` — ${esc(r.doubling.summary)}` : ''}`, '#f59e0b', r.doubling.items)}
+  ${section('ADAPTAÇÃO DE MERCADO', '#4ade80', r.market)}
+
+  <div class="foot">
+    <span>⚠️ Scores são estimativas geradas por IA — não métricas garantidas.</span>
+    <span>Noctis Studio · Dobra de Nicho · ${esc(ch.title)}</span>
+  </div>
+</div>
+<script>window.addEventListener('load', () => setTimeout(() => window.print(), 400))</script>
+</body></html>`
+
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(html)
+    win.document.close()
+  }
+
   // ------------------------------------------------------------------
   // Vista de busca + histórico
   // ------------------------------------------------------------------

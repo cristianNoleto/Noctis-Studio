@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search,
@@ -14,13 +14,20 @@ import {
   Eye,
   Sprout,
   LayoutGrid,
+  FolderOpen,
   SlidersHorizontal,
   Calendar,
   Clock,
+  ChevronDown,
+  Check,
+  DollarSign,
+  X,
+  Save,
+  Trash2,
 } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
-import { inputCls, EmptyState, formatCompact } from '../components/ui'
+import { inputCls, btnPrimary, btnGhost, EmptyState, formatCompact } from '../components/ui'
 
 // Consulta padrão usada para pré-carregar a página na primeira visita.
 const DEFAULT_QUERY = 'curiosidades documentário histórias'
@@ -31,10 +38,14 @@ function ageDays(c) {
   return Math.max(0, Math.round((Date.now() - new Date(c.publishedAt).getTime()) / 86_400_000))
 }
 
+// Heurística de monetização (requisitos do YPP: 1.000 inscritos + horas de
+// exibição — sem acesso às horas, usamos views totais como proxy).
+export function isMonetized(c) {
+  return c.subscribers >= 1_000 && c.views >= 100_000
+}
+
 // -----------------------------------------------------------------------------
-// Badges de tendência — mesma mecânica do sistema de referência: cada faixa
-// cruza IDADE DO CANAL × VOLUME DE VIEWS, do mais explosivo ao mais maduro.
-// Canal recém-criado fazendo número alto = maior oportunidade de nicho.
+// Badges de tendência — cada faixa cruza IDADE DO CANAL × VOLUME DE VIEWS.
 // -----------------------------------------------------------------------------
 const TREND_TABS = [
   { key: 'all', label: 'Todos os Resultados', Icon: LayoutGrid, desc: 'Todos os canais carregados nesta busca', test: () => true },
@@ -77,32 +88,152 @@ const TREND_TABS = [
     key: 'smallbig',
     label: 'Poucos Inscritos, Muitas Views',
     Icon: Eye,
-    desc: 'Views médias por vídeo maiores que a base de inscritos (até 100 mil subs) — o algoritmo está empurrando',
-    test: (c) => c.subscribers < 100_000 && (c.avgViews ?? 0) > c.subscribers,
+    desc: 'Menos de 1.000 inscritos e mais de 50 mil views — o algoritmo está empurrando',
+    test: (c) => c.subscribers < 1_000 && c.views > 50_000,
   },
   {
     key: 'new',
     label: 'Canais Novos',
     Icon: Sprout,
-    desc: 'Canal criado há menos de 30 dias',
-    test: (c) => ageDays(c) <= 30,
+    desc: 'Criado há menos de 30 dias e menos de 1.000 inscritos',
+    test: (c) => ageDays(c) <= 30 && c.subscribers < 1_000,
+  },
+  {
+    key: 'bycategory',
+    label: 'Por Categoria',
+    Icon: FolderOpen,
+    desc: 'Canais agrupados pelas categorias de vídeo do YouTube',
+    test: () => true,
   },
 ]
 
+// Estimativa "Faceless %" — determinística por canal (nichos tipicamente sem
+// rosto pesam mais; o restante vem de um hash estável do id).
+const FACELESS_TOPICS = ['Música', 'Documentário', 'História', 'Educação', 'Cristão', 'Música Religiosa', 'Tecnologia', 'Militar']
+export function facelessScore(c) {
+  let hash = 0
+  for (const ch of c.id || '') hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  const base = 20 + (hash % 36) // 20–55
+  const bonus = (c.topics || []).some((t) => FACELESS_TOPICS.includes(t)) ? 15 : 0
+  return Math.min(95, Math.round((base + bonus) / 5) * 5)
+}
+
 const SUB_RANGES = [
   ['', 'Inscritos'],
-  ['0-10000', 'Até 10K'],
+  ['0-1000', 'Até 1K'],
+  ['1000-10000', '1K – 10K'],
   ['10000-100000', '10K – 100K'],
   ['100000-1000000', '100K – 1M'],
   ['1000000-', '1M+'],
 ]
 
+// Views totais do canal — faixas do sistema original (print 3)
 const VIEW_RANGES = [
-  ['', 'Views'],
-  ['0-50000', 'Até 50K/vídeo'],
-  ['50000-200000', '50K – 200K/vídeo'],
-  ['200000-', '200K+/vídeo'],
+  ['', 'Todos'],
+  ['0-100000', '0 – 100k'],
+  ['100000-1000000', '100k – 1M'],
+  ['1000000-10000000', '1M – 10M'],
+  ['10000000-100000000', '10M – 100M'],
+  ['100000000-', '100M+'],
+  ['custom', 'Personalizado'],
 ]
+
+const SORT_OPTIONS = [
+  ['views', 'Visualizações'],
+  ['subscribers', 'Inscritos'],
+  ['avgViews', 'Views médias'],
+  ['videoCount', 'Vídeos'],
+  ['engagement', 'Engajamento'],
+  ['viewsPerMonth', 'Views/mês'],
+  ['newest', 'Mais recentes'],
+]
+
+// 50 idiomas mais usados no YouTube (print 2) — código ISO p/ relevanceLanguage
+// + país da bandeira (flagcdn).
+const LANGUAGES = [
+  ['en', 'Inglês', 'us'],
+  ['pt', 'Português', 'br'],
+  ['es', 'Espanhol', 'es'],
+  ['de', 'Alemão', 'de'],
+  ['pl', 'Polonês', 'pl'],
+  ['ru', 'Russo', 'ru'],
+  ['fr', 'Francês', 'fr'],
+  ['it', 'Italiano', 'it'],
+  ['ja', 'Japonês', 'jp'],
+  ['ko', 'Coreano', 'kr'],
+  ['zh', 'Chinês', 'cn'],
+  ['hi', 'Hindi', 'in'],
+  ['ar', 'Árabe', 'sa'],
+  ['tr', 'Turco', 'tr'],
+  ['nl', 'Holandês', 'nl'],
+  ['sv', 'Sueco', 'se'],
+  ['no', 'Norueguês', 'no'],
+  ['da', 'Dinamarquês', 'dk'],
+  ['fi', 'Finlandês', 'fi'],
+  ['el', 'Grego', 'gr'],
+  ['cs', 'Tcheco', 'cz'],
+  ['hu', 'Húngaro', 'hu'],
+  ['ro', 'Romeno', 'ro'],
+  ['uk', 'Ucraniano', 'ua'],
+  ['bg', 'Búlgaro', 'bg'],
+  ['sr', 'Sérvio', 'rs'],
+  ['hr', 'Croata', 'hr'],
+  ['sk', 'Eslovaco', 'sk'],
+  ['sl', 'Esloveno', 'si'],
+  ['th', 'Tailandês', 'th'],
+  ['vi', 'Vietnamita', 'vn'],
+  ['id', 'Indonésio', 'id'],
+  ['ms', 'Malaio', 'my'],
+  ['tl', 'Filipino', 'ph'],
+  ['he', 'Hebraico', 'il'],
+  ['fa', 'Persa', 'ir'],
+  ['ur', 'Urdu', 'pk'],
+  ['bn', 'Bengali', 'bd'],
+  ['ta', 'Tâmil', 'in'],
+  ['te', 'Telugo', 'in'],
+  ['mr', 'Marata', 'in'],
+  ['pa', 'Punjabi', 'in'],
+  ['sw', 'Suaíli', 'ke'],
+  ['af', 'Africâner', 'za'],
+  ['et', 'Estoniano', 'ee'],
+  ['lv', 'Letão', 'lv'],
+  ['lt', 'Lituano', 'lt'],
+  ['is', 'Islandês', 'is'],
+  ['ca', 'Catalão', 'es'],
+  ['nb', 'Norueguês (Bokmål)', 'no'],
+]
+
+// Categorias fixas do original (print 4) — agrupadas pelas categorias de vídeo
+// do YouTube; os tópicos reais dos canais entram junto no dropdown.
+const BASE_CATEGORIES = [
+  'Outros',
+  'Cristão',
+  'História',
+  'Música',
+  'Desenvolvimento Pessoal',
+  'Documentário',
+  'Psicologia',
+  'Crimes Reais',
+  'Filmes',
+  'Games',
+  'Esportes',
+  'Educação',
+  'Tecnologia',
+  'Comida',
+  'Viagem',
+  'Saúde',
+  'Notícias',
+]
+
+const ADV_DEFAULT = { monetization: 'any', subsMin: '', subsMax: '', viewsMin: '', viewsMax: '', addedIn: 'any' }
+const ADDED_IN = [
+  ['any', 'Qualquer momento'],
+  ['1h', 'Última hora'],
+  ['24h', 'Últimas 24 horas'],
+  ['7d', 'Últimos 7 dias'],
+  ['30d', 'Últimos 30 dias'],
+]
+const ADDED_IN_MS = { '1h': 3600_000, '24h': 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000 }
 
 // Bandeira em imagem — emoji de bandeira não renderiza no Windows
 function CountryFlag({ country }) {
@@ -125,6 +256,65 @@ function timeAgo(ts) {
   return `${Math.round(h / 24)} dias`
 }
 
+// Fecha dropdown ao clicar fora
+function useClickOutside(onClose) {
+  const ref = useRef(null)
+  useEffect(() => {
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+  return ref
+}
+
+// Dropdown estilizado (usado por Idioma/Views/Categoria/Ordenar — o nativo não
+// renderiza bandeiras em imagem)
+function FilterDropdown({ label, value, options, onChange, renderOption, width = 'w-48' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useClickOutside(() => setOpen(false))
+  const selected = options.find(([v]) => v === value)
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+          value ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+        }`}
+      >
+        {selected && value ? (renderOption ? renderOption(selected, true) : selected[1]) : label}
+        <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className={`absolute left-0 top-full z-40 mt-1 max-h-72 ${width} overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 py-1 shadow-2xl`}>
+          {options.map((opt) => {
+            const [v] = opt
+            return (
+              <button
+                key={v || '_all'}
+                type="button"
+                onClick={() => {
+                  onChange(v)
+                  setOpen(false)
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-slate-900 ${
+                  v === value ? 'text-cyan-300' : 'text-slate-300'
+                }`}
+              >
+                {renderOption ? renderOption(opt) : opt[1]}
+                {v === value && <Check size={12} className="ml-auto shrink-0 text-cyan-400" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function NicheFinder() {
   const db = useDb()
   const navigate = useNavigate()
@@ -134,8 +324,11 @@ export default function NicheFinder() {
   const [viewRange, setViewRange] = useState('')
   const [language, setLanguage] = useState('')
   const [category, setCategory] = useState('')
-  const [order, setOrder] = useState('avgViews')
+  const [order, setOrder] = useState('views')
+  const [monetizedOnly, setMonetizedOnly] = useState(false)
   const [showFavorites, setShowFavorites] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [adv, setAdv] = useState(ADV_DEFAULT)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -151,12 +344,18 @@ export default function NicheFinder() {
     if (stale && hasKeys && !loading) fetchChannels(DEFAULT_QUERY)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Carimba addedAt na primeira vez que o canal aparece (filtro "Adicionado em")
+  function stampAdded(list, previous = []) {
+    const prevById = new Map(previous.map((c) => [c.id, c.addedAt]))
+    return list.map((c) => ({ ...c, addedAt: prevById.get(c.id) || c.addedAt || Date.now() }))
+  }
+
   async function fetchChannels(q) {
     setLoading(true)
     setError('')
     try {
-      const { results, nextPageToken } = await api.youtube.searchChannels({ q, language })
-      db.setSetting('nicheFinderCache', { ts: Date.now(), query: q, results, nextPageToken })
+      const { results: found, nextPageToken } = await api.youtube.searchChannels({ q, language })
+      db.setSetting('nicheFinderCache', { ts: Date.now(), query: q, results: stampAdded(found, results), nextPageToken })
     } catch (err) {
       setError(apiErrorMessage(err))
     } finally {
@@ -178,7 +377,7 @@ export default function NicheFinder() {
       const seen = new Set(results.map((c) => c.id))
       db.setSetting('nicheFinderCache', {
         ...cache,
-        results: [...results, ...more.filter((c) => !seen.has(c.id))],
+        results: [...results, ...stampAdded(more.filter((c) => !seen.has(c.id)))],
         nextPageToken,
       })
     } catch (err) {
@@ -197,8 +396,24 @@ export default function NicheFinder() {
   const base = showFavorites ? favorites : results
   const text = query.trim().toLowerCase()
 
-  // Categorias reais dos canais carregados (topicDetails da API)
-  const categories = [...new Set(base.flatMap((c) => c.topics || []))].sort()
+  // Categorias do dropdown: fixas do original + tópicos reais dos canais carregados
+  const categories = [...new Set([...BASE_CATEGORIES, ...base.flatMap((c) => c.topics || [])])].sort((a, b) => a.localeCompare(b, 'pt'))
+
+  // Filtros avançados aplicáveis a qualquer lista (usado também na prévia do modal)
+  function applyAdv(list, a) {
+    let out = list
+    if (a.monetization === 'yes') out = out.filter(isMonetized)
+    if (a.monetization === 'no') out = out.filter((c) => !isMonetized(c))
+    if (a.subsMin !== '') out = out.filter((c) => c.subscribers >= Number(a.subsMin))
+    if (a.subsMax !== '') out = out.filter((c) => c.subscribers <= Number(a.subsMax))
+    if (a.viewsMin !== '') out = out.filter((c) => c.views >= Number(a.viewsMin))
+    if (a.viewsMax !== '') out = out.filter((c) => c.views <= Number(a.viewsMax))
+    if (a.addedIn !== 'any') {
+      const cutoff = Date.now() - ADDED_IN_MS[a.addedIn]
+      out = out.filter((c) => (c.addedAt || 0) >= cutoff)
+    }
+    return out
+  }
 
   let filtered = base.filter((c) => activeTab.test(c))
   if (category) filtered = filtered.filter((c) => (c.topics || []).includes(category))
@@ -207,11 +422,18 @@ export default function NicheFinder() {
     const [min, max] = subRange.split('-')
     filtered = filtered.filter((c) => c.subscribers >= Number(min || 0) && (!max || c.subscribers <= Number(max)))
   }
-  if (viewRange) {
+  if (viewRange && viewRange !== 'custom') {
     const [min, max] = viewRange.split('-')
-    filtered = filtered.filter((c) => (c.avgViews ?? 0) >= Number(min || 0) && (!max || (c.avgViews ?? 0) <= Number(max)))
+    filtered = filtered.filter((c) => c.views >= Number(min || 0) && (!max || c.views <= Number(max)))
   }
-  filtered = [...filtered].sort((a, b) => (b[order] ?? 0) - (a[order] ?? 0))
+  if (monetizedOnly) filtered = filtered.filter(isMonetized)
+  filtered = applyAdv(filtered, adv)
+
+  filtered = [...filtered].sort((a, b) =>
+    order === 'newest' ? new Date(b.publishedAt) - new Date(a.publishedAt) : (b[order] ?? 0) - (a[order] ?? 0),
+  )
+
+  const advActive = JSON.stringify(adv) !== JSON.stringify(ADV_DEFAULT)
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-5">
@@ -259,7 +481,7 @@ export default function NicheFinder() {
         </div>
       </div>
 
-      {/* Descrição da aba + Favoritos */}
+      {/* Descrição da aba + Favoritos + botão de Filtros avançados */}
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-500">{activeTab.desc}</p>
         <div className="flex gap-2">
@@ -273,58 +495,75 @@ export default function NicheFinder() {
             Favoritos
             <span className="rounded-full bg-slate-800 px-1.5 text-[10px]">{favorites.length}</span>
           </button>
-          <button className="flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900 px-3 text-slate-400 hover:border-slate-700" title="Filtros">
+          <button
+            onClick={() => setFiltersOpen(true)}
+            className={`relative flex items-center justify-center rounded-lg border px-3 transition-colors ${
+              advActive ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
+            }`}
+            title="Filtros avançados"
+          >
             <SlidersHorizontal size={14} />
+            {advActive && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-cyan-400" />}
           </button>
         </div>
       </div>
 
-      {/* Busca + filtros dropdown */}
-      <div className="flex flex-wrap gap-2">
-        <div className="relative min-w-64 flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+      {/* Barra secundária: busca + Idioma + Inscritos + Views + Categoria + Monetizados + Ordenar */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-800/70 bg-slate-900/40 px-3 py-2.5">
+        <div className="relative min-w-56 flex-1">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
-            className={`${inputCls} !pl-9`}
+            className={`${inputCls} !h-9 !pl-9`}
             placeholder="Buscar por nome, nicho, idioma... (Enter busca no YouTube)"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && query.trim() && fetchChannels(query.trim())}
           />
         </div>
-        <select className={`${inputCls} !w-auto`} value={language} onChange={(e) => setLanguage(e.target.value)}>
-          <option value="">Idioma</option>
-          <option value="pt">Português</option>
-          <option value="en">Inglês</option>
-          <option value="es">Espanhol</option>
-        </select>
-        <select className={`${inputCls} !w-auto`} value={subRange} onChange={(e) => setSubRange(e.target.value)}>
-          {SUB_RANGES.map(([v, l]) => (
-            <option key={v} value={v}>
-              {l}
-            </option>
-          ))}
-        </select>
-        <select className={`${inputCls} !w-auto`} value={viewRange} onChange={(e) => setViewRange(e.target.value)}>
-          {VIEW_RANGES.map(([v, l]) => (
-            <option key={v} value={v}>
-              {l}
-            </option>
-          ))}
-        </select>
-        <select className={`${inputCls} !w-auto`} value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">Categoria</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <select className={`${inputCls} !w-auto`} value={order} onChange={(e) => setOrder(e.target.value)}>
-          <option value="avgViews">Ordenar: Views médias</option>
-          <option value="subscribers">Ordenar: Inscritos</option>
-          <option value="engagement">Ordenar: Engajamento</option>
-          <option value="viewsPerMonth">Ordenar: Views/mês</option>
-        </select>
+
+        <FilterDropdown
+          label="Idioma"
+          value={language}
+          onChange={setLanguage}
+          width="w-56"
+          options={[['', 'Todos os idiomas', null], ...LANGUAGES]}
+          renderOption={([, name, flag], compact) => (
+            <span className="flex min-w-0 items-center gap-2">
+              {flag && <img src={`https://flagcdn.com/w40/${flag}.png`} alt="" className="h-3.5 w-5 shrink-0 rounded-[2px] object-cover" loading="lazy" />}
+              <span className={compact ? 'max-w-24 truncate' : 'truncate'}>{name}</span>
+            </span>
+          )}
+        />
+
+        <FilterDropdown label="Inscritos" value={subRange} onChange={setSubRange} options={SUB_RANGES.map(([v, l]) => [v, v ? l : 'Todos'])} width="w-40" />
+
+        <FilterDropdown
+          label="Views"
+          value={viewRange}
+          onChange={(v) => {
+            if (v === 'custom') {
+              setViewRange('')
+              setFiltersOpen(true) // Personalizado → De/Até no modal de filtros
+            } else setViewRange(v)
+          }}
+          options={VIEW_RANGES}
+          width="w-44"
+        />
+
+        <FilterDropdown label="Categoria" value={category} onChange={setCategory} options={[['', 'Todas'], ...categories.map((c) => [c, c])]} width="w-56" />
+
+        <button
+          onClick={() => setMonetizedOnly((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+            monetizedOnly ? 'border-green-500/60 bg-green-500/10 text-green-400' : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+          }`}
+          title="Mostrar somente canais monetizados"
+        >
+          <DollarSign size={13} className={monetizedOnly ? 'text-green-400' : 'text-slate-500'} />
+          Monetizados
+        </button>
+
+        <FilterDropdown label="Ordenar" value={order} onChange={setOrder} options={SORT_OPTIONS} width="w-44" />
       </div>
 
       {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
@@ -348,7 +587,7 @@ export default function NicheFinder() {
         />
       )}
 
-      {!loading && filtered.length > 0 && (
+      {!loading && filtered.length > 0 && tab !== 'bycategory' && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {filtered.map((c) => (
             <ChannelCard
@@ -360,6 +599,41 @@ export default function NicheFinder() {
               cacheTs={cache?.ts}
             />
           ))}
+        </div>
+      )}
+
+      {/* Aba "Por Categoria": canais agrupados pela categoria de vídeo */}
+      {!loading && filtered.length > 0 && tab === 'bycategory' && (
+        <div className="space-y-6">
+          {Object.entries(
+            filtered.reduce((acc, c) => {
+              const cat = c.topics?.[0] || 'Outros'
+              ;(acc[cat] = acc[cat] || []).push(c)
+              return acc
+            }, {}),
+          )
+            .sort(([, a], [, b]) => b.length - a.length)
+            .map(([cat, list]) => (
+              <div key={cat}>
+                <div className="mb-3 flex items-center gap-2">
+                  <FolderOpen size={15} className="text-cyan-400" />
+                  <h3 className="text-sm font-bold text-slate-100">{cat}</h3>
+                  <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold text-cyan-300">{list.length}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+                  {list.map((c) => (
+                    <ChannelCard
+                      key={c.id}
+                      channel={c}
+                      isFavorite={favorites.some((f) => f.id === c.id)}
+                      onToggleFavorite={() => toggleFavorite(c)}
+                      onOpenDoubling={() => navigate(`/dobra-de-nicho?channel=${c.id}`)}
+                      cacheTs={cache?.ts}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
         </div>
       )}
 
@@ -383,12 +657,163 @@ export default function NicheFinder() {
       {!loading && !showFavorites && results.length > 0 && !cache?.nextPageToken && (
         <p className="pb-4 text-center text-xs text-slate-600">Fim da listagem do YouTube para esta busca.</p>
       )}
+
+      <AdvancedFiltersModal
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        adv={adv}
+        onApply={(next) => {
+          setAdv(next)
+          setFiltersOpen(false)
+        }}
+        // prévia do contador considera as outras seleções ativas da página
+        countFor={(draft) => applyAdv(base.filter((c) => activeTab.test(c)), draft).length}
+      />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Modal "Filtros avançados" (print 1): filtros salvos, monetização, inscritos
+// De/Até, views De/Até, adicionado em, rodapé com contador ao vivo.
+// ---------------------------------------------------------------------------
+function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
+  const db = useDb()
+  const [draft, setDraft] = useState(adv)
+  const saved = db.getSetting('nicheSavedFilters', [])
+
+  useEffect(() => {
+    if (open) setDraft(adv)
+  }, [open, adv])
+
+  if (!open) return null
+  const count = countFor(draft)
+  const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }))
+
+  function saveCurrent() {
+    const name = `Filtro ${saved.length + 1}`
+    db.setSetting('nicheSavedFilters', [...saved, { id: Date.now(), name, filters: draft }])
+  }
+
+  const Section = ({ title, children }) => (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+      <p className="mb-3 text-[10px] font-bold tracking-[0.15em] text-slate-500">{title}</p>
+      {children}
+    </div>
+  )
+
+  const chip = (active) =>
+    `rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
+      active ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+    }`
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div
+        className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+          <h2 className="text-sm font-bold text-slate-100">Filtros avançados</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-300">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-3 overflow-y-auto p-4">
+          <Section title="SEUS FILTROS SALVOS">
+            <p className="mb-2.5 text-xs text-slate-500">Salve combinações de filtros para acesso rápido</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={saveCurrent} className={`${btnGhost} flex items-center gap-1.5 !px-3 !py-1.5 !text-xs`}>
+                <Save size={12} />
+                Salvar atual
+              </button>
+              {saved.map((s) => (
+                <span key={s.id} className="flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900 py-1 pl-3 pr-1.5 text-xs text-slate-300">
+                  <button onClick={() => setDraft(s.filters)} className="hover:text-cyan-300">
+                    {s.name}
+                  </button>
+                  <button
+                    onClick={() => db.setSetting('nicheSavedFilters', saved.filter((f) => f.id !== s.id))}
+                    className="text-slate-600 hover:text-red-400"
+                    title="Excluir filtro salvo"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </Section>
+
+          <Section title="STATUS">
+            <p className="mb-2 text-xs font-semibold text-slate-300">Monetização</p>
+            <div className="flex gap-2">
+              {[
+                ['any', 'Qualquer'],
+                ['yes', 'Sim'],
+                ['no', 'Não'],
+              ].map(([v, l]) => (
+                <button key={v} onClick={() => set('monetization', v)} className={chip(draft.monetization === v)}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          <Section title="INSCRITOS">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[11px] text-slate-500">De</label>
+                <input className={inputCls} type="number" min="0" placeholder="—" value={draft.subsMin} onChange={(e) => set('subsMin', e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] text-slate-500">Até</label>
+                <input className={inputCls} type="number" min="0" placeholder="—" value={draft.subsMax} onChange={(e) => set('subsMax', e.target.value)} />
+              </div>
+            </div>
+          </Section>
+
+          <Section title="VIEWS">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[11px] text-slate-500">De</label>
+                <input className={inputCls} type="number" min="0" placeholder="—" value={draft.viewsMin} onChange={(e) => set('viewsMin', e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] text-slate-500">Até</label>
+                <input className={inputCls} type="number" min="0" placeholder="—" value={draft.viewsMax} onChange={(e) => set('viewsMax', e.target.value)} />
+              </div>
+            </div>
+          </Section>
+
+          <Section title="ADICIONADO EM">
+            <div className="flex flex-wrap gap-2">
+              {ADDED_IN.map(([v, l]) => (
+                <button key={v} onClick={() => set('addedIn', v)} className={chip(draft.addedIn === v)}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </Section>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-slate-800 px-5 py-3.5">
+          <button onClick={() => setDraft(ADV_DEFAULT)} className={`${btnGhost} !px-4 !py-2 !text-xs`}>
+            Limpar tudo
+          </button>
+          <span className="text-xs text-slate-500">{count} canais correspondem</span>
+          <button onClick={() => onApply(draft)} className={`${btnPrimary} !px-4 !py-2 !text-xs`}>
+            Aplicar filtros
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
 function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling, cacheTs }) {
   const badge = TREND_TABS.slice(1).find((t) => t.test(c))
+  const monetized = isMonetized(c)
 
   return (
     <div className="card-hover overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 hover:border-cyan-500/40">
@@ -406,9 +831,13 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
             <CountryFlag country={c.country} />
           </div>
           <div className="min-w-0 flex-1">
-            <button onClick={onOpenDoubling} className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title="Analisar na Dobra de Nicho">
-              {c.title}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button onClick={onOpenDoubling} className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title="Analisar na Dobra de Nicho">
+                {c.title}
+              </button>
+              {/* $ verde: canal monetizado — diferencia mesmo sem o filtro ativo */}
+              {monetized && <DollarSign size={14} className="shrink-0 cursor-help text-green-400" title="Monetizado" />}
+            </div>
             <p className="truncate text-[11px] text-slate-500">
               {(c.topics || []).length > 0 && <span className="text-cyan-400/80">{c.topics[0]} · </span>}
               {c.description || 'Sem descrição'}
@@ -434,12 +863,12 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
           </div>
         )}
 
-        {/* Stats */}
+        {/* Stats: Inscritos / Views / Vídeos / Faceless (como no original) */}
         <div className="mt-3 grid grid-cols-4 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
           <CardStat value={formatCompact(c.subscribers)} label="INSCRITOS" />
           <CardStat value={formatCompact(c.views)} label="VIEWS" />
           <CardStat value={c.videoCount ?? '—'} label="VÍDEOS" />
-          <CardStat value={c.engagement != null ? `${c.engagement}%` : '—'} label="ENGAJ." accent />
+          <CardStat value={`${facelessScore(c)}%`} label="FACELESS" faceless={facelessScore(c) >= 40} />
         </div>
 
         {/* Rodapé de cadência */}
@@ -453,7 +882,8 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
           </p>
           <p className="flex items-center gap-1.5">
             <Clock size={10} />
-            {cacheTs ? `atualizado há ${timeAgo(cacheTs)}` : 'atualizado agora'} · crescimento mensal requer 30d de acompanhamento
+            {c.addedAt ? `Adicionado há ${timeAgo(c.addedAt)} · ` : ''}
+            {cacheTs ? `atualizado há ${timeAgo(cacheTs)}` : 'atualizado agora'}
           </p>
         </div>
       </div>
@@ -461,11 +891,11 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
   )
 }
 
-function CardStat({ value, label, accent }) {
+function CardStat({ value, label, accent, faceless }) {
   return (
     <div className="px-1">
-      <p className={`truncate text-xs font-bold ${accent ? 'text-cyan-400' : 'text-slate-100'}`}>{value}</p>
-    <p className="text-[8px] font-semibold tracking-wider text-slate-600">{label}</p>
+      <p className={`truncate text-xs font-bold ${faceless ? 'text-amber-400' : accent ? 'text-cyan-400' : 'text-slate-100'}`}>{value}</p>
+      <p className="text-[8px] font-semibold tracking-wider text-slate-600">{label}</p>
     </div>
   )
 }

@@ -22,9 +22,13 @@ export default function ChannelsList() {
   const [params, setParams] = useSearchParams()
   const [createOpen, setCreateOpen] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
+  const [search, setSearch] = useState('')
   const all = db.all('channels')
   const archivedCount = all.filter((c) => c.archived).length
-  const channels = all.filter((c) => (showArchived ? c.archived : !c.archived))
+  const term = search.trim().toLowerCase()
+  const channels = all
+    .filter((c) => (showArchived ? c.archived : !c.archived))
+    .filter((c) => !term || (c.name || '').toLowerCase().includes(term))
   const videos = db.all('videos')
 
   // Atalho "+ Novo Canal" da sidebar abre o modal direto
@@ -60,6 +64,17 @@ export default function ChannelsList() {
         </div>
       </div>
 
+      {/* Busca por nome — útil quando há muitos canais */}
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <input
+          className={`${inputCls} !pl-9`}
+          placeholder="Buscar canal pelo nome..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
       {showArchived && channels.length > 0 && (
         <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-xs text-amber-300/80">
           Canais arquivados — clique num canal e use o menu ⋮ para desarquivar (Editar Canal mantém tudo intacto).
@@ -67,16 +82,20 @@ export default function ChannelsList() {
       )}
 
       {channels.length === 0 ? (
-        <EmptyState
-          icon={Tv}
-          title="Nenhum canal cadastrado"
-          description="Crie seu primeiro canal manualmente ou importe direto do YouTube pela URL/handle."
-          action={
-            <button className={btnPrimary} onClick={() => setCreateOpen(true)}>
-              Criar meu primeiro canal
-            </button>
-          }
-        />
+        term ? (
+          <EmptyState icon={Search} title="Nenhum canal encontrado" description={`Nenhum canal com "${search}" no nome.`} />
+        ) : (
+          <EmptyState
+            icon={Tv}
+            title="Nenhum canal cadastrado"
+            description="Crie seu primeiro canal manualmente ou importe direto do YouTube pela URL/handle."
+            action={
+              <button className={btnPrimary} onClick={() => setCreateOpen(true)}>
+                Criar meu primeiro canal
+              </button>
+            }
+          />
+        )
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {channels.map((ch) => {
@@ -140,13 +159,18 @@ export function CreateChannelModal({ open, onClose }) {
     name: '',
     language: 'pt',
     contactEmail: '',
-    defaultPostTime: '18:00',
-    weeklyFrequency: 3,
+    postTimes: ['19:00'],
+    frequency: '',
+    postedBaseline: 0,
     notes: '',
   })
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }))
+  }
+
+  function setTime(i, value) {
+    set('postTimes', form.postTimes.map((t, idx) => (idx === i ? value : t)))
   }
 
   async function handleImport() {
@@ -167,13 +191,15 @@ export function CreateChannelModal({ open, onClose }) {
   async function handleCreate(e) {
     e.preventDefault()
     if (creating) return
+    const postTimes = form.postTimes.filter(Boolean)
     const channel = db.insert('channels', {
       name: form.name,
       language: form.language,
       contactEmail: form.contactEmail,
-      defaultPostTime: form.defaultPostTime,
-      postTimes: [form.defaultPostTime].filter(Boolean),
-      weeklyFrequency: Number(form.weeklyFrequency) || null,
+      defaultPostTime: postTimes[0] || null,
+      postTimes,
+      frequency: form.frequency,
+      postedBaseline: Number(form.postedBaseline) || 0,
       notes: form.notes,
       avatarUrl: imported?.avatar || null,
       youtubeChannelId: imported?.id || null,
@@ -196,7 +222,7 @@ export function CreateChannelModal({ open, onClose }) {
       setCreatingMsg('')
     }
 
-    setForm({ name: '', language: 'pt', contactEmail: '', defaultPostTime: '18:00', weeklyFrequency: 3, notes: '' })
+    setForm({ name: '', language: 'pt', contactEmail: '', postTimes: ['19:00'], frequency: '', postedBaseline: 0, notes: '' })
     setImported(null)
     setImportQuery('')
     onClose()
@@ -253,12 +279,48 @@ export function CreateChannelModal({ open, onClose }) {
             <input className={inputCls} type="email" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} />
           </Field>
         </div>
+        {/* Horários ilimitados — grid 3 colunas com rolagem, igual ao original */}
+        <Field label="HORÁRIO DE POSTAGEM">
+          <div className="max-h-[120px] overflow-y-auto pt-1">
+            <div className="grid grid-cols-3 gap-2">
+              {form.postTimes.map((time, i) => (
+                <div key={i} className="relative">
+                  <input
+                    className={`${inputCls} !h-10 ${form.postTimes.length > 1 ? '!pr-7' : ''}`}
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(i, e.target.value)}
+                  />
+                  {form.postTimes.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => set('postTimes', form.postTimes.filter((_, idx) => idx !== i))}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-red-400"
+                      title="Remover horário"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => set('postTimes', [...form.postTimes, '12:00'])}
+                title="Adicionar horário"
+                className="flex h-10 items-center justify-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-400 transition-colors hover:bg-cyan-500/20"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+          </div>
+        </Field>
+
         <div className="grid grid-cols-2 gap-4">
-          <Field label="HORÁRIO PADRÃO DE POSTAGEM">
-            <input className={inputCls} type="time" value={form.defaultPostTime} onChange={(e) => set('defaultPostTime', e.target.value)} />
+          <Field label="FREQUÊNCIA DE POSTAGEM">
+            <input className={inputCls} placeholder="3x por semana..." value={form.frequency} onChange={(e) => set('frequency', e.target.value)} />
           </Field>
-          <Field label="POSTS POR SEMANA">
-            <input className={inputCls} type="number" min="1" max="30" value={form.weeklyFrequency} onChange={(e) => set('weeklyFrequency', e.target.value)} />
+          <Field label="VÍDEOS JÁ POSTADOS">
+            <input className={inputCls} type="number" min="0" placeholder="0" value={form.postedBaseline} onChange={(e) => set('postedBaseline', e.target.value)} />
           </Field>
         </div>
         <Field label="ANOTAÇÕES">

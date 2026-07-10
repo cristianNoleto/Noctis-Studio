@@ -206,8 +206,18 @@ router.get('/viral', async (req, res) => {
 
       return (videos.items || []).map((v) => {
         const views = Number(v.statistics?.viewCount ?? 0)
+        const likes = Number(v.statistics?.likeCount ?? 0)
+        const comments = Number(v.statistics?.commentCount ?? 0)
         const hoursSince = Math.max(1, (Date.now() - new Date(v.snippet.publishedAt).getTime()) / 3600_000)
         const subs = subsById[v.snippet.channelId] || 0
+        const vph = Math.round(views / hoursSince)
+        // Engajamento % = (likes + comentários) / views, como no original
+        const engagementPct = views > 0 ? +(((likes + comments) / views) * 100).toFixed(2) : null
+        // Score Viral™ (0-100): mistura alcance vs. inscritos, VPH e engajamento
+        const reach = subs > 0 ? Math.min(40, Math.log10(Math.max(1, views / subs)) * 20 + 20) : 20
+        const speed = Math.min(35, Math.log10(Math.max(1, vph)) * 10)
+        const engScore = Math.min(25, (engagementPct || 0) * 4)
+        const viralScore = Math.round(reach + speed + engScore)
         return {
           id: v.id,
           title: v.snippet.title,
@@ -217,9 +227,12 @@ router.get('/viral', async (req, res) => {
           publishedAt: v.snippet.publishedAt,
           durationSeconds: parseISODuration(v.contentDetails?.duration),
           views,
-          vph: Math.round(views / hoursSince),
+          likes,
+          comments,
+          vph,
           channelSubs: subs,
-          engagement: subs > 0 ? +(views / subs).toFixed(2) : null, // views do vídeo / inscritos do canal
+          engagement: engagementPct,
+          viralScore,
         }
       })
     })

@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   Tv,
@@ -17,6 +18,7 @@ import {
   GraduationCap,
   MessagesSquare,
   BookOpen,
+  ChevronDown,
 } from 'lucide-react'
 import Logo from '../Logo'
 import { useI18n } from '../../i18n'
@@ -66,74 +68,111 @@ export default function Sidebar() {
   const { t } = useI18n()
   const db = useDb()
   const myChannels = db.all('channels').filter((c) => !c.archived)
+  // Seções fechadas persistem entre sessões (todas abertas por padrão)
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('noctis_nav_collapsed') || '{}')
+    } catch {
+      return {}
+    }
+  })
+
+  function toggleGroup(key) {
+    setCollapsed((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      localStorage.setItem('noctis_nav_collapsed', JSON.stringify(next))
+      return next
+    })
+  }
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-slate-800/70 bg-slate-950">
-      <div className="flex h-16 items-center border-b border-slate-800/70 px-5">
+      {/* Logo/nome clicável → volta ao dashboard */}
+      <Link to="/" className="flex h-16 items-center border-b border-slate-800/70 px-5 transition-opacity hover:opacity-80" title="Voltar ao Dashboard">
         <Logo />
-      </div>
+      </Link>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
-        {groups.map((group) => (
-          <div key={group.key}>
-            <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-cyan-400/70">
-              {t(`nav.groups.${group.key}`)}
-            </p>
-            <ul className="space-y-0.5">
-              {group.items.map(({ to, label, Icon, badge }) => (
-                <li key={to}>
-                  <NavLink
-                    to={to}
-                    end={to === '/'}
-                    className={({ isActive }) =>
-                      `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'border-l-2 border-cyan-500 bg-cyan-500/10 text-cyan-300'
-                          : 'border-l-2 border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-                      }`
-                    }
-                  >
-                    <Icon size={17} />
-                    {t(`nav.${label}`)}
-                    {badge && (
-                      <span className="ml-auto rounded bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300">
-                        {badge}
-                      </span>
-                    )}
-                  </NavLink>
-                </li>
-              ))}
-              {/* Lista de canais do usuário (como no layout original) */}
-              {group.key === 'channels' && (
-                <>
-                  {myChannels.map((ch) => (
-                    <li key={ch.id}>
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
+        {groups.map((group) => {
+          const isOpen = !collapsed[group.key]
+          return (
+            <div key={group.key}>
+              {/* Cabeçalho da seção: expande/minimiza — seta ↓ aberta, → fechada */}
+              <button
+                onClick={() => toggleGroup(group.key)}
+                className="group/section flex w-full items-center justify-between rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-cyan-400/70 transition-colors hover:text-cyan-300"
+              >
+                {t(`nav.groups.${group.key}`)}
+                <ChevronDown
+                  size={13}
+                  className={`text-slate-600 transition-all duration-200 group-hover/section:scale-125 group-hover/section:text-cyan-400 ${
+                    isOpen ? 'rotate-0' : '-rotate-90'
+                  }`}
+                />
+              </button>
+              <div
+                className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+              >
+                <ul className="mt-1 space-y-0.5 overflow-hidden">
+                  {group.items.map(({ to, label, Icon, badge }) => (
+                    <li key={to}>
                       <NavLink
-                        to={`/canais/${ch.id}`}
+                        to={to}
+                        end={to === '/'}
+                        tabIndex={isOpen ? 0 : -1}
                         className={({ isActive }) =>
-                          `flex items-center gap-2 rounded-lg py-1.5 pl-8 pr-2.5 text-xs transition-colors ${
-                            isActive ? 'bg-cyan-500/10 text-cyan-300' : 'text-slate-500 hover:bg-slate-900 hover:text-slate-300'
+                          `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'border-l-2 border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                              : 'border-l-2 border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-200'
                           }`
                         }
                       >
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-                        <span className="sensitive truncate">{ch.name}</span>
+                        <Icon size={17} />
+                        {t(`nav.${label}`)}
+                        {badge && (
+                          <span className="ml-auto rounded bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300">
+                            {badge}
+                          </span>
+                        )}
                       </NavLink>
                     </li>
                   ))}
-                  <li>
-                    <NavLink
-                      to="/canais?novo=1"
-                      className="flex items-center gap-2 rounded-lg py-1.5 pl-8 pr-2.5 text-xs text-slate-600 transition-colors hover:text-cyan-400"
-                    >
-                      + Novo Canal
-                    </NavLink>
-                  </li>
-                </>
-              )}
-            </ul>
-          </div>
-        ))}
+                  {/* Lista de canais do usuário (como no layout original) */}
+                  {group.key === 'channels' && (
+                    <>
+                      {myChannels.map((ch) => (
+                        <li key={ch.id}>
+                          <NavLink
+                            to={`/canais/${ch.id}`}
+                            tabIndex={isOpen ? 0 : -1}
+                            className={({ isActive }) =>
+                              `flex items-center gap-2 rounded-lg py-1.5 pl-8 pr-2.5 text-xs transition-colors ${
+                                isActive ? 'bg-cyan-500/10 text-cyan-300' : 'text-slate-500 hover:bg-slate-900 hover:text-slate-300'
+                              }`
+                            }
+                          >
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+                            <span className="sensitive truncate">{ch.name}</span>
+                          </NavLink>
+                        </li>
+                      ))}
+                      <li>
+                        <NavLink
+                          to="/canais?novo=1"
+                          tabIndex={isOpen ? 0 : -1}
+                          className="flex items-center gap-2 rounded-lg py-1.5 pl-8 pr-2.5 text-xs text-slate-600 transition-colors hover:text-cyan-400"
+                        >
+                          + Novo Canal
+                        </NavLink>
+                      </li>
+                    </>
+                  )}
+                </ul>
+              </div>
+            </div>
+          )
+        })}
       </nav>
     </aside>
   )

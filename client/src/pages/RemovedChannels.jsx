@@ -15,6 +15,8 @@ export default function RemovedChannels() {
   const [checking, setChecking] = useState(false)
   const [checkMsg, setCheckMsg] = useState('')
   const [checkError, setCheckError] = useState('')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(50)
 
   const all = [...db.all('removedChannels')].sort((a, b) => new Date(b.removedAt) - new Date(a.removedAt))
 
@@ -90,6 +92,17 @@ export default function RemovedChannels() {
     ? all.filter((c) => `${c.name} ${c.niche}`.toLowerCase().includes(query.trim().toLowerCase()))
     : all
 
+  // Paginação como no original: 50/100 por página
+  const totalPages = Math.max(1, Math.ceil(channels.length / perPage))
+  const safePage = Math.min(page, totalPages)
+  const pageStart = (safePage - 1) * perPage
+  const visible = channels.slice(pageStart, pageStart + perPage)
+
+  function goTo(p) {
+    setPage(Math.min(Math.max(1, p), totalPages))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   return (
     <div className="mx-auto max-w-[1600px] space-y-5">
       {/* Cabeçalho */}
@@ -137,20 +150,74 @@ export default function RemovedChannels() {
       {/* Busca */}
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-        <input className={`${inputCls} !pl-9`} placeholder="Buscar canais removidos..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input
+          className={`${inputCls} !pl-9`}
+          placeholder="Buscar canais removidos..."
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setPage(1)
+          }}
+        />
       </div>
 
       {/* Grid de cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        {channels.map((c) => (
+        {visible.map((c) => (
           <RemovedCard key={c.id} channel={c} />
         ))}
       </div>
 
       {channels.length === 0 && <p className="py-10 text-center text-sm text-slate-500">Nenhum canal encontrado com esse termo.</p>}
 
+      {/* Paginação (padrão do original: Mostrando X a Y de Z / 50-100 por página) */}
+      {channels.length > 0 && (
+        <div className="flex flex-col items-center gap-4 border-t border-slate-800 pt-6">
+          <p className="text-sm text-slate-500">
+            Mostrando {pageStart + 1} a {Math.min(pageStart + perPage, channels.length)} de {channels.length} canais
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">Itens por página:</span>
+              <select
+                className={`${inputCls} !h-9 !w-20 !py-1`}
+                value={perPage}
+                onChange={(e) => {
+                  setPerPage(Number(e.target.value))
+                  setPage(1)
+                }}
+              >
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <PageBtn onClick={() => goTo(1)} disabled={safePage === 1} label="Primeira" />
+              <PageBtn onClick={() => goTo(safePage - 1)} disabled={safePage === 1} label="‹ Anterior" />
+              <span className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-white">
+                {safePage} / {totalPages}
+              </span>
+              <PageBtn onClick={() => goTo(safePage + 1)} disabled={safePage === totalPages} label="Próxima ›" />
+              <PageBtn onClick={() => goTo(totalPages)} disabled={safePage === totalPages} label="Última" />
+            </div>
+          </div>
+        </div>
+      )}
+
       <AddRemovedModal open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
+  )
+}
+
+function PageBtn({ onClick, disabled, label }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-300 transition-colors hover:border-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {label}
+    </button>
   )
 }
 
@@ -170,7 +237,11 @@ function RemovedCard({ channel: c }) {
             <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
               <Calendar size={9} />
               {new Date(c.removedAt + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
-              {c.verified && <span className="ml-1 text-green-500">$ $</span>}
+              {c.verified && (
+                <span className="ml-1 rounded bg-green-500/10 px-1 font-bold text-green-500" title="Monetizado">
+                  $
+                </span>
+              )}
             </p>
           </div>
           <span className="flex shrink-0 flex-col items-end gap-1">

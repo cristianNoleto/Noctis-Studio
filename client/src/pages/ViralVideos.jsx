@@ -215,10 +215,20 @@ function MiniFeature({ icon, label }) {
   )
 }
 
+const SORTS = [
+  ['views', 'Visualizações'],
+  ['vph', 'VPH'],
+  ['engagement', 'Engajamento'],
+  ['viralScore', 'Score Viral™'],
+  ['newest', 'Mais recentes'],
+]
+
 function ResultsGrid({ videos }) {
   const db = useDb()
   const navigate = useNavigate()
   const saved = db.all('savedViralVideos')
+  const [sort, setSort] = useState('views')
+  const [desc, setDesc] = useState(true)
 
   function toggleSave(video) {
     const existing = saved.find((s) => s.video.id === video.id)
@@ -226,16 +236,19 @@ function ResultsGrid({ videos }) {
     else db.insert('savedViralVideos', { video })
   }
 
-  function engagementColor(e) {
-    if (e == null) return 'text-slate-500 border-slate-700'
-    if (e >= 10) return 'text-green-400 border-green-500/50'
-    if (e >= 3) return 'text-amber-400 border-amber-500/50'
-    return 'text-slate-400 border-slate-600'
+  function fmtDuration(s) {
+    const h = Math.floor(s / 3600)
+    const m = Math.floor((s % 3600) / 60)
+    const sec = String(s % 60).padStart(2, '0')
+    return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
   }
 
-  function fmtDuration(s) {
-    const m = Math.floor(s / 60)
-    return `${m}:${String(s % 60).padStart(2, '0')}`
+  // Score Viral™ do original: 🔥 alto (60+), ⚡ médio (30-59), 😐 baixo
+  function scoreBadge(score) {
+    if (score == null) return { emoji: '😐', cls: 'text-slate-500' }
+    if (score >= 60) return { emoji: '🔥', cls: 'text-green-400' }
+    if (score >= 30) return { emoji: '⚡', cls: 'text-amber-400' }
+    return { emoji: '😐', cls: 'text-red-400' }
   }
 
   if (videos.length === 0) {
@@ -247,71 +260,132 @@ function ResultsGrid({ videos }) {
     )
   }
 
+  const sorted = [...videos].sort((a, b) => {
+    const val = (v) => (sort === 'newest' ? new Date(v.publishedAt).getTime() : v[sort] ?? 0)
+    return desc ? val(b) - val(a) : val(a) - val(b)
+  })
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {videos.map((v) => {
-        const isSaved = saved.some((s) => s.video.id === v.id)
-        return (
-          <div key={v.id} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-cyan-500/40">
-            <div className="relative">
-              {v.thumbnail && <img src={v.thumbnail} alt="" className="aspect-video w-full object-cover" />}
-              <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
-                {fmtDuration(v.durationSeconds)}
-              </span>
-            </div>
-            <div className="p-4">
-              <a
-                href={`https://youtube.com/watch?v=${v.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="line-clamp-2 text-sm font-semibold leading-snug text-slate-100 hover:text-cyan-300"
-              >
-                {v.title}
-              </a>
-              <p className="mt-1 text-xs text-slate-500">
-                {v.channelTitle} · {formatCompact(v.channelSubs)} inscritos
-              </p>
-              <div className="mt-3 flex items-center gap-2">
-                <MetricPill label="VIEWS" value={formatCompact(v.views)} />
-                <MetricPill label="VPH" value={formatCompact(v.vph)} />
-                <span
-                  title="Views do vídeo ÷ inscritos do canal"
-                  className={`ml-auto flex h-10 w-10 items-center justify-center rounded-full border-2 text-[10px] font-bold ${engagementColor(v.engagement)}`}
-                >
-                  {v.engagement != null ? `${v.engagement}x` : '—'}
+    <div className="space-y-4">
+      {/* Contagem + ordenação, como no original */}
+      <div className="flex flex-wrap items-center gap-4">
+        <p className="text-lg font-bold text-slate-100">
+          {videos.length} <span className="font-normal text-slate-400">encontrados</span>
+        </p>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-500">Ordenar:</span>
+          <select className={`${inputCls} !h-8 !w-44 !py-1 !text-xs`} value={sort} onChange={(e) => setSort(e.target.value)}>
+            {SORTS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => setDesc((d) => !d)}
+            title={desc ? 'Maior primeiro' : 'Menor primeiro'}
+            className="rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1 text-xs text-slate-300 hover:border-slate-700"
+          >
+            {desc ? '↓' : '↑'}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {sorted.map((v) => {
+          const isSaved = saved.some((s) => s.video.id === v.id)
+          const badge = scoreBadge(v.viralScore)
+          return (
+            <div key={v.id} className="sensitive overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-cyan-500/40">
+              <div className="relative">
+                {v.thumbnail && <img src={v.thumbnail} alt="" className="aspect-video w-full object-cover" />}
+                <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                  {fmtDuration(v.durationSeconds)}
                 </span>
               </div>
-              <div className="mt-3 flex gap-2 border-t border-slate-800 pt-3">
-                <button
-                  onClick={() => toggleSave(v)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
-                    isSaved ? 'bg-green-500/10 text-green-400' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-                  }`}
+              <div className="p-3">
+                <a
+                  href={`https://youtube.com/watch?v=${v.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="line-clamp-2 min-h-[2.4rem] text-[13px] font-semibold leading-snug text-slate-100 hover:text-cyan-300"
                 >
-                  {isSaved ? <Trash2 size={13} /> : <Bookmark size={13} />}
-                  {isSaved ? 'Remover' : 'Salvar'}
-                </button>
-                <button
-                  onClick={() => navigate(`/dobra-de-nicho?channel=${v.channelId}`)}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-cyan-500/10 py-2 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20"
-                >
-                  <ExternalLink size={13} />
-                  Canal
-                </button>
+                  {v.title}
+                </a>
+                <p className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-slate-500">
+                  {v.channelTitle}
+                  <span className="rounded-full bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-300">
+                    {formatCompact(v.channelSubs)}
+                  </span>
+                </p>
+
+                {/* Grade de métricas: Views / Likes / Coment. */}
+                <div className="mt-2 grid grid-cols-3 gap-1">
+                  <MetricCell label="Views" value={formatCompact(v.views)} cls="border-sky-500/15 bg-sky-500/10 text-sky-400" />
+                  <MetricCell label="Likes" value={formatCompact(v.likes ?? 0)} cls="border-green-500/15 bg-green-500/10 text-green-400" />
+                  <MetricCell label="Coment." value={formatCompact(v.comments ?? 0)} cls="border-cyan-500/15 bg-cyan-500/10 text-cyan-400" />
+                </div>
+                {/* VPH / Engaj. */}
+                <div className="mt-1 grid grid-cols-2 gap-1">
+                  <MetricCell label="VPH" value={formatCompact(v.vph)} cls="border-cyan-500/15 bg-cyan-500/10 text-emerald-400" />
+                  <MetricCell label="Engaj." value={v.engagement != null ? `${v.engagement}%` : '—'} cls="border-amber-500/15 bg-amber-500/10 text-amber-400" />
+                </div>
+                {/* Score Viral™ / Data de Publicação */}
+                <div className="mt-1 grid grid-cols-2 gap-1">
+                  <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5" title="Baseado em engajamento, crescimento e alcance. Score alto = vídeo viral! 🔥">
+                    <p className="text-[9px] font-medium text-slate-500">Score Viral™ ℹ️</p>
+                    <p className="text-center text-base font-extrabold">
+                      <span className="mr-1">{badge.emoji}</span>
+                      <span className={badge.cls}>{v.viralScore ?? '—'}</span>
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-center justify-center rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5">
+                    <p className="text-[9px] font-medium text-slate-500">Data de Publicação</p>
+                    <p className="text-[11px] font-semibold text-cyan-300">📅 {new Date(v.publishedAt).toLocaleDateString('pt-BR')}</p>
+                  </div>
+                </div>
+
+                {/* Ações: Salvar / Ver / Canal */}
+                <div className="mt-2 flex gap-1">
+                  <button
+                    onClick={() => toggleSave(v)}
+                    className={`flex items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                      isSaved ? 'bg-green-500/10 text-green-400' : 'bg-cyan-500 text-white hover:bg-cyan-600'
+                    }`}
+                  >
+                    {isSaved ? <Trash2 size={11} /> : <Bookmark size={11} />}
+                    {isSaved ? 'Remover' : 'Salvar'}
+                  </button>
+                  <a
+                    href={`https://youtube.com/watch?v=${v.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-1 items-center justify-center gap-1 rounded-md bg-cyan-500 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-cyan-600"
+                  >
+                    ▶ Ver
+                  </a>
+                  <button
+                    onClick={() => navigate(`/dobra-de-nicho?channel=${v.channelId}`)}
+                    className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-700 bg-slate-800/60 px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 hover:bg-slate-700"
+                  >
+                    <ExternalLink size={11} />
+                    Canal
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-function MetricPill({ label, value }) {
+function MetricCell({ label, value, cls }) {
   return (
-    <div className="rounded-lg bg-slate-950 px-2.5 py-1.5 text-center">
-      <p className="text-xs font-bold text-slate-100">{value}</p>
-      <p className="text-[9px] font-semibold tracking-wider text-slate-600">{label}</p>
+    <div className={`rounded-md border px-1.5 py-1 text-center ${cls}`}>
+      <p className="text-[9px] font-medium text-slate-500">{label}</p>
+      <p className="truncate text-[11px] font-bold">{value}</p>
     </div>
   )
 }
