@@ -19,6 +19,7 @@ import {
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
 import { inputCls, btnPrimary, btnGhost, Drawer, formatCompact } from '../components/ui'
+import { PrivacyScope, PageEye, Masked, RestrictedThumb } from '../components/privacy'
 import { downloadFile } from '../lib/text'
 
 // Normaliza análises antigas (schema v1: dna/doubling em array) para o formato atual.
@@ -246,6 +247,7 @@ export default function NicheDoubling() {
   // ------------------------------------------------------------------
   if (!current) {
     return (
+      <PrivacyScope page="dobra-de-nicho">
       <div className="mx-auto max-w-6xl space-y-5">
         <PageHeader />
         <form
@@ -281,11 +283,11 @@ export default function NicheDoubling() {
               {history.map((h) => (
                 <div key={h.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3.5 transition-colors hover:border-cyan-500/40">
                   <button onClick={() => setCurrentId(h.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                    {h.channel?.avatar && <img src={h.channel.avatar} alt="" className="h-10 w-10 rounded-full" referrerPolicy="no-referrer" />}
+                    {h.channel?.avatar && <RestrictedThumb src={h.channel.avatar} className="h-10 w-10 rounded-full" referrerPolicy="no-referrer" />}
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-100">{h.channel?.title}</p>
+                      <p className="truncate text-sm font-semibold text-slate-100"><Masked mask="•••••••">{h.channel?.title}</Masked></p>
                       <p className="text-[11px] text-slate-500">
-                        {formatCompact(h.channel?.subscribers)} inscritos · {timeAgo(h.createdAt)}
+                        <Masked mask="••">{formatCompact(h.channel?.subscribers)}</Masked> inscritos · {timeAgo(h.createdAt)}
                       </p>
                     </div>
                   </button>
@@ -308,6 +310,7 @@ export default function NicheDoubling() {
           </div>
         )}
       </div>
+      </PrivacyScope>
     )
   }
 
@@ -321,22 +324,26 @@ export default function NicheDoubling() {
     confidence === 'alta' ? 'border-green-500/40 bg-green-500/10 text-green-400' : confidence === 'média' ? 'border-amber-500/40 bg-amber-500/10 text-amber-400' : 'border-red-500/40 bg-red-500/10 text-red-400'
 
   return (
+    <PrivacyScope page="dobra-de-nicho">
     <div className="mx-auto max-w-7xl space-y-4">
       <PageHeader />
 
       {/* Cabeçalho da análise */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
         <div className="flex flex-wrap items-start gap-4">
-          {current.channel?.avatar ? (
-            <img src={current.channel.avatar} alt="" className="h-14 w-14 rounded-full border border-slate-700" referrerPolicy="no-referrer" />
-          ) : (
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-800 text-xl font-bold text-slate-300">
-              {current.channel?.title?.charAt(0)}
-            </div>
-          )}
+          <RestrictedThumb
+            src={current.channel?.avatar}
+            className="h-14 w-14 rounded-full border border-slate-700"
+            referrerPolicy="no-referrer"
+            fallback={
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-800 text-xl font-bold text-slate-300">
+                {current.channel?.title?.charAt(0)}
+              </div>
+            }
+          />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-100">{current.channel?.title}</h2>
+              <h2 className="text-lg font-bold text-slate-100"><Masked mask="•••••••">{current.channel?.title}</Masked></h2>
               <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-400">
                 {(current.channel?.country || 'PT-BR').toUpperCase()}
               </span>
@@ -364,9 +371,9 @@ export default function NicheDoubling() {
 
         {/* Stats */}
         <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-800 pt-4 sm:grid-cols-6">
-          <HeaderStat value={formatCompact(current.channel?.subscribers)} label="INSCRITOS" />
-          <HeaderStat value={formatCompact(current.channel?.views)} label="VIEWS TOTAIS" />
-          <HeaderStat value={current.channel?.videoCount ?? '—'} label="PUBLICADOS" />
+          <HeaderStat value={<Masked mask="••">{formatCompact(current.channel?.subscribers)}</Masked>} label="INSCRITOS" />
+          <HeaderStat value={<Masked mask="••">{formatCompact(current.channel?.views)}</Masked>} label="VIEWS TOTAIS" />
+          <HeaderStat value={<Masked mask="••">{current.channel?.videoCount ?? '—'}</Masked>} label="PUBLICADOS" />
           <HeaderStat value={current.topVideos?.length ?? '—'} label="ANALISADOS" />
           <HeaderStat value={outliers.count} label="OUTLIERS" />
           <HeaderStat value={outliers.biggest ? `${outliers.biggest}x` : '—'} label="MAIOR OUTLIER" />
@@ -417,19 +424,23 @@ export default function NicheDoubling() {
       )}
       {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
     </div>
+    </PrivacyScope>
   )
 }
 
 function PageHeader() {
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
-        <GitBranch size={22} />
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
+          <GitBranch size={22} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Dobra de Nicho</h1>
+          <p className="text-sm text-slate-500">O grafo de oportunidades do canal: subnichos, novas visões, dobras e adaptações a partir do que realmente performou.</p>
+        </div>
       </div>
-      <div>
-        <h1 className="text-2xl font-bold text-slate-100">Dobra de Nicho</h1>
-        <p className="text-sm text-slate-500">O grafo de oportunidades do canal: subnichos, novas visões, dobras e adaptações a partir do que realmente performou.</p>
-      </div>
+      <PageEye />
     </div>
   )
 }
@@ -558,15 +569,18 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
           style={{ left: nodes.center.x, top: nodes.center.y }}
         >
           <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full border-2 border-cyan-400 bg-slate-950 shadow-[0_0_35px_rgba(34,211,238,0.25)]">
-            {analysis.channel?.avatar ? (
-              <img src={analysis.channel.avatar} alt="" className="h-12 w-12 rounded-full" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 font-bold text-slate-200">
-                {analysis.channel?.title?.charAt(0)}
-              </div>
-            )}
+            <RestrictedThumb
+              src={analysis.channel?.avatar}
+              className="h-12 w-12 rounded-full"
+              referrerPolicy="no-referrer"
+              fallback={
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 font-bold text-slate-200">
+                  {analysis.channel?.title?.charAt(0)}
+                </div>
+              }
+            />
             <p className="mt-1 text-[9px] font-bold tracking-wider text-cyan-400">CANAL</p>
-            <p className="max-w-[100px] truncate px-1 text-center text-[11px] font-bold text-slate-100">{analysis.channel?.title}</p>
+            <p className="max-w-[100px] truncate px-1 text-center text-[11px] font-bold text-slate-100"><Masked mask="•••••">{analysis.channel?.title}</Masked></p>
           </div>
         </motion.div>
 

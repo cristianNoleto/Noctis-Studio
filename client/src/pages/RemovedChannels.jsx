@@ -3,6 +3,7 @@ import { AlertTriangle, Search, Plus, Calendar, Eye, Film, Users, RadioTower, Lo
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, formatCompact } from '../components/ui'
+import { PrivacyScope, PageEye, Masked, useRestricted } from '../components/privacy'
 import { Field } from './channels/ChannelsList'
 
 // Base curada — "hall da fama" de canais que sumiram. Não existe API que
@@ -104,6 +105,7 @@ export default function RemovedChannels() {
   }
 
   return (
+    <PrivacyScope page="canais-removidos">
     <div className="mx-auto max-w-[1600px] space-y-5">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between">
@@ -133,6 +135,7 @@ export default function RemovedChannels() {
             <Plus size={13} />
             Registrar caso
           </button>
+          <PageEye />
         </div>
       </div>
 
@@ -206,6 +209,7 @@ export default function RemovedChannels() {
 
       <AddRemovedModal open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
+    </PrivacyScope>
   )
 }
 
@@ -222,18 +226,19 @@ function PageBtn({ onClick, disabled, label }) {
 }
 
 function RemovedCard({ channel: c }) {
+  // Modo restrito: nome/números não entram no DOM
+  const restricted = useRestricted()
   return (
     <div className="card-hover overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
       <div className="border-t-2 border-cyan-500/50" />
-      {/* modo privado: o card inteiro fica embaçado */}
-      <div className="sensitive p-3.5">
+      <div className="p-3.5">
         {/* Cabeçalho */}
         <div className="flex items-start gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-slate-400">
-            {c.name.charAt(0).toUpperCase()}
+            {restricted ? '?' : c.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold text-slate-100">{c.name}</p>
+            <p className="truncate text-sm font-bold text-slate-100"><Masked mask="•••••••">{c.name}</Masked></p>
             <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
               <Calendar size={9} />
               {new Date(c.removedAt + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -264,9 +269,9 @@ function RemovedCard({ channel: c }) {
 
         {/* Stats */}
         <div className="mt-3 grid grid-cols-3 divide-x divide-slate-800 py-1 text-center">
-          <RemovedStat icon={Eye} value="0" label="visualizações" />
-          <RemovedStat icon={Film} value={c.videos ?? '—'} label="vídeos" />
-          <RemovedStat icon={Users} value={formatCompact(c.subs)} label="inscritos" />
+          <RemovedStat icon={Eye} value={<Masked mask="••">0</Masked>} label="visualizações" />
+          <RemovedStat icon={Film} value={<Masked mask="••">{c.videos ?? '—'}</Masked>} label="vídeos" />
+          <RemovedStat icon={Users} value={<Masked mask="••">{formatCompact(c.subs)}</Masked>} label="inscritos" />
         </div>
 
         {/* Nicho */}

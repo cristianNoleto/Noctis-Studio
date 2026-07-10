@@ -4,6 +4,7 @@ import { Bell, ChevronRight, Eye, EyeOff, HelpCircle, LogOut, Moon, Settings, Sh
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
 import { useDb } from '../../lib/db'
+import { usePrivacy, togglePrivacyGlobal } from '../privacy'
 
 const planStyles = {
   // FUNDADOR = criador do sistema (admin) — acima de qualquer plano
@@ -34,7 +35,7 @@ export default function Header() {
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
-  const [privacy, setPrivacy] = useState(document.documentElement.dataset.privacy === '1')
+  const { global: privacy } = usePrivacy()
   const [theme, setTheme] = useState(document.documentElement.dataset.theme || 'dark')
   const menuRef = useClickOutside(() => setMenuOpen(false))
   const notifRef = useClickOutside(() => setNotifOpen(false))
@@ -52,13 +53,6 @@ export default function Header() {
   const updates = [...db.all('platformUpdates')].sort((a, b) => b.createdAt - a.createdAt)
   const readTs = Number(localStorage.getItem('noctis_notif_read') || 0)
   const unread = updates.filter((u) => u.createdAt > readTs).length
-
-  function togglePrivacy() {
-    const next = !privacy
-    setPrivacy(next)
-    document.documentElement.dataset.privacy = next ? '1' : '0'
-    localStorage.setItem('noctis_privacy', next ? '1' : '0')
-  }
 
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark'
@@ -89,10 +83,10 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-2.5">
-        {/* Modo privado */}
+        {/* Modo restrito global */}
         <button
-          onClick={togglePrivacy}
-          title={privacy ? 'Modo privado ATIVO — clique para mostrar os dados' : 'Modo privado: esconde nomes de canais, títulos e números'}
+          onClick={togglePrivacyGlobal}
+          title={privacy ? 'Modo restrito ATIVO — clique para mostrar os dados' : 'Modo restrito: esconde nomes de canais, títulos, números e thumbnails no site inteiro'}
           className={`${iconBtn} ${privacy ? '!border-cyan-500/50 !bg-cyan-500/10 !text-cyan-400' : ''}`}
         >
           {privacy ? <EyeOff size={16} /> : <Eye size={16} />}

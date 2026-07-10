@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Star, Copy, Trash2, Pencil, Search, FileText, MoreVertical, X, Globe, Check } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, ConfirmDialog } from '../components/ui'
+import { PrivacyScope, PageEye, Masked } from '../components/privacy'
 import { Field } from './channels/ChannelsList'
 
 const LANG_LABEL = { pt: 'Português', en: 'Inglês', es: 'Espanhol' }
@@ -31,16 +32,20 @@ export default function Prompts() {
   const inCat = activeCat === 'all' ? filtered : filtered.filter((p) => p.categoryId === activeCat)
 
   return (
+    <PrivacyScope page="prompts">
     <div className="mx-auto max-w-[1600px] space-y-5">
       {/* Cabeçalho */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
-          <FileText size={22} />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
+            <FileText size={22} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-100">Prompts por Canal</h1>
+            <p className="text-sm text-slate-500">Gerencie seus prompts organizados por canal com facilidade</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Prompts por Canal</h1>
-          <p className="text-sm text-slate-500">Gerencie seus prompts organizados por canal com facilidade</p>
-        </div>
+        <PageEye />
       </div>
 
       {/* Filtros */}
@@ -126,6 +131,7 @@ export default function Prompts() {
         message={`Excluir "${deletePrompt?.name}"?`}
       />
     </div>
+    </PrivacyScope>
   )
 }
 
@@ -191,12 +197,14 @@ function PromptCard({ prompt: p, category, channelName, onEdit, onDelete }) {
           </div>
         )}
 
-        <p className="sensitive mt-2.5 font-bold leading-snug text-slate-100">{p.name}</p>
-        <p className="sensitive mt-0.5 text-[11px] text-slate-500">{channelName || "Prompts Globais"}</p>
+        <p className="mt-2.5 font-bold leading-snug text-slate-100"><Masked mask="•••••••••">{p.name}</Masked></p>
+        <p className="mt-0.5 text-[11px] text-slate-500"><Masked mask="•••••">{channelName || "Prompts Globais"}</Masked></p>
 
-        {/* Preview do conteúdo */}
+        {/* Preview do conteúdo — no modo restrito o texto real não entra no DOM */}
         <div className="mt-2.5 max-h-28 flex-1 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5">
-          <p className="sensitive whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-slate-400">{p.content.slice(0, 400)}</p>
+          <p className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-slate-400">
+            <Masked mask="••••••••••••••••••••••••••••••••••••••••">{p.content.slice(0, 400)}</Masked>
+          </p>
         </div>
 
         {(p.tags || []).length > 0 && (

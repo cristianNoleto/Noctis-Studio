@@ -21,6 +21,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n'
 import { useDb } from '../lib/db'
 import { formatCompact } from '../components/ui'
+import { PrivacyScope, PageEye, Masked, useRestricted } from '../components/privacy'
 
 const WHATSAPP_COMMUNITY_URL = import.meta.env.VITE_WHATSAPP_COMMUNITY_URL || ''
 const DISCORD_URL = import.meta.env.VITE_DISCORD_URL || ''
@@ -89,13 +90,17 @@ export default function Dashboard() {
   ]
 
   return (
+    <PrivacyScope page="dashboard">
     <div className="mx-auto max-w-7xl space-y-6">
-      {/* Saudação */}
-      <div>
-        <p className="text-sm text-slate-500">{formatToday(lang)}</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-100">
-          Olá, <span className="bg-gradient-to-r from-cyan-400 to-cyan-300 bg-clip-text text-transparent">{user?.name}</span> 👋
-        </h1>
+      {/* Saudação + olho do modo restrito desta página */}
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-slate-500">{formatToday(lang)}</p>
+          <h1 className="mt-1 text-2xl font-bold text-slate-100">
+            Olá, <span className="bg-gradient-to-r from-cyan-400 to-cyan-300 bg-clip-text text-transparent">{user?.name}</span> 👋
+          </h1>
+        </div>
+        <PageEye />
       </div>
 
       {/* Métricas */}
@@ -108,7 +113,7 @@ export default function Dashboard() {
                 <Icon size={18} />
               </div>
             </div>
-            <p className="sensitive mt-2 text-4xl font-bold text-slate-100">{value}</p>
+            <p className="mt-2 text-4xl font-bold text-slate-100"><Masked mask="••">{value}</Masked></p>
             {sub && <span className={`mt-3 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${subCls}`}>{sub}</span>}
           </div>
         ))}
@@ -249,7 +254,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-3">
                     <ChannelAvatar channel={ch} />
                     <div className="min-w-0">
-                      <p className="sensitive truncate font-semibold text-slate-100">{ch.name}</p>
+                      <p className="truncate font-semibold text-slate-100"><Masked mask="•••••••">{ch.name}</Masked></p>
                       {ch.ytStatsUpdatedAt && (
                         <p className="text-[11px] text-slate-500">
                           Atualizado há {Math.max(1, Math.round((Date.now() - ch.ytStatsUpdatedAt) / 60000))}min
@@ -269,23 +274,25 @@ export default function Dashboard() {
         )}
       </div>
     </div>
+    </PrivacyScope>
   )
 }
 
-// No modo privado a foto/inicial some e entra um "?" (classe avatar-question)
+// No modo restrito a foto/inicial NÃO é renderizada — entra um "?" no lugar
 export function ChannelAvatar({ channel, size = 'h-10 w-10' }) {
-  return (
-    <span className="relative shrink-0">
-      {channel.avatarUrl ? (
-        <img src={channel.avatarUrl} alt="" className={`avatar-real ${size} shrink-0 rounded-full object-cover`} referrerPolicy="no-referrer" />
-      ) : (
-        <span className={`avatar-real ${size} flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-sky-500 font-bold text-white`}>
-          {channel.name?.charAt(0).toUpperCase()}
-        </span>
-      )}
-      <span className={`avatar-question ${size} shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-800 font-bold text-slate-500`}>
+  const restricted = useRestricted()
+  if (restricted) {
+    return (
+      <span className={`${size} flex shrink-0 select-none items-center justify-center rounded-full border border-slate-700 bg-slate-800 font-bold text-slate-500`}>
         ?
       </span>
+    )
+  }
+  return channel.avatarUrl ? (
+    <img src={channel.avatarUrl} alt="" className={`${size} shrink-0 rounded-full object-cover`} referrerPolicy="no-referrer" />
+  ) : (
+    <span className={`${size} flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-sky-500 font-bold text-white`}>
+      {channel.name?.charAt(0).toUpperCase()}
     </span>
   )
 }
@@ -293,9 +300,9 @@ export function ChannelAvatar({ channel, size = 'h-10 w-10' }) {
 function Stat({ icon: Icon, label, value, sensitive }) {
   return (
     <div>
-      <p className={`flex items-center justify-center gap-1 text-sm font-bold text-slate-200 ${sensitive ? 'sensitive' : ''}`}>
+      <p className="flex items-center justify-center gap-1 text-sm font-bold text-slate-200">
         <Icon size={12} className="text-slate-500" />
-        {value ?? 0}
+        {sensitive ? <Masked mask="••">{value ?? 0}</Masked> : (value ?? 0)}
       </p>
       <p className="text-[10px] font-semibold tracking-wider text-slate-600">{label}</p>
     </div>

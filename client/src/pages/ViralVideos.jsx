@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
 import { inputCls, formatCompact } from '../components/ui'
+import { PrivacyScope, PageEye, Masked, RestrictedThumb, useRestricted } from '../components/privacy'
 import { Field } from './channels/ChannelsList'
 
 const PERIODS = [
@@ -53,18 +54,22 @@ export default function ViralVideos() {
   }
 
   return (
+    <PrivacyScope page="videos-virais">
     <div className="mx-auto max-w-6xl space-y-5">
       {/* Cabeçalho */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
-          <TrendingUp size={22} />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
+            <TrendingUp size={22} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-100">Vídeos Virais</h1>
+            <p className="text-sm text-slate-500">
+              Busca avançada com filtros de duração, data de publicação e métricas. Configure a duração mínima para controlar o tipo de conteúdo.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Vídeos Virais</h1>
-          <p className="text-sm text-slate-500">
-            Busca avançada com filtros de duração, data de publicação e métricas. Configure a duração mínima para controlar o tipo de conteúdo.
-          </p>
-        </div>
+        <PageEye />
       </div>
 
       {/* Filtros de busca */}
@@ -189,6 +194,7 @@ export default function ViralVideos() {
           <ResultsGrid videos={saved.map((s) => s.video)} />
         ))}
     </div>
+    </PrivacyScope>
   )
 }
 
@@ -296,9 +302,10 @@ function ResultsGrid({ videos }) {
           const isSaved = saved.some((s) => s.video.id === v.id)
           const badge = scoreBadge(v.viralScore)
           return (
-            <div key={v.id} className="sensitive overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-cyan-500/40">
+            <div key={v.id} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-cyan-500/40">
+              {/* Thumb — no modo restrito vira "?" (a imagem nem é carregada) */}
               <div className="relative">
-                {v.thumbnail && <img src={v.thumbnail} alt="" className="aspect-video w-full object-cover" />}
+                <RestrictedThumb src={v.thumbnail} className="aspect-video w-full object-cover" qClass="text-3xl" />
                 <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
                   {fmtDuration(v.durationSeconds)}
                 </span>
@@ -310,25 +317,25 @@ function ResultsGrid({ videos }) {
                   rel="noopener noreferrer"
                   className="line-clamp-2 min-h-[2.4rem] text-[13px] font-semibold leading-snug text-slate-100 hover:text-cyan-300"
                 >
-                  {v.title}
+                  <Masked mask="•••••••••••">{v.title}</Masked>
                 </a>
                 <p className="mt-1 flex items-center gap-1.5 truncate text-[11px] text-slate-500">
-                  {v.channelTitle}
+                  <Masked mask="•••••••">{v.channelTitle}</Masked>
                   <span className="rounded-full bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-cyan-300">
-                    {formatCompact(v.channelSubs)}
+                    <Masked mask="••">{formatCompact(v.channelSubs)}</Masked>
                   </span>
                 </p>
 
                 {/* Grade de métricas: Views / Likes / Coment. */}
                 <div className="mt-2 grid grid-cols-3 gap-1">
-                  <MetricCell label="Views" value={formatCompact(v.views)} cls="border-sky-500/15 bg-sky-500/10 text-sky-400" />
-                  <MetricCell label="Likes" value={formatCompact(v.likes ?? 0)} cls="border-green-500/15 bg-green-500/10 text-green-400" />
-                  <MetricCell label="Coment." value={formatCompact(v.comments ?? 0)} cls="border-cyan-500/15 bg-cyan-500/10 text-cyan-400" />
+                  <MetricCell label="Views" value={<Masked mask="••">{formatCompact(v.views)}</Masked>} cls="border-sky-500/15 bg-sky-500/10 text-sky-400" />
+                  <MetricCell label="Likes" value={<Masked mask="••">{formatCompact(v.likes ?? 0)}</Masked>} cls="border-green-500/15 bg-green-500/10 text-green-400" />
+                  <MetricCell label="Coment." value={<Masked mask="••">{formatCompact(v.comments ?? 0)}</Masked>} cls="border-cyan-500/15 bg-cyan-500/10 text-cyan-400" />
                 </div>
                 {/* VPH / Engaj. */}
                 <div className="mt-1 grid grid-cols-2 gap-1">
-                  <MetricCell label="VPH" value={formatCompact(v.vph)} cls="border-cyan-500/15 bg-cyan-500/10 text-emerald-400" />
-                  <MetricCell label="Engaj." value={v.engagement != null ? `${v.engagement}%` : '—'} cls="border-amber-500/15 bg-amber-500/10 text-amber-400" />
+                  <MetricCell label="VPH" value={<Masked mask="••">{formatCompact(v.vph)}</Masked>} cls="border-cyan-500/15 bg-cyan-500/10 text-emerald-400" />
+                  <MetricCell label="Engaj." value={<Masked mask="••">{v.engagement != null ? `${v.engagement}%` : '—'}</Masked>} cls="border-amber-500/15 bg-amber-500/10 text-amber-400" />
                 </div>
                 {/* Score Viral™ / Data de Publicação */}
                 <div className="mt-1 grid grid-cols-2 gap-1">
@@ -336,7 +343,7 @@ function ResultsGrid({ videos }) {
                     <p className="text-[9px] font-medium text-slate-500">Score Viral™ ℹ️</p>
                     <p className="text-center text-base font-extrabold">
                       <span className="mr-1">{badge.emoji}</span>
-                      <span className={badge.cls}>{v.viralScore ?? '—'}</span>
+                      <span className={badge.cls}><Masked mask="••">{v.viralScore ?? '—'}</Masked></span>
                     </p>
                   </div>
                   <div className="flex flex-col items-center justify-center rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5">

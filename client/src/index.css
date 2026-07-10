@@ -75,24 +75,10 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
-   Modo privado — o olho do header alterna. Tudo que carrega a classe
-   .sensitive (nomes de canais, títulos de vídeos, contagens) fica borrado.
+   Modo restrito — implementado 100% em JS (components/privacy.jsx): os dados
+   reais NÃO são renderizados no DOM quando ativo, então não existe CSS que o
+   DevTools possa remover para revelar números, nomes ou thumbnails.
 --------------------------------------------------------------------------- */
-html[data-privacy='1'] .sensitive {
-  filter: blur(6px);
-  user-select: none;
-}
-
-/* Avatares no modo privado: a foto some e entra um "?" */
-.avatar-question {
-  display: none;
-}
-html[data-privacy='1'] .avatar-real {
-  display: none;
-}
-html[data-privacy='1'] .avatar-question {
-  display: flex;
-}
 
 /* Animação suave padrão dos cards (hover mais vivo) */
 .card-hover {

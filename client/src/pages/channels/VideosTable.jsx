@@ -22,6 +22,7 @@ import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
 import { importChannelVideos } from '../../lib/importVideos'
 import { Modal, inputCls, btnPrimary, btnGhost, ScoreRing, ConfirmDialog, EmptyState } from '../../components/ui'
+import { Masked, RestrictedThumb } from '../../components/privacy'
 import { Field } from './ChannelsList'
 import ScriptDrawer from './ScriptDrawer'
 
@@ -242,15 +243,18 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
 
   return (
     <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-3 transition-colors hover:border-slate-700">
-      {/* Thumb */}
+      {/* Thumb — no modo restrito vira "?" (a imagem nem é carregada) */}
       <div className="relative shrink-0">
-        {v.thumbnailUrl ? (
-          <img src={v.thumbnailUrl} alt="" className="h-14 w-24 rounded-lg object-cover" loading="lazy" />
-        ) : (
-          <div className="flex h-14 w-24 items-center justify-center rounded-lg bg-slate-800 text-slate-600">
-            <Film size={18} />
-          </div>
-        )}
+        <RestrictedThumb
+          src={v.thumbnailUrl}
+          className="h-14 w-24 rounded-lg object-cover"
+          loading="lazy"
+          fallback={
+            <div className="flex h-14 w-24 items-center justify-center rounded-lg bg-slate-800 text-slate-600">
+              <Film size={18} />
+            </div>
+          }
+        />
         {v.youtubeUrl && <span className="absolute bottom-1 right-1 rounded bg-red-500 px-1 text-[8px] font-bold text-white">▶</span>}
       </div>
 
@@ -273,7 +277,7 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
 
       {/* Título + etapas */}
       <div className="min-w-0 flex-1">
-        <p className="sensitive truncate font-semibold text-slate-100">{v.title}</p>
+        <p className="truncate font-semibold text-slate-100"><Masked mask="•••••••••••">{v.title}</Masked></p>
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
           {STEPS.map(([key, label]) => {
             const done = !!v.steps?.[key]
@@ -349,7 +353,7 @@ const KANBAN_COLUMNS = [
   ['planning', 'Planejamento', '#94a3b8'],
   ['production', 'Produção', '#f59e0b'],
   ['finished', 'Finalizado', '#00f2fe'],
-  ['scheduled_published', 'Agendado/Publicado', '#a855f7'],
+  ['scheduled_published', 'Agendado/Publicado', '#4ade80'],
 ]
 
 function VideosKanban({ videos, onOpenScript }) {
@@ -399,8 +403,8 @@ function KanbanCard({ video: v, onOpenScript }) {
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={`cursor-grab rounded-lg border border-slate-800 bg-slate-950 p-2.5 active:cursor-grabbing ${isDragging ? 'opacity-80 shadow-2xl' : ''}`}>
-      {v.thumbnailUrl && <img src={v.thumbnailUrl} alt="" className="mb-2 aspect-video w-full rounded object-cover" loading="lazy" />}
-      <p className="sensitive line-clamp-2 text-xs font-medium leading-snug text-slate-200">{v.title}</p>
+      {v.thumbnailUrl && <RestrictedThumb src={v.thumbnailUrl} className="mb-2 aspect-video w-full rounded object-cover" loading="lazy" />}
+      <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-200"><Masked mask="•••••••••••">{v.title}</Masked></p>
       <div className="mt-1.5 flex items-center justify-between">
         {v.videoNumber != null && <span className="text-[9px] text-slate-600">Vídeo {v.videoNumber}</span>}
         <button

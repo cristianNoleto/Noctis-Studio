@@ -23,6 +23,7 @@ import {
 import Logo from '../Logo'
 import { useI18n } from '../../i18n'
 import { useDb } from '../../lib/db'
+import { Masked } from '../privacy'
 
 const groups = [
   { key: 'overview', items: [{ to: '/', label: 'dashboard', Icon: LayoutDashboard }] },
@@ -153,7 +154,7 @@ export default function Sidebar() {
                             }
                           >
                             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-                            <span className="sensitive truncate">{ch.name}</span>
+                            <span className="truncate"><Masked mask="•••••••">{ch.name}</Masked></span>
                           </NavLink>
                         </li>
                       ))}

@@ -39,8 +39,8 @@ const SECTIONS = [
   },
   {
     icon: Eye,
-    title: 'Modo privado, tema e notificações',
-    body: 'O olho no topo ativa o modo privado: nomes de canais, títulos e números ficam borrados em todas as páginas — ideal para gravar a tela. A lua alterna entre tema escuro e claro. O sino mostra as novidades da plataforma. A bandeira troca o idioma da interface (PT/EN).',
+    title: 'Modo restrito, tema e notificações',
+    body: 'O olho no topo ativa o modo restrito no site inteiro: nomes, números e thumbnails são substituídos por "•••" e "?" direto no código da página (não é blur — não dá para revelar pelo DevTools). Cada página sensível também tem um olho próprio no canto superior direito para restringir só ela. Ideal para gravar a tela. A lua alterna entre tema escuro e claro; o sino mostra as novidades; a bandeira troca o idioma (PT/EN).',
   },
   {
     icon: ShieldAlert,

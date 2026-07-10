@@ -5,6 +5,7 @@ import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
 import { importChannelVideos } from '../../lib/importVideos'
 import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, formatCompact } from '../../components/ui'
+import { PrivacyScope, PageEye, Masked } from '../../components/privacy'
 import { ChannelAvatar } from '../Dashboard'
 
 const LANGUAGES = [
@@ -40,6 +41,7 @@ export default function ChannelsList() {
   }, [params, setParams])
 
   return (
+    <PrivacyScope page="canais">
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -47,6 +49,7 @@ export default function ChannelsList() {
           <p className="mt-1 text-sm text-slate-500">Opere todos os seus canais dark em um só lugar.</p>
         </div>
         <div className="flex items-center gap-2">
+          <PageEye />
           {archivedCount > 0 && (
             <button
               onClick={() => setShowArchived((v) => !v)}
@@ -111,7 +114,7 @@ export default function ChannelsList() {
                 <div className="flex items-center gap-3">
                   <ChannelAvatar channel={ch} size="h-12 w-12" />
                   <div className="min-w-0">
-                    <p className="sensitive truncate font-semibold text-slate-100 group-hover:text-cyan-300">{ch.name}</p>
+                    <p className="truncate font-semibold text-slate-100 group-hover:text-cyan-300"><Masked mask="•••••••">{ch.name}</Masked></p>
                     <div className="mt-0.5 flex items-center gap-2">
                       <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold text-red-400">YouTube</span>
                       <span className="text-xs text-slate-500">{LANGUAGES.find(([c]) => c === ch.language)?.[1] || ch.language}</span>
@@ -131,15 +134,16 @@ export default function ChannelsList() {
 
       <CreateChannelModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
+    </PrivacyScope>
   )
 }
 
 function MiniStat({ icon: Icon, value, label }) {
   return (
     <div>
-      <p className="sensitive flex items-center justify-center gap-1 text-sm font-bold text-slate-200">
+      <p className="flex items-center justify-center gap-1 text-sm font-bold text-slate-200">
         <Icon size={12} className="text-slate-500" />
-        {value}
+        <Masked mask="••">{value}</Masked>
       </p>
       <p className="text-[10px] font-semibold tracking-wider text-slate-600">{label}</p>
     </div>

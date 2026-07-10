@@ -28,6 +28,7 @@ import {
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
 import { inputCls, btnPrimary, btnGhost, EmptyState, formatCompact } from '../components/ui'
+import { PrivacyScope, PageEye, Masked, RestrictedThumb, useRestricted } from '../components/privacy'
 
 // Consulta padrão usada para pré-carregar a página na primeira visita.
 const DEFAULT_QUERY = 'curiosidades documentário histórias'
@@ -436,6 +437,7 @@ export default function NicheFinder() {
   const advActive = JSON.stringify(adv) !== JSON.stringify(ADV_DEFAULT)
 
   return (
+    <PrivacyScope page="niche-finder">
     <div className="mx-auto max-w-[1600px] space-y-5">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between">
@@ -455,6 +457,7 @@ export default function NicheFinder() {
             <p className="text-sm text-slate-500">Descubra nichos em crescimento no YouTube</p>
           </div>
         </div>
+        <PageEye />
       </div>
 
       {/* Abas de tendência */}
@@ -670,6 +673,7 @@ export default function NicheFinder() {
         countFor={(draft) => applyAdv(base.filter((c) => activeTab.test(c)), draft).length}
       />
     </div>
+    </PrivacyScope>
   )
 }
 
@@ -814,33 +818,36 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
 function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling, cacheTs }) {
   const badge = TREND_TABS.slice(1).find((t) => t.test(c))
   const monetized = isMonetized(c)
+  // Modo restrito: nome/números/thumbs NÃO entram no DOM — impossível "desborrar"
+  const restricted = useRestricted()
 
   return (
     <div className="card-hover overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 hover:border-cyan-500/40">
       <div className="border-t-2 border-cyan-500/60" />
-      {/* modo privado: o card inteiro fica embaçado */}
-      <div className="sensitive p-3.5">
+      <div className="p-3.5">
         {/* Cabeçalho do card */}
         <div className="flex items-start gap-2.5">
           <div className="relative shrink-0">
-            {c.avatar ? (
+            {restricted ? (
+              <div className="flex h-11 w-11 select-none items-center justify-center rounded-full border border-slate-700 bg-slate-800 font-bold text-slate-500">?</div>
+            ) : c.avatar ? (
               <img src={c.avatar} alt="" className="h-11 w-11 rounded-full" referrerPolicy="no-referrer" />
             ) : (
               <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 font-bold text-slate-300">{c.title?.charAt(0)}</div>
             )}
-            <CountryFlag country={c.country} />
+            {!restricted && <CountryFlag country={c.country} />}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <button onClick={onOpenDoubling} className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title="Analisar na Dobra de Nicho">
-                {c.title}
+                <Masked mask="•••••••">{c.title}</Masked>
               </button>
               {/* $ verde: canal monetizado — diferencia mesmo sem o filtro ativo */}
               {monetized && <DollarSign size={14} className="shrink-0 cursor-help text-green-400" title="Monetizado" />}
             </div>
             <p className="truncate text-[11px] text-slate-500">
               {(c.topics || []).length > 0 && <span className="text-cyan-400/80">{c.topics[0]} · </span>}
-              {c.description || 'Sem descrição'}
+              <Masked mask="••••••••••">{c.description || 'Sem descrição'}</Masked>
             </p>
             {badge && (
               <span className="mt-1 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{badge.label}</span>
@@ -851,24 +858,30 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
           </button>
         </div>
 
-        {/* Thumbnails dos últimos vídeos */}
+        {/* Thumbnails dos últimos vídeos — no modo restrito viram "?" */}
         {c.recentVideos?.length > 0 && (
           <div className="mt-3 grid grid-cols-3 gap-1.5">
-            {c.recentVideos.map((v) => (
-              <a key={v.id} href={`https://youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer" className="relative overflow-hidden rounded-md">
-                <img src={v.thumbnail} alt="" className="aspect-video w-full object-cover transition-transform hover:scale-110" loading="lazy" />
-                <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 py-px text-[9px] font-bold text-white">{formatCompact(v.views)}</span>
-              </a>
-            ))}
+            {c.recentVideos.map((v) =>
+              restricted ? (
+                <div key={v.id} className="flex aspect-video w-full select-none items-center justify-center rounded-md bg-slate-800/80 text-base font-bold text-slate-500" title="Conteúdo restrito">
+                  ?
+                </div>
+              ) : (
+                <a key={v.id} href={`https://youtube.com/watch?v=${v.id}`} target="_blank" rel="noopener noreferrer" className="relative overflow-hidden rounded-md">
+                  <img src={v.thumbnail} alt="" className="aspect-video w-full object-cover transition-transform hover:scale-110" loading="lazy" />
+                  <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 py-px text-[9px] font-bold text-white">{formatCompact(v.views)}</span>
+                </a>
+              ),
+            )}
           </div>
         )}
 
         {/* Stats: Inscritos / Views / Vídeos / Faceless (como no original) */}
         <div className="mt-3 grid grid-cols-4 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
-          <CardStat value={formatCompact(c.subscribers)} label="INSCRITOS" />
-          <CardStat value={formatCompact(c.views)} label="VIEWS" />
-          <CardStat value={c.videoCount ?? '—'} label="VÍDEOS" />
-          <CardStat value={`${facelessScore(c)}%`} label="FACELESS" faceless={facelessScore(c) >= 40} />
+          <CardStat value={<Masked mask="••">{formatCompact(c.subscribers)}</Masked>} label="INSCRITOS" />
+          <CardStat value={<Masked mask="••">{formatCompact(c.views)}</Masked>} label="VIEWS" />
+          <CardStat value={<Masked mask="••">{c.videoCount ?? '—'}</Masked>} label="VÍDEOS" />
+          <CardStat value={<Masked mask="••">{`${facelessScore(c)}%`}</Masked>} label="FACELESS" faceless={facelessScore(c) >= 40} />
         </div>
 
         {/* Rodapé de cadência */}

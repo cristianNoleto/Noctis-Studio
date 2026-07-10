@@ -28,6 +28,7 @@ import {
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
 import { ConfirmDialog, formatCompact } from '../../components/ui'
+import { PrivacyScope, PageEye, Masked } from '../../components/privacy'
 import { ChannelAvatar } from '../Dashboard'
 import { EditChannelModal, CustomButtonsModal, ShareChannelModal, ChannelPromptsModal, ChannelReferencesModal } from './ChannelModals'
 import VideosTable from './VideosTable'
@@ -116,6 +117,7 @@ export default function ChannelDetail() {
   ]
 
   return (
+    <PrivacyScope page="canais">
     <div className="mx-auto max-w-7xl space-y-4">
       {/* Navegação superior */}
       <div className="flex items-center justify-between">
@@ -123,6 +125,7 @@ export default function ChannelDetail() {
           <ArrowLeft size={15} />← Voltar para Canais
         </Link>
         <div className="flex gap-1.5">
+          <PageEye />
           <NavArrow disabled={!prevChannel} onClick={() => prevChannel && navigate(`/canais/${prevChannel.id}`)}>
             <ChevronLeft size={15} />
           </NavArrow>
@@ -139,7 +142,7 @@ export default function ChannelDetail() {
           <ChannelAvatar channel={channel} size="h-14 w-14" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h1 className="sensitive truncate text-xl font-bold text-slate-100">{channel.name}</h1>
+              <h1 className="truncate text-xl font-bold text-slate-100"><Masked mask="•••••••">{channel.name}</Masked></h1>
               <span className="flex items-center gap-1 rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">▶ YouTube</span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -305,6 +308,7 @@ export default function ChannelDetail() {
         message={`Excluir "${channel.name}" apaga também todos os vídeos, roteiros e configurações vinculados. Essa ação não pode ser desfeita.`}
       />
     </div>
+    </PrivacyScope>
   )
 }
 
@@ -329,7 +333,7 @@ function MetricCard({ icon: Icon, label, value, color }) {
           <Icon size={12} className={color} />
           {label}
         </p>
-        <p className="sensitive mt-2 text-3xl font-bold text-slate-100">{value}</p>
+        <p className="mt-2 text-3xl font-bold text-slate-100"><Masked mask="••">{value}</Masked></p>
       </div>
     </div>
   )
@@ -338,9 +342,9 @@ function MetricCard({ icon: Icon, label, value, color }) {
 function YtStat({ icon: Icon, value, label }) {
   return (
     <div>
-      <p className="sensitive flex items-center justify-center gap-1 text-sm font-bold text-slate-100">
+      <p className="flex items-center justify-center gap-1 text-sm font-bold text-slate-100">
         <Icon size={11} className="text-slate-500" />
-        {value}
+        <Masked mask="••">{value}</Masked>
       </p>
       <p className="text-[9px] text-slate-600">{label}</p>
     </div>
