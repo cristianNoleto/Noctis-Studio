@@ -255,7 +255,11 @@ function KeysQuota() {
       {open && (
         <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-xl border border-slate-800 bg-slate-900 p-3 shadow-xl">
           <p className="mb-2 text-xs font-semibold text-slate-200">Chaves YouTube hoje</p>
-          {status === null && <p className="text-[11px] text-slate-500">Servidor offline — inicie o servidor para consultar a cota.</p>}
+          {status === null && (
+            <p className="text-[11px] text-slate-500">
+              Não foi possível consultar a cota agora. No site publicado isso indica a API fora do ar; no modo local, inicie o servidor (npm run dev em server/).
+            </p>
+          )}
           {status?.map((k) => (
             <div key={k.slot} className="flex items-center justify-between py-1 text-[11px]">
               <span className="text-slate-400">CHAVE {k.slot}</span>

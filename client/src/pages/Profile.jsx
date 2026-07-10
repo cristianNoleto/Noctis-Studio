@@ -156,50 +156,184 @@ function ProfileTab() {
 }
 
 // ---------------------------------------------------------------------------
-function SecurityTab() {
-  const { isLocalMode } = useAuth()
-  const [current, setCurrent] = useState('')
-  const [next, setNext] = useState('')
-  const [msg, setMsg] = useState('')
+function GoogleIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.57 5.57 0 0 1-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
+      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A11.99 11.99 0 0 0 12 24z" />
+      <path fill="#FBBC05" d="M5.27 14.29a7.16 7.16 0 0 1 0-4.58V6.62H1.29a11.99 11.99 0 0 0 0 10.76l3.98-3.09z" />
+      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42A11.97 11.97 0 0 0 12 0 11.99 11.99 0 0 0 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z" />
+    </svg>
+  )
+}
 
-  function change(e) {
+function SecurityTab() {
+  const { user, isLocalMode, updatePassword, updateEmail, linkGoogle, unlinkIdentity, refreshUser } = useAuth()
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [pwMsg, setPwMsg] = useState(null) // { ok, text }
+  const [newEmail, setNewEmail] = useState('')
+  const [emailMsg, setEmailMsg] = useState(null)
+  const [linkMsg, setLinkMsg] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const identities = user?.identities || []
+  const googleIdentity = identities.find((i) => i.provider === 'google')
+  const emailIdentity = identities.find((i) => i.provider === 'email')
+
+  async function changePassword(e) {
     e.preventDefault()
-    setMsg(
-      isLocalMode
-        ? 'Modo local: a troca de senha real é ativada quando o Supabase estiver configurado (client/.env).'
-        : 'Senha atualizada.',
-    )
+    if (isLocalMode) {
+      setPwMsg({ ok: false, text: 'Modo local: a troca de senha real funciona no site publicado (Supabase).' })
+      return
+    }
+    if (next.length < 6) return setPwMsg({ ok: false, text: 'A nova senha precisa de pelo menos 6 caracteres.' })
+    if (next !== confirm) return setPwMsg({ ok: false, text: 'As senhas não coincidem.' })
+    setBusy(true)
+    try {
+      await updatePassword(next)
+      setPwMsg({ ok: true, text: 'Senha atualizada com sucesso.' })
+      setNext('')
+      setConfirm('')
+    } catch (err) {
+      setPwMsg({ ok: false, text: err?.message || 'Não foi possível atualizar a senha.' })
+    } finally {
+      setBusy(false)
+    }
   }
+
+  async function changeEmail(e) {
+    e.preventDefault()
+    if (isLocalMode) {
+      setEmailMsg({ ok: false, text: 'Modo local: a troca de e-mail funciona no site publicado (Supabase).' })
+      return
+    }
+    setBusy(true)
+    try {
+      await updateEmail(newEmail.trim())
+      setEmailMsg({ ok: true, text: 'Enviamos links de confirmação — confira a caixa de entrada do e-mail atual E do novo para concluir a troca.' })
+      setNewEmail('')
+    } catch (err) {
+      setEmailMsg({ ok: false, text: err?.message || 'Não foi possível iniciar a troca de e-mail.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleLinkGoogle() {
+    if (isLocalMode) {
+      setLinkMsg({ ok: false, text: 'Modo local: a vinculação com o Google funciona no site publicado (Supabase).' })
+      return
+    }
+    setBusy(true)
+    try {
+      await linkGoogle() // redireciona para o Google e volta para /perfil
+    } catch (err) {
+      setLinkMsg({
+        ok: false,
+        text: err?.message?.includes('Manual linking')
+          ? 'Ative "Manual linking" no painel do Supabase (Authentication) para permitir a vinculação.'
+          : err?.message || 'Não foi possível vincular agora.',
+      })
+      setBusy(false)
+    }
+  }
+
+  async function handleUnlinkGoogle() {
+    setBusy(true)
+    setLinkMsg(null)
+    try {
+      await unlinkIdentity(googleIdentity.raw)
+      await refreshUser()
+      setLinkMsg({ ok: true, text: 'Conta Google desvinculada.' })
+    } catch (err) {
+      setLinkMsg({ ok: false, text: err?.message || 'Não foi possível desvincular.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const Msg = ({ msg }) => (msg ? <p className={`text-xs ${msg.ok ? 'text-green-400' : 'text-amber-400'}`}>{msg.text}</p> : null)
 
   return (
     <div className="space-y-4">
-      <Card title="Alterar Senha">
-        <form onSubmit={change} className="space-y-4">
-          <Field label="SENHA ATUAL">
-            <input className={inputCls} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+      {/* Contas conectadas: e-mail principal + Google (pode ter e-mail diferente) */}
+      <Card
+        title="Contas Conectadas"
+        subtitle="Você pode entrar com e-mail/senha e também com o Google — mesmo que os e-mails sejam diferentes, é a MESMA conta. O e-mail principal (que recebe os avisos) continua sendo o cadastrado."
+      >
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">@</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-slate-200">E-mail principal</p>
+              <p className="truncate text-xs text-slate-500">{user?.email}</p>
+            </div>
+            <span className="shrink-0 rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-bold text-green-400">
+              {isLocalMode || emailIdentity || !identities.length ? 'ATIVO' : 'VIA GOOGLE'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-3">
+            <GoogleIcon />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-slate-200">Conta Google</p>
+              <p className="truncate text-xs text-slate-500">{googleIdentity ? googleIdentity.email || 'vinculada' : 'Entre também com um clique, sem senha'}</p>
+            </div>
+            {googleIdentity ? (
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-bold text-green-400">VINCULADA</span>
+                {identities.length > 1 && (
+                  <button onClick={handleUnlinkGoogle} disabled={busy} className="text-xs text-red-400 hover:underline disabled:opacity-50">
+                    Desvincular
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={handleLinkGoogle}
+                disabled={busy}
+                className="shrink-0 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:opacity-50"
+              >
+                Vincular Google
+              </button>
+            )}
+          </div>
+          <Msg msg={linkMsg} />
+        </div>
+      </Card>
+
+      {/* Trocar e-mail principal */}
+      <Card title="Alterar e-mail principal" subtitle="O e-mail principal é o que recebe os avisos da plataforma. A troca exige confirmação nos dois e-mails.">
+        <form onSubmit={changeEmail} className="space-y-3">
+          <Field label="NOVO E-MAIL">
+            <input className={inputCls} type="email" required placeholder="novo@email.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
           </Field>
-          <Field label="NOVA SENHA">
-            <input className={inputCls} type="password" minLength={6} value={next} onChange={(e) => setNext(e.target.value)} />
-          </Field>
-          {msg && <p className="text-xs text-amber-400">{msg}</p>}
+          <Msg msg={emailMsg} />
           <div className="flex justify-end">
-            <button type="submit" className={btnPrimary}>
-              Atualizar senha
+            <button type="submit" disabled={busy} className={`${btnPrimary} disabled:opacity-50`}>
+              Alterar e-mail
             </button>
           </div>
         </form>
       </Card>
-      <Card title="Contas Conectadas">
-        <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-3">
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.57 5.57 0 0 1-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
-            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A11.99 11.99 0 0 0 12 24z" />
-            <path fill="#FBBC05" d="M5.27 14.29a7.16 7.16 0 0 1 0-4.58V6.62H1.29a11.99 11.99 0 0 0 0 10.76l3.98-3.09z" />
-            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42A11.97 11.97 0 0 0 12 0 11.99 11.99 0 0 0 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z" />
-          </svg>
-          <p className="text-sm text-slate-300">Conta Google</p>
-          <span className="ml-auto rounded bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-500">NÃO VINCULADA</span>
-        </div>
+
+      {/* Alterar senha */}
+      <Card title="Alterar Senha">
+        <form onSubmit={changePassword} className="space-y-4">
+          <Field label="NOVA SENHA">
+            <input className={inputCls} type="password" minLength={6} required value={next} onChange={(e) => setNext(e.target.value)} />
+          </Field>
+          <Field label="CONFIRMAR NOVA SENHA">
+            <input className={inputCls} type="password" minLength={6} required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          </Field>
+          <Msg msg={pwMsg} />
+          <div className="flex justify-end">
+            <button type="submit" disabled={busy} className={`${btnPrimary} disabled:opacity-50`}>
+              Atualizar senha
+            </button>
+          </div>
+        </form>
       </Card>
     </div>
   )

@@ -16,6 +16,7 @@ O `vercel.json` da **raiz do repositório** já configura o build do client, o f
 1. Crie conta em https://supabase.com → **New project** (região São Paulo, senha forte do banco).
 2. **Auth por e-mail**: já vem ligado. Em *Authentication → Providers → Email*, deixe "Confirm email" como preferir (desligado = entra direto sem confirmar).
 3. **Login com Google** (opcional): *Authentication → Providers → Google* → ative. Crie um OAuth Client no Google Cloud Console (APIs & Services → Credentials → OAuth client ID → Web) usando o redirect que o Supabase mostra nessa tela; cole Client ID e Secret no Supabase.
+4. **Vinculação manual de contas** (e-mail + Google na mesma conta): *Authentication → Settings (ou Sign In/Up)* → ative **"Allow manual linking"**. Sem isso, o botão "Vincular Google" em Configurações → Segurança devolve erro.
 4. **Tabelas** (opcional hoje — veja "O que já funciona"): *SQL Editor* → cole `supabase/schema.sql` → Run.
 5. Copie em *Settings → API*:
    - **Project URL** → vira `VITE_SUPABASE_URL`
@@ -31,7 +32,12 @@ O `vercel.json` da **raiz do repositório** já configura o build do client, o f
 4. **Environment Variables**:
    - `VITE_SUPABASE_URL` = Project URL do Supabase
    - `VITE_SUPABASE_ANON_KEY` = anon key do Supabase
+   - `VITE_ADMIN_EMAILS` = seu e-mail (ou vários, separados por vírgula) — libera a área /admin no site
+   - `ADMIN_EMAILS` = os MESMOS e-mails — autoriza as rotas /api/admin no servidor
+   - `SUPABASE_SERVICE_ROLE_KEY` = service_role key (Supabase → Settings → API → service_role). ⚠️ NUNCA compartilhe esta chave nem a coloque com prefixo VITE_ — ela dá acesso total ao projeto e vive só no servidor.
    - (opcionais) `VITE_WHATSAPP_COMMUNITY_URL`, `VITE_DISCORD_URL`, `VITE_YOUTUBE_URL`, `VITE_WHATSAPP_PHONE`, `VITE_SUPPORT_EMAIL`
+
+   Depois de mudar variáveis, faça **Redeploy** (Deployments → ⋯ → Redeploy) — envs só entram em novo build.
 5. **Deploy**. A URL final fica tipo `https://noctis-studio.vercel.app`.
 6. Volte no Supabase → *Authentication → URL Configuration* → preencha **Site URL** e **Redirect URLs** com essa URL.
 

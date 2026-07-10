@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { ShieldCheck, Sparkles, Users, GraduationCap, ShieldAlert, Plus, Pencil, Trash2, Crown, X } from 'lucide-react'
+import { ShieldCheck, Sparkles, Users, GraduationCap, ShieldAlert, Plus, Pencil, Trash2, Crown, X, Loader2, RefreshCw, Ban } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
+import { api, apiErrorMessage } from '../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog, formatCompact } from '../components/ui'
 import { Field } from './channels/ChannelsList'
 
@@ -59,6 +60,141 @@ export default function Admin() {
       {tab === 'members' && <MembersTab />}
       {tab === 'academy' && <AcademyTab />}
       {tab === 'removed' && <RemovedTab />}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Membros (produção/Supabase) — lista real de usuários da plataforma, direto
+// do site: mudar plano, suspender/reativar e excluir contas.
+// ---------------------------------------------------------------------------
+const PLAN_OPTIONS = ['FREE', 'BASIC', 'LITE', 'PRO', 'MASTER']
+
+function SupabaseMembersTab() {
+  const { user } = useAuth()
+  const [users, setUsers] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [busyId, setBusyId] = useState(null)
+  const [removing, setRemoving] = useState(null)
+
+  async function load() {
+    setLoading(true)
+    setError('')
+    try {
+      const { users } = await api.admin.listUsers()
+      setUsers(users)
+    } catch (err) {
+      setError(err?.message || apiErrorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function act(id, fn) {
+    setBusyId(id)
+    setError('')
+    try {
+      await fn()
+      await load()
+    } catch (err) {
+      setError(err?.message || apiErrorMessage(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-500">
+          Todos os usuários da plataforma (Supabase Auth) — sem precisar entrar no painel do Supabase.
+        </p>
+        <button onClick={load} disabled={loading} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 text-xs`}>
+          {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+          Atualizar
+        </button>
+      </div>
+
+      {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400">{error}</p>}
+
+      {loading && users === null && (
+        <div className="flex justify-center py-10">
+          <Loader2 size={22} className="animate-spin text-cyan-400" />
+        </div>
+      )}
+
+      {users?.map((u) => {
+        const isMe = u.email?.toLowerCase() === user?.email?.toLowerCase()
+        const busy = busyId === u.id
+        return (
+          <div key={u.id} className={`flex flex-wrap items-center gap-3 rounded-xl border bg-slate-900/40 p-4 ${u.banned ? 'border-red-500/40' : 'border-slate-800'}`}>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 text-sm font-bold text-slate-950">
+              {(u.name || u.email || '?').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-100">
+                {u.name || u.email}
+                {isMe && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">👑 VOCÊ</span>}
+                {u.banned && <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[9px] font-bold text-red-400">SUSPENSO</span>}
+                {u.providers.map((p) => (
+                  <span key={p} className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-400">
+                    {p === 'email' ? 'e-mail' : p}
+                  </span>
+                ))}
+              </p>
+              <p className="truncate text-xs text-slate-500">
+                {u.email} · criado {new Date(u.createdAt).toLocaleDateString('pt-BR')}
+                {u.lastSignInAt ? ` · último acesso ${new Date(u.lastSignInAt).toLocaleDateString('pt-BR')}` : ''}
+              </p>
+            </div>
+            <select
+              className={`${inputCls} !w-28 !py-1.5 text-xs`}
+              value={u.plan}
+              disabled={busy}
+              onChange={(e) => act(u.id, () => api.admin.setPlan(u.id, e.target.value))}
+            >
+              {PLAN_OPTIONS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            {!isMe && (
+              <>
+                <button
+                  onClick={() => act(u.id, () => api.admin.setBan(u.id, !u.banned))}
+                  disabled={busy}
+                  title={u.banned ? 'Reativar conta' : 'Suspender conta (não consegue mais logar)'}
+                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                    u.banned ? 'border-green-500/40 text-green-400 hover:bg-green-500/10' : 'border-slate-800 text-slate-400 hover:border-amber-500/40 hover:text-amber-400'
+                  }`}
+                >
+                  {busy ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
+                  {u.banned ? 'Reativar' : 'Suspender'}
+                </button>
+                <button onClick={() => setRemoving(u)} disabled={busy} className="text-slate-500 hover:text-red-400" title="Excluir conta">
+                  <X size={15} />
+                </button>
+              </>
+            )}
+          </div>
+        )
+      })}
+
+      {users?.length === 0 && <p className="rounded-xl border border-dashed border-slate-800 p-8 text-center text-sm text-slate-600">Nenhum usuário ainda.</p>}
+
+      <ConfirmDialog
+        open={removing !== null}
+        onClose={() => setRemoving(null)}
+        onConfirm={() => act(removing.id, () => api.admin.removeUser(removing.id))}
+        title="Excluir conta"
+        message={`Excluir a conta ${removing?.email}? O login deixa de existir — essa ação não pode ser desfeita.`}
+      />
     </div>
   )
 }
@@ -160,9 +296,16 @@ function NewsModal({ open, onClose, update }) {
 }
 
 // ---------------------------------------------------------------------------
-// Membros — planos e papel de admin (modo local: contas deste dispositivo)
+// Membros — em produção (Supabase) lista os usuários reais; no modo local,
+// as contas deste dispositivo.
 // ---------------------------------------------------------------------------
 function MembersTab() {
+  const { isLocalMode } = useAuth()
+  if (!isLocalMode) return <SupabaseMembersTab />
+  return <LocalMembersTab />
+}
+
+function LocalMembersTab() {
   const { user } = useAuth()
   const [, force] = useState(0)
   const [transferTo, setTransferTo] = useState(null)

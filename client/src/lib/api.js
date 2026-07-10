@@ -1,4 +1,5 @@
 import { db } from './db'
+import { supabase } from './supabase'
 
 // Cliente da API do backend. As chaves BYOK ficam salvas no dispositivo do
 // usuário (settings) e são enviadas por header a cada chamada — o servidor
@@ -79,6 +80,30 @@ async function assemblyFetch(path, options = {}) {
 
 const assemblyStatusMap = (s) => ({ queued: 'preparing', processing: 'transcribing', completed: 'done', error: 'error' }[s] || s)
 
+// ---------------------------------------------------------------------------
+// Admin (/api/admin/*) — exige a sessão do Supabase: o token JWT vai no
+// header e o servidor valida se o e-mail está na allowlist ADMIN_EMAILS.
+// ---------------------------------------------------------------------------
+async function adminRequest(path, { method = 'GET', body } = {}) {
+  if (!supabase) throw new ApiError('local_mode', 'Gestão de usuários só existe com o Supabase configurado (produção).')
+  const { data } = await supabase.auth.getSession()
+  const token = data?.session?.access_token
+  if (!token) throw new ApiError('unauthorized')
+  let res
+  try {
+    res = await fetch(`/api/admin${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw new ApiError('server_offline')
+  }
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new ApiError(json.error || 'request_failed', json.message)
+  return json
+}
+
 export const api = {
   youtube: {
     lookupChannel: (q) => request(`/youtube/channel?q=${encodeURIComponent(q)}`),
@@ -100,13 +125,15 @@ export const api = {
     search: (params) => request(`/media/search?${new URLSearchParams(params)}`),
   },
   transcription: {
-    // Envia o arquivo de áudio direto para a AssemblyAI e abre o job
+    // Envia o arquivo de áudio direto para a AssemblyAI e abre o job.
+    // language_detection: o idioma é detectado sozinho (pt, en, es...) — com
+    // idioma fixo, um áudio em outra língua voltava vazio.
     async create(file) {
       const { upload_url: audioUrl } = await assemblyFetch('/upload', { method: 'POST', body: file })
       const data = await assemblyFetch('/transcript', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ audio_url: audioUrl, language_code: 'pt' }),
+        body: JSON.stringify({ audio_url: audioUrl, language_detection: true }),
       })
       return { id: data.id, status: assemblyStatusMap(data.status) }
     },
@@ -132,6 +159,12 @@ export const api = {
       if (data.status === 'error') out.message = data.error
       return out
     },
+  },
+  admin: {
+    listUsers: (page = 1) => adminRequest(`/users?page=${page}`),
+    setPlan: (id, plan) => adminRequest(`/users/${id}`, { method: 'PATCH', body: { plan } }),
+    setBan: (id, banned) => adminRequest(`/users/${id}/ban`, { method: 'POST', body: { banned } }),
+    removeUser: (id) => adminRequest(`/users/${id}`, { method: 'DELETE' }),
   },
 }
 
