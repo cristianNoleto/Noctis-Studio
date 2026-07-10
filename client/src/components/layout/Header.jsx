@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { Bell, BookOpen, ChevronRight, Crown, Eye, EyeOff, HelpCircle, LogOut, Moon, Settings, ShieldCheck, Sun, Sparkles } from 'lucide-react'
+import { Bell, BookOpen, ChevronRight, Crown, Eye, EyeOff, HelpCircle, KeyRound, LogOut, Moon, Settings, ShieldCheck, Sun, Sparkles } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
 import { useDb } from '../../lib/db'
+import { api } from '../../lib/api'
 import { usePrivacy, togglePrivacyGlobal } from '../privacy'
 
 const planStyles = {
@@ -83,6 +84,9 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-2.5">
+        {/* Cota das chaves YouTube (só aparece com chaves configuradas) */}
+        <KeysQuota />
+
         {/* Modo restrito global */}
         <button
           onClick={togglePrivacyGlobal}
@@ -193,5 +197,84 @@ export default function Header() {
         </div>
       </div>
     </header>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Indicador de cota das chaves YouTube: N/M disponíveis hoje. Atualiza ao
+// abrir o dropdown e a cada 10 min; some se não houver chaves configuradas.
+// ---------------------------------------------------------------------------
+function KeysQuota() {
+  const db = useDb()
+  const [open, setOpen] = useState(false)
+  const [status, setStatus] = useState(null) // null = ainda não carregado/offline
+  const ref = useClickOutside(() => setOpen(false))
+  const totalKeys = (db.getSetting('ytKeys', []) || []).filter(Boolean).length
+
+  async function refresh() {
+    try {
+      const { keys } = await api.youtube.keysStatus()
+      setStatus(keys)
+    } catch {
+      setStatus(null) // servidor offline — não mostra número errado
+    }
+  }
+
+  useEffect(() => {
+    if (!totalKeys) return
+    refresh()
+    const t = setInterval(refresh, 10 * 60_000)
+    return () => clearInterval(t)
+  }, [totalKeys]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!totalKeys) return null
+
+  const ok = status ? status.filter((k) => !k.exhausted).length : null
+  const tone =
+    ok === null
+      ? 'border-slate-800 bg-slate-900 text-slate-500'
+      : ok === 0
+        ? 'border-red-500/50 bg-red-500/10 text-red-400'
+        : ok < totalKeys
+          ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
+          : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => {
+          setOpen((v) => !v)
+          refresh()
+        }}
+        title="Cota das chaves da YouTube API hoje"
+        className={`flex h-9 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-colors ${tone}`}
+      >
+        <KeyRound size={13} />
+        {ok === null ? '—' : `${ok}/${totalKeys}`}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-xl border border-slate-800 bg-slate-900 p-3 shadow-xl">
+          <p className="mb-2 text-xs font-semibold text-slate-200">Chaves YouTube hoje</p>
+          {status === null && <p className="text-[11px] text-slate-500">Servidor offline — inicie o servidor para consultar a cota.</p>}
+          {status?.map((k) => (
+            <div key={k.slot} className="flex items-center justify-between py-1 text-[11px]">
+              <span className="text-slate-400">CHAVE {k.slot}</span>
+              {k.exhausted ? (
+                <span className="font-semibold text-red-400">cota esgotada</span>
+              ) : (
+                <span className="font-semibold text-green-400">disponível</span>
+              )}
+            </div>
+          ))}
+          <p className="mt-2 border-t border-slate-800 pt-2 text-[10px] leading-relaxed text-slate-600">
+            A cota reseta à meia-noite (horário do Pacífico). Gerencie as chaves em{' '}
+            <Link to="/perfil" onClick={() => setOpen(false)} className="text-cyan-400 hover:underline">
+              Configurações → APIs
+            </Link>
+            .
+          </p>
+        </div>
+      )}
+    </div>
   )
 }

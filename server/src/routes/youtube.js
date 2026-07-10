@@ -125,9 +125,10 @@ router.get('/search-channels', async (req, res) => {
   }
 })
 
-// GET /api/youtube/check-channels?ids=UC1,UC2,...  (detecção de canais removidos)
-// Devolve quais ids ainda EXISTEM no YouTube — os ausentes foram removidos/
-// encerrados. Sem cache: o objetivo é justamente detectar mudanças.
+// GET /api/youtube/check-channels?ids=UC1,UC2,...  (detecção de canais removidos
+// + explosões). Devolve os ids que ainda EXISTEM com as estatísticas atuais —
+// os ausentes foram removidos/encerrados; a comparação de crescimento fica no
+// client. Sem cache: o objetivo é justamente detectar mudanças.
 router.get('/check-channels', async (req, res) => {
   try {
     const keys = parseKeys(req)
@@ -137,8 +138,14 @@ router.get('/check-channels', async (req, res) => {
       .filter(Boolean)
       .slice(0, 50)
     if (!ids.length) return res.json({ found: [] })
-    const data = await ytFetch(keys, 'channels', { part: 'id', id: ids.join(','), maxResults: 50 })
-    res.json({ found: (data.items || []).map((i) => i.id) })
+    const data = await ytFetch(keys, 'channels', { part: 'id,statistics', id: ids.join(','), maxResults: 50 })
+    res.json({
+      found: (data.items || []).map((i) => ({
+        id: i.id,
+        subscribers: Number(i.statistics?.subscriberCount ?? 0),
+        views: Number(i.statistics?.viewCount ?? 0),
+      })),
+    })
   } catch (err) {
     handleError(res, err)
   }

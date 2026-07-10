@@ -414,7 +414,7 @@ export default function NicheDoubling() {
         ⚠️ Scores de sucesso e dificuldade são <b>estimativas geradas por IA</b> a partir de padrões — não métricas garantidas.
       </p>
 
-      <DetailDrawer detail={detail} onClose={() => setDetail(null)} />
+      <DetailDrawer detail={detail} onClose={() => setDetail(null)} niche={r.mainNiche} pattern={r.winningPattern?.description} />
 
       {loading && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70">
@@ -628,11 +628,42 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
 }
 
 // ---------------------------------------------------------------------------
-function DetailDrawer({ detail, onClose }) {
+function DetailDrawer({ detail, onClose, niche, pattern }) {
   const [tab, setTab] = useState('apply')
-  useEffect(() => setTab('apply'), [detail])
+  const [extraTitles, setExtraTitles] = useState([])
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState('')
+  const [copiedIdx, setCopiedIdx] = useState(null)
+  useEffect(() => {
+    setTab('apply')
+    setExtraTitles([])
+    setGenError('')
+  }, [detail])
   if (!detail?.item) return null
   const { blockLabel, color, item } = detail
+
+  // Gera mais títulos prontos com IA para esta oportunidade
+  async function generateTitles() {
+    setGenerating(true)
+    setGenError('')
+    try {
+      const { titles } = await api.ai.titles({ idea: item.title, niche, context: pattern })
+      const known = new Set([...(item.recommendedTitles || []), ...extraTitles])
+      setExtraTitles((prev) => [...prev, ...titles.filter((t) => !known.has(t))])
+    } catch (err) {
+      setGenError(apiErrorMessage(err))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function copyTitle(text, idx) {
+    await navigator.clipboard.writeText(text)
+    setCopiedIdx(idx)
+    setTimeout(() => setCopiedIdx(null), 1200)
+  }
+
+  const allTitles = [...(item.recommendedTitles || []), ...extraTitles]
 
   const difficultyCls =
     { Fácil: 'bg-green-500/15 text-green-400', Média: 'bg-amber-500/15 text-amber-400', Difícil: 'bg-red-500/15 text-red-400' }[item.difficulty] ||
@@ -677,14 +708,34 @@ function DetailDrawer({ detail, onClose }) {
         {tab === 'apply' && <p className="text-sm leading-relaxed text-slate-300">{item.howToApply}</p>}
         {tab === 'preserve' && <p className="text-sm leading-relaxed text-slate-300">{item.preserveVsChange}</p>}
         {tab === 'titles' && (
-          <ul className="space-y-2">
-            {(item.recommendedTitles || []).map((t, i) => (
-              <li key={i} className="flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2.5 text-sm text-slate-200">
-                <span className="text-[10px] font-bold text-slate-600">{i + 1}</span>
-                {t}
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-3">
+            <ul className="space-y-2">
+              {allTitles.map((t, i) => (
+                <li key={i} className="group flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2.5 text-sm text-slate-200">
+                  <span className="shrink-0 text-[10px] font-bold text-slate-600">{i + 1}</span>
+                  <span className="min-w-0 flex-1">{t}</span>
+                  <button
+                    onClick={() => copyTitle(t, i)}
+                    title="Copiar título"
+                    className={`shrink-0 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 ${
+                      copiedIdx === i ? 'text-green-400 !opacity-100' : 'text-slate-500 hover:text-cyan-300'
+                    }`}
+                  >
+                    {copiedIdx === i ? 'Copiado!' : 'Copiar'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {genError && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{genError}</p>}
+            <button
+              onClick={generateTitles}
+              disabled={generating}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 py-2.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
+            >
+              {generating ? <Loader2 size={13} className="animate-spin" /> : <Star size={13} />}
+              {generating ? 'Gerando títulos...' : 'Gerar mais 10 títulos com IA'}
+            </button>
+          </div>
         )}
       </div>
     </Drawer>

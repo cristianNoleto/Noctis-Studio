@@ -30,6 +30,7 @@ const TAG_CLS = {
   NOVO: 'bg-green-500/15 text-green-400',
   MELHORIA: 'bg-cyan-500/15 text-cyan-400',
   ATUALIZAÇÃO: 'bg-amber-500/15 text-amber-400',
+  ALERTA: 'bg-red-500/15 text-red-400', // canais monitorados explodindo/sumindo
 }
 
 function formatToday(lang) {

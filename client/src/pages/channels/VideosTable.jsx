@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
 import {
   Plus,
@@ -106,6 +106,39 @@ export default function VideosTable({ channelId, channel }) {
     db.update('videos', video.id, { steps })
   }
 
+  // ------ Relatórios SEO em lote: analisa todos os vídeos sem relatório ------
+  const [batch, setBatch] = useState(null) // { running, done, total, current, errors }
+  const batchStop = useRef(false)
+
+  const reportedIds = new Set(db.all('seoReports').map((r) => r.videoId))
+  const pendingReports = videos.filter((v) => !reportedIds.has(v.id)).length
+
+  async function analyzeAll() {
+    if (batch?.running) {
+      batchStop.current = true
+      return
+    }
+    const targets = videos.filter((v) => !reportedIds.has(v.id))
+    if (!targets.length) return
+    batchStop.current = false
+    setBatch({ running: true, done: 0, total: targets.length, current: targets[0].title, errors: 0 })
+    for (let i = 0; i < targets.length; i++) {
+      if (batchStop.current) break
+      const v = targets[i]
+      setBatch((b) => ({ ...b, done: i, current: v.title }))
+      try {
+        const data = await api.ai.seoReport({ title: v.title, description: v.description || '', tags: v.tags || [] })
+        db.insert('seoReports', { videoId: v.id, score: data.score, report: data })
+        setBatch((b) => ({ ...b, done: i + 1 }))
+      } catch {
+        setBatch((b) => ({ ...b, done: i + 1, errors: b.errors + 1 }))
+      }
+      // intervalo entre chamadas p/ respeitar o rate limit do free tier
+      if (i < targets.length - 1 && !batchStop.current) await new Promise((r) => setTimeout(r, 4500))
+    }
+    setBatch((b) => ({ ...b, running: false, current: null }))
+  }
+
   return (
     <div className="space-y-3">
       {/* Cabeçalho da seção */}
@@ -151,11 +184,49 @@ export default function VideosTable({ channelId, channel }) {
             {importing ? importMsg || 'Importando...' : 'Importar do YouTube'}
           </button>
         )}
+        {videos.length > 0 && (
+          <button
+            onClick={analyzeAll}
+            disabled={!batch?.running && pendingReports === 0}
+            title={pendingReports === 0 && !batch?.running ? 'Todos os vídeos já têm relatório' : 'Gera relatório de SEO/CTR (IA) para todos os vídeos sem relatório'}
+            className={`${btnGhost} flex items-center gap-2 text-xs disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {batch?.running ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            {batch?.running ? 'Parar análise' : `Analisar todos (${pendingReports})`}
+          </button>
+        )}
         <button className={`${btnPrimary} flex items-center gap-1.5`} onClick={() => setEditVideo('new')}>
           <Plus size={15} />
           Novo Título
         </button>
       </div>
+
+      {/* Progresso da análise em lote */}
+      {batch && (
+        <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-4 py-2.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="min-w-0 truncate text-slate-300">
+              {batch.running ? (
+                <>
+                  Analisando <b className="text-cyan-300">{batch.current}</b>...
+                </>
+              ) : (
+                <>
+                  Análise em lote concluída — {batch.done - batch.errors} relatório{batch.done - batch.errors === 1 ? '' : 's'} gerado
+                  {batch.done - batch.errors === 1 ? '' : 's'}
+                  {batch.errors > 0 && <span className="text-amber-400"> · {batch.errors} com erro (cota da IA?)</span>}
+                </>
+              )}
+            </span>
+            <span className="ml-3 shrink-0 font-bold text-cyan-300">
+              {batch.done}/{batch.total}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+            <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500 transition-all" style={{ width: `${Math.round((batch.done / batch.total) * 100)}%` }} />
+          </div>
+        </div>
+      )}
 
       {importMsg && !importing && <p className="rounded-lg bg-green-500/10 px-3 py-2 text-xs text-green-400">{importMsg}</p>}
       {importError && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{importError}</p>}

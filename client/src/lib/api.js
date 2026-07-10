@@ -56,10 +56,12 @@ export const api = {
     channelVideos: (channelId, pageToken = '') =>
       request(`/youtube/channel-videos?id=${encodeURIComponent(channelId)}&pageToken=${encodeURIComponent(pageToken)}`),
     checkChannels: (ids) => request(`/youtube/check-channels?ids=${encodeURIComponent(ids.join(','))}`),
+    keysStatus: () => request('/youtube/keys-status'),
   },
   ai: {
     seoReport: (payload) => request('/ai/seo-report', { method: 'POST', body: payload }),
     nicheDoubling: (payload) => request('/ai/niche-doubling', { method: 'POST', body: payload }),
+    titles: (payload) => request('/ai/titles', { method: 'POST', body: payload }),
   },
   media: {
     search: (params) => request(`/media/search?${new URLSearchParams(params)}`),

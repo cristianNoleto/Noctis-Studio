@@ -24,25 +24,32 @@ export default function RemovedChannels() {
   // -------------------------------------------------------------------------
   // Detecção automática: verifica todos os canais que o sistema conhece
   // (seus canais, referências e favoritos do Niche Finder) contra a API.
-  // Quem sumiu do YouTube entra automaticamente nesta base — assim ela
-  // cresce sozinha a cada verificação.
+  // - Quem SUMIU do YouTube entra automaticamente nesta base.
+  // - Quem EXPLODIU (crescimento anormal de inscritos/views desde o último
+  //   registro) vira alerta no sino do header, e a baseline é atualizada.
   // -------------------------------------------------------------------------
   async function checkMonitored() {
     if (checking) return
     setChecking(true)
     setCheckError('')
     try {
-      // Coleta tudo que o sistema monitora, com os dados em cache p/ registrar
+      // Coleta tudo que o sistema monitora, com os dados em cache p/ comparar
       const monitored = new Map()
       for (const c of db.all('channels')) {
-        if (c.youtubeChannelId) monitored.set(c.youtubeChannelId, { name: c.name, subs: c.ytSubscribers, videos: c.ytVideoCount })
+        if (c.youtubeChannelId) {
+          monitored.set(c.youtubeChannelId, { name: c.name, subs: c.ytSubscribers, views: c.ytTotalViews, videos: c.ytVideoCount, src: 'channel', recId: c.id })
+        }
       }
       for (const r of db.all('referenceChannels')) {
         const id = r.youtubeChannelId || r.cachedStats?.id
-        if (id) monitored.set(id, { name: r.cachedStats?.title || r.youtubeUrl, subs: r.cachedStats?.subscribers, videos: r.cachedStats?.videoCount, niche: r.niche })
+        if (id && !monitored.has(id)) {
+          monitored.set(id, { name: r.cachedStats?.title || r.youtubeUrl, subs: r.cachedStats?.subscribers, views: r.cachedStats?.views, videos: r.cachedStats?.videoCount, niche: r.niche, src: 'ref', recId: r.id })
+        }
       }
       for (const f of db.getSetting('nicheFavorites', [])) {
-        if (f.id) monitored.set(f.id, { name: f.title, subs: f.subscribers, videos: f.videoCount, niche: f.topics?.[0] })
+        if (f.id && !monitored.has(f.id)) {
+          monitored.set(f.id, { name: f.title, subs: f.subscribers, views: f.views, videos: f.videoCount, niche: f.topics?.[0], src: 'fav' })
+        }
       }
 
       const ids = [...monitored.keys()]
@@ -53,13 +60,14 @@ export default function RemovedChannels() {
         return
       }
 
-      const found = new Set()
+      const found = new Map() // id → { subscribers, views }
       for (let i = 0; i < ids.length; i += 50) {
         setCheckMsg(`Verificando ${Math.min(i + 50, ids.length)}/${ids.length} canais monitorados...`)
         const { found: page } = await api.youtube.checkChannels(ids.slice(i, i + 50))
-        page.forEach((id) => found.add(id))
+        page.forEach((c) => found.set(c.id, c))
       }
 
+      // ------- Removidos -------
       const alreadyListed = new Set(all.map((c) => c.youtubeChannelId).filter(Boolean))
       let detected = 0
       for (const id of ids) {
@@ -77,11 +85,50 @@ export default function RemovedChannels() {
           autoDetected: true,
         })
       }
-      setCheckMsg(
-        detected > 0
-          ? `⚠️ ${detected} canal${detected > 1 ? 'is' : ''} monitorado${detected > 1 ? 's' : ''} sumiu do YouTube e entrou na base automaticamente.`
-          : `✓ Todos os ${ids.length} canais monitorados continuam ativos no YouTube.`,
+
+      // ------- Explosões: +30% de inscritos OU +50% de views desde a baseline -------
+      const recentAlerts = new Set(
+        db.all('platformUpdates').filter((u) => u.tag === 'ALERTA' && Date.now() - u.createdAt < 7 * 86_400_000).map((u) => u.channelId),
       )
+      let exploded = 0
+      const favorites = db.getSetting('nicheFavorites', [])
+      let favoritesChanged = false
+      for (const [id, now] of found) {
+        const info = monitored.get(id)
+        const oldSubs = Number(info.subs) || 0
+        const oldViews = Number(info.views) || 0
+        const subsGrowth = oldSubs >= 100 ? (now.subscribers - oldSubs) / oldSubs : 0
+        const viewsGrowth = oldViews >= 10_000 ? (now.views - oldViews) / oldViews : 0
+        if ((subsGrowth >= 0.3 || viewsGrowth >= 0.5) && !recentAlerts.has(id)) {
+          exploded++
+          const pct = Math.round(Math.max(subsGrowth, viewsGrowth) * 100)
+          db.insert('platformUpdates', {
+            tag: 'ALERTA',
+            channelId: id,
+            title: `🚀 ${info.name} está explodindo`,
+            description: `Crescimento de ~${pct}% desde o último registro: ${formatCompact(oldSubs)} → ${formatCompact(now.subscribers)} inscritos · ${formatCompact(oldViews)} → ${formatCompact(now.views)} views. Vale analisar na Dobra de Nicho.`,
+          })
+        }
+        // Atualiza a baseline p/ a próxima verificação comparar certo
+        if (info.src === 'channel') {
+          db.update('channels', info.recId, { ytSubscribers: now.subscribers, ytTotalViews: now.views, ytStatsUpdatedAt: Date.now() })
+        } else if (info.src === 'ref') {
+          const ref = db.get('referenceChannels', info.recId)
+          if (ref) db.update('referenceChannels', info.recId, { cachedStats: { ...(ref.cachedStats || {}), subscribers: now.subscribers, views: now.views } })
+        } else if (info.src === 'fav') {
+          const idx = favorites.findIndex((f) => f.id === id)
+          if (idx >= 0) {
+            favorites[idx] = { ...favorites[idx], subscribers: now.subscribers, views: now.views }
+            favoritesChanged = true
+          }
+        }
+      }
+      if (favoritesChanged) db.setSetting('nicheFavorites', [...favorites])
+
+      const parts = []
+      if (detected > 0) parts.push(`⚠️ ${detected} canal${detected > 1 ? 'is' : ''} sumiu do YouTube e entrou na base`)
+      if (exploded > 0) parts.push(`🚀 ${exploded} canal${exploded > 1 ? 'is' : ''} explodindo — alerta no sino`)
+      setCheckMsg(parts.length ? parts.join(' · ') : `✓ Todos os ${ids.length} canais monitorados continuam ativos, sem explosões desde o último registro.`)
       setTimeout(() => setCheckMsg(''), 8000)
     } catch (err) {
       setCheckError(apiErrorMessage(err))

@@ -47,6 +47,32 @@ Responda neste formato JSON exato:
   }
 })
 
+// POST /api/ai/titles  { idea, niche, context } — títulos prontos para uma oportunidade da Dobra
+router.post('/titles', async (req, res) => {
+  try {
+    const { idea, niche = '', context = '' } = req.body || {}
+    if (!idea) return res.status(400).json({ error: 'missing_idea' })
+
+    const result = await aiGenerateJson(req, {
+      system:
+        'Você é um especialista em títulos de alto CTR para canais dark do YouTube (conteúdo narrado, sem rosto). ' +
+        'Responda SEMPRE em JSON válido, em português do Brasil.',
+      prompt: `Gere 10 títulos prontos para publicar, com alto potencial de CTR, para a ideia de vídeo abaixo.
+Use gatilhos comprovados (curiosidade, número, contraste, medo/urgência quando fizer sentido), sem clickbait mentiroso e com no máximo ~70 caracteres cada.
+
+IDEIA: ${idea}
+NICHO: ${niche || '(não informado)'}
+CONTEXTO DO PADRÃO VENCEDOR: ${context || '(não informado)'}
+
+Responda neste formato JSON exato:
+{ "titles": ["<título 1>", "<título 2>", "... 10 títulos"] }`,
+    })
+    res.json({ titles: (result.titles || []).filter((t) => typeof t === 'string').slice(0, 10) })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 // POST /api/ai/niche-doubling  { channel: {...}, topVideos: [...] }
 router.post('/niche-doubling', async (req, res) => {
   try {
