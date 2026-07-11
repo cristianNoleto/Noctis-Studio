@@ -341,15 +341,19 @@ function SecurityTab() {
 }
 
 // Botão de teste reutilizável — persiste as chaves atuais e roda a validação.
+// Se o resultado trouxer `details` (ex.: cada chave do YouTube), mostra um a um.
 function TestButton({ label = 'Testar', persist, run }) {
   const [state, setState] = useState('idle') // idle | loading | ok | fail
   const [msg, setMsg] = useState('')
+  const [details, setDetails] = useState(null)
   async function handle() {
     setState('loading')
     setMsg('')
+    setDetails(null)
     try {
       persist?.()
       const r = await run()
+      setDetails(Array.isArray(r?.details) ? r.details : null)
       if (r?.ok) {
         setState('ok')
         setMsg(r.message || 'OK')
@@ -363,27 +367,45 @@ function TestButton({ label = 'Testar', persist, run }) {
     }
   }
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        onClick={handle}
-        disabled={state === 'loading'}
-        className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
-      >
-        {state === 'loading' ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
-        {label}
-      </button>
-      {state === 'ok' && (
-        <span className="flex items-center gap-1 text-xs font-medium text-green-400">
-          <Check size={13} />
-          {msg}
-        </span>
-      )}
-      {state === 'fail' && (
-        <span className="flex items-center gap-1 text-xs font-medium text-red-400">
-          <X size={13} />
-          {msg}
-        </span>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={handle}
+          disabled={state === 'loading'}
+          className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
+        >
+          {state === 'loading' ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
+          {label}
+        </button>
+        {state === 'ok' && (
+          <span className="flex items-center gap-1 text-xs font-medium text-green-400">
+            <Check size={13} />
+            {msg}
+          </span>
+        )}
+        {state === 'fail' && (
+          <span className="flex items-center gap-1 text-xs font-medium text-red-400">
+            <X size={13} />
+            {msg}
+          </span>
+        )}
+      </div>
+      {details && details.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {details.map((d, i) => (
+            <span
+              key={i}
+              className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium ${
+                d.ok ? 'border-green-500/30 bg-green-500/10 text-green-400' : 'border-red-500/30 bg-red-500/10 text-red-400'
+              }`}
+            >
+              {d.ok ? <Check size={11} /> : <X size={11} />}
+              {d.label}
+              {d.message && d.message !== 'OK' ? ` — ${d.message}` : ''}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   )

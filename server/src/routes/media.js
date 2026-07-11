@@ -49,10 +49,10 @@ router.get('/test', async (req, res) => {
   if (pexelsKey) out.pexels = await searchPexels(pexelsKey, { type: 'image', q: 'sky', orientation: '', page: '1' }).then((l) => l.length > 0).catch(() => false)
   if (pixabayKey) out.pixabay = await searchPixabay(pixabayKey, { type: 'image', q: 'sky', orientation: '', page: '1' }).then((l) => l.length > 0).catch(() => false)
   const ok = out.pexels === true || out.pixabay === true
-  const parts = []
-  if (pexelsKey) parts.push(`Pexels: ${out.pexels ? 'OK' : 'falhou'}`)
-  if (pixabayKey) parts.push(`Pixabay: ${out.pixabay ? 'OK' : 'falhou'}`)
-  res.json({ ok, ...out, message: parts.join(' · ') })
+  const details = []
+  if (pexelsKey) details.push({ label: 'Pexels', ok: out.pexels === true, message: out.pexels ? 'OK' : 'falhou' })
+  if (pixabayKey) details.push({ label: 'Pixabay', ok: out.pixabay === true, message: out.pixabay ? 'OK' : 'falhou' })
+  res.json({ ok, ...out, message: details.map((d) => `${d.label}: ${d.message}`).join(' · '), details })
 })
 
 async function searchPexels(key, { type, q, orientation, page }) {

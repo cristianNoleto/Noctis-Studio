@@ -62,23 +62,12 @@ export function isMonetized(c) {
 // Badges de tendência — cada faixa cruza IDADE DO CANAL × VOLUME DE VIEWS.
 // -----------------------------------------------------------------------------
 const TREND_TABS = [
-  { key: 'all', label: 'Todos os Resultados', Icon: LayoutGrid, desc: 'Todos os canais carregados nesta busca', test: () => true },
   {
     key: 'exploding',
     label: 'Explodindo Agora',
     Icon: Flame,
     desc: 'Menos de 15 dias de canal e mais de 100 mil views — viral imediato',
     test: (c) => ageDays(c) <= 15 && c.views >= 100_000,
-  },
-  {
-    key: 'outlier',
-    label: 'Fora da Curva',
-    Icon: Rocket,
-    desc: 'Números absurdos, independente da idade: +5M inscritos OU +100M views totais (ou +50M views com menos de 500 vídeos)',
-    test: (c) =>
-      c.subscribers >= 5_000_000 ||
-      c.views >= 100_000_000 ||
-      (c.views >= 50_000_000 && (c.videoCount || 9999) < 500),
   },
   {
     key: 'rising',
@@ -123,12 +112,23 @@ const TREND_TABS = [
     test: (c) => ageDays(c) <= 30 && c.subscribers < 1_000,
   },
   {
+    key: 'outlier',
+    label: 'Fora da Curva',
+    Icon: Rocket,
+    desc: 'Canais com números absurdos: +5M inscritos, ou +100M views totais, ou +50M views com menos de 500 vídeos',
+    test: (c) =>
+      c.subscribers >= 5_000_000 ||
+      c.views >= 100_000_000 ||
+      (c.views >= 50_000_000 && (c.videoCount || 9999) < 500),
+  },
+  {
     key: 'bycategory',
     label: 'Por Categoria',
     Icon: FolderOpen,
     desc: 'Canais agrupados pelas categorias de vídeo do YouTube',
     test: () => true,
   },
+  { key: 'all', label: 'Todos os Resultados', Icon: LayoutGrid, desc: 'Todos os canais carregados nesta busca', test: () => true },
 ]
 
 // Estimativa "Faceless %" — probabilidade do canal NÃO mostrar rosto. Não existe

@@ -39,16 +39,32 @@ router.get('/keys-status', (req, res) => {
   res.json({ keys: keysStatus(parseKeys(req)) })
 })
 
-// GET /api/youtube/test — valida as chaves de verdade (custa 1 unidade de cota)
+// GET /api/youtube/test — valida CADA chave individualmente (1 unidade por chave),
+// devolvendo o status por slot para o usuário ver quais funcionam.
 router.get('/test', async (req, res) => {
-  try {
-    const keys = parseKeys(req)
-    // channels.list part=id → 1 unidade; canal do Google Developers (sempre existe)
-    await ytFetch(keys, 'channels', { part: 'id', id: 'UC_x5XG1OV2P6uZZ5FSM9Ttw' })
-    res.json({ ok: true, message: 'Chave(s) do YouTube válida(s).' })
-  } catch (err) {
-    res.json({ ok: false, code: err.code, message: err.message || 'Falha ao validar a(s) chave(s).' })
-  }
+  const keys = parseKeys(req)
+  if (!keys.length) return res.json({ ok: false, message: 'Nenhuma chave do YouTube configurada.' })
+  const details = await Promise.all(
+    keys.map(async (key, i) => {
+      const slot = i + 1
+      try {
+        const url = new URL('https://www.googleapis.com/youtube/v3/channels')
+        url.searchParams.set('part', 'id')
+        url.searchParams.set('id', 'UC_x5XG1OV2P6uZZ5FSM9Ttw')
+        url.searchParams.set('key', key)
+        const r = await fetch(url)
+        if (r.ok) return { label: `Chave ${slot}`, ok: true, message: 'OK' }
+        const b = await r.json().catch(() => ({}))
+        const reason = b?.error?.errors?.[0]?.reason || ''
+        if (/quota|dailyLimit|rateLimit/i.test(reason)) return { label: `Chave ${slot}`, ok: false, message: 'cota esgotada hoje' }
+        return { label: `Chave ${slot}`, ok: false, message: 'inválida' }
+      } catch {
+        return { label: `Chave ${slot}`, ok: false, message: 'sem conexão' }
+      }
+    }),
+  )
+  const okCount = details.filter((d) => d.ok).length
+  res.json({ ok: okCount > 0, message: `${okCount}/${details.length} chave(s) OK`, details })
 })
 
 // GET /api/youtube/channel?q=<url|handle|id|nome>
@@ -268,6 +284,10 @@ router.get('/viral', async (req, res) => {
     let results = data.results
     if (minViews) results = results.filter((v) => v.views >= Number(minViews))
     if (durMinSec) results = results.filter((v) => v.durationSeconds >= Number(durMinSec))
+    // Garantia da janela de data: o publishedAfter da search.list às vezes deixa
+    // passar 1 vídeo (premieres/lives têm publishedAt divergente). Refiltramos aqui.
+    if (publishedAfter) results = results.filter((v) => new Date(v.publishedAt).getTime() >= new Date(publishedAfter).getTime())
+    if (publishedBefore) results = results.filter((v) => new Date(v.publishedAt).getTime() <= new Date(publishedBefore).getTime())
     res.json({ results, nextPageToken: data.nextPageToken })
   } catch (err) {
     handleError(res, err)

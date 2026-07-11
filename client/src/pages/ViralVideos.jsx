@@ -269,25 +269,38 @@ const SORTS = [
   ['newest', 'Mais recentes'],
 ]
 
-// Insights automáticos do vídeo (como o hover ℹ️ do original)
+// Insights automáticos do vídeo (como o hover ℹ️ do original): avalia sempre
+// engajamento e aprovação, marcando POSITIVO ou NEGATIVO conforme os limiares —
+// vídeo com número ruim recebe alerta, não elogio.
 function insightsFor(v) {
   const out = []
   const ageDays = Math.max(1, Math.round((Date.now() - new Date(v.publishedAt).getTime()) / 86_400_000))
   const perDay = Math.round(v.views / ageDays)
-  if (ageDays > 180 && perDay > 500) {
-    out.push({ emoji: '♻️', title: 'Conteúdo Evergreen', text: `Vídeo antigo (${ageDays} dias) que continua gerando ${formatCompact(perDay)} views/dia. Conteúdo atemporal!` })
-  }
-  if (v.engagement != null && v.engagement >= 2) {
-    out.push({ emoji: '✅', title: 'Alto Engajamento', text: `${v.engagement}% de engajamento está acima da média do YouTube (2%).` })
-  }
+  const eng = v.engagement != null ? v.engagement : 0
   const likeRatio = v.views > 0 ? +((v.likes / v.views) * 100).toFixed(2) : 0
-  if (likeRatio >= 2) {
-    out.push({ emoji: '👍', title: 'Qualidade Aprovada', text: `${likeRatio}% de like ratio indica que a audiência gostou do conteúdo.` })
+
+  // Alcance vs. inscritos — o sinal mais forte de viral
+  if (v.channelSubs > 0) {
+    const ratio = +(v.views / v.channelSubs).toFixed(1)
+    if (ratio >= 3) out.push({ emoji: '🔥', title: 'Alcance Explosivo', text: `${ratio}x mais views do que inscritos — o vídeo estourou muito além da base do canal.` })
+    else if (ratio < 0.5) out.push({ emoji: '🐢', title: 'Alcance Contido', text: `Só ${ratio}x os inscritos — desempenho dentro (ou abaixo) da base do canal.` })
   }
-  if (v.vph >= 1000) {
-    out.push({ emoji: '🚀', title: 'Crescimento Rápido', text: `${formatCompact(v.vph)} views/hora — o algoritmo está distribuindo forte.` })
-  }
-  if (!out.length) out.push({ emoji: '📊', title: 'Desempenho regular', text: 'Sem sinais fortes de viralização nas métricas atuais.' })
+
+  // Ritmo de crescimento
+  if (v.vph >= 5000) out.push({ emoji: '🚀', title: 'Crescimento Rápido', text: `${formatCompact(v.vph)} views/hora — o algoritmo está distribuindo forte agora.` })
+  else if (v.vph < 100 && ageDays < 30) out.push({ emoji: '📉', title: 'Crescimento Lento', text: `Apenas ${formatCompact(v.vph)} views/hora — o vídeo não está ganhando tração.` })
+
+  // Evergreen (vídeo antigo que continua rendendo)
+  if (ageDays > 180 && perDay > 1000) out.push({ emoji: '♻️', title: 'Conteúdo Evergreen', text: `Vídeo antigo (${ageDays} dias) que continua gerando ${formatCompact(perDay)} views/dia. Conteúdo atemporal!` })
+
+  // Engajamento — sempre avaliado (positivo ou negativo)
+  if (eng >= 2) out.push({ emoji: '✅', title: 'Alto Engajamento', text: `${eng}% de engajamento está acima da média do YouTube (2%).` })
+  else out.push({ emoji: '⚠️', title: 'Baixo Engajamento', text: `${eng}% indica que a audiência assiste mas quase não interage.` })
+
+  // Aprovação (like ratio) — sempre avaliada
+  if (likeRatio >= 2) out.push({ emoji: '👍', title: 'Boa Aprovação', text: `${likeRatio}% de like ratio indica que a audiência gostou do conteúdo.` })
+  else out.push({ emoji: '👎', title: 'Baixa Aprovação', text: `Apenas ${likeRatio}% de likes sobre as views.` })
+
   return out
 }
 
@@ -408,7 +421,7 @@ function ResultsGrid({ videos }) {
                       <span className={badge.cls}><Masked mask="••">{v.viralScore ?? '—'}</Masked></span>
                     </p>
                     {!restricted && (
-                      <div className="pointer-events-none absolute left-0 right-0 top-full z-40 mt-2 hidden rounded-xl border border-cyan-500/40 bg-slate-950/98 p-3 shadow-2xl group-hover/ins:block">
+                      <div className="pointer-events-none absolute bottom-full left-0 right-0 z-50 mb-2 hidden max-h-[60vh] overflow-y-auto rounded-xl border border-cyan-500/40 bg-slate-950/98 p-3 shadow-2xl group-hover/ins:block">
                         <p className="mb-2 border-b border-slate-800 pb-1.5 text-[11px] font-bold text-slate-200">💡 Insights</p>
                         <div className="space-y-1.5">
                           {insightsFor(v).map((ins, i) => (
