@@ -107,6 +107,32 @@ export async function aiGenerateJson(req, { system, prompt }) {
   throw lastErr || new AiError('ai_rate_limited')
 }
 
+// Testes de conectividade por provedor (usados pelo botão "Testar IA").
+export async function pingGemini(key) {
+  const models = await availableGeminiModels(key)
+  const chain = models.length ? cheapestFirst(models) : GEMINI_FALLBACKS
+  let lastErr = null
+  for (const model of chain.slice(0, 4)) {
+    try {
+      await geminiGenerate(key, model, { system: 'Responda apenas JSON.', prompt: 'Responda {"ok": true}' })
+      return { ok: true, model }
+    } catch (err) {
+      lastErr = err
+      if (err.code !== 'ai_rate_limited') break
+    }
+  }
+  return { ok: false, message: lastErr?.code === 'invalid_key' ? 'chave rejeitada' : lastErr?.message || 'falhou' }
+}
+
+export async function pingGroq(key) {
+  try {
+    await groqGenerate(key, { system: 'Responda apenas JSON.', prompt: 'Responda {"ok": true}' })
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, message: err?.code === 'invalid_key' ? 'chave rejeitada' : err?.message || 'falhou' }
+  }
+}
+
 async function geminiGenerate(key, model, { system, prompt }) {
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
     method: 'POST',

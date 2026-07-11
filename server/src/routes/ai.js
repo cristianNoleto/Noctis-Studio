@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { aiGenerateJson, availableGeminiModels, AiError } from '../lib/gemini.js'
+import { aiGenerateJson, availableGeminiModels, pingGemini, pingGroq, AiError } from '../lib/gemini.js'
 
 const router = Router()
 
@@ -11,14 +11,22 @@ router.get('/gemini-models', async (req, res) => {
   res.json({ models: await availableGeminiModels(key) })
 })
 
-// POST /api/ai/test — testa a chave de IA de ponta a ponta (provedor + modelo).
+// POST /api/ai/test — testa Gemini e Groq SEPARADAMENTE, mostrando qual funciona.
 router.post('/test', async (req, res) => {
-  try {
-    await aiGenerateJson(req, { system: 'Responda apenas JSON.', prompt: 'Responda exatamente: {"ok": true}' })
-    res.json({ ok: true, message: 'Conexão com a IA estabelecida com sucesso.' })
-  } catch (err) {
-    res.json({ ok: false, code: err.code, message: err.message || 'Falha ao conectar à IA.' })
+  const geminiKey = req.headers['x-gemini-key']
+  const groqKey = req.headers['x-groq-key']
+  const details = []
+  if (geminiKey) {
+    const r = await pingGemini(geminiKey)
+    details.push({ label: r.ok ? `Gemini (${r.model})` : 'Gemini', ok: r.ok, message: r.ok ? 'OK' : r.message })
   }
+  if (groqKey) {
+    const r = await pingGroq(groqKey)
+    details.push({ label: 'Groq', ok: r.ok, message: r.ok ? 'OK' : r.message })
+  }
+  if (!details.length) return res.json({ ok: false, message: 'Nenhuma chave de IA configurada (Gemini ou Groq).' })
+  const okCount = details.filter((d) => d.ok).length
+  res.json({ ok: okCount > 0, message: `${okCount}/${details.length} provedor(es) OK`, details })
 })
 
 function handleError(res, err) {
