@@ -1,7 +1,25 @@
 import { Router } from 'express'
-import { aiGenerateJson, AiError } from '../lib/gemini.js'
+import { aiGenerateJson, availableGeminiModels, AiError } from '../lib/gemini.js'
 
 const router = Router()
+
+// GET /api/ai/gemini-models — modelos que a chave do usuário pode usar (alimenta
+// o seletor de modelo na tela de APIs).
+router.get('/gemini-models', async (req, res) => {
+  const key = req.headers['x-gemini-key']
+  if (!key) return res.json({ models: [] })
+  res.json({ models: await availableGeminiModels(key) })
+})
+
+// POST /api/ai/test — testa a chave de IA de ponta a ponta (provedor + modelo).
+router.post('/test', async (req, res) => {
+  try {
+    await aiGenerateJson(req, { system: 'Responda apenas JSON.', prompt: 'Responda exatamente: {"ok": true}' })
+    res.json({ ok: true, message: 'Conexão com a IA estabelecida com sucesso.' })
+  } catch (err) {
+    res.json({ ok: false, code: err.code, message: err.message || 'Falha ao conectar à IA.' })
+  }
+})
 
 function handleError(res, err) {
   if (err instanceof AiError) {

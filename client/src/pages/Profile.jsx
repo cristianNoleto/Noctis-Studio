@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { User, Shield, KeyRound, SlidersHorizontal, Wrench, Eye, EyeOff, Check, Camera, DownloadCloud, UploadCloud, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { User, Shield, KeyRound, SlidersHorizontal, Wrench, Eye, EyeOff, Check, Camera, DownloadCloud, UploadCloud, AlertTriangle, Loader2, X, Plug } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
+import { api } from '../lib/api'
 import { inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
 import { downloadFile } from '../lib/text'
 import { Field } from './channels/ChannelsList'
@@ -339,6 +340,55 @@ function SecurityTab() {
   )
 }
 
+// Botão de teste reutilizável — persiste as chaves atuais e roda a validação.
+function TestButton({ label = 'Testar', persist, run }) {
+  const [state, setState] = useState('idle') // idle | loading | ok | fail
+  const [msg, setMsg] = useState('')
+  async function handle() {
+    setState('loading')
+    setMsg('')
+    try {
+      persist?.()
+      const r = await run()
+      if (r?.ok) {
+        setState('ok')
+        setMsg(r.message || 'OK')
+      } else {
+        setState('fail')
+        setMsg(r?.message || 'Falhou')
+      }
+    } catch (e) {
+      setState('fail')
+      setMsg(e?.message || 'Falhou')
+    }
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={handle}
+        disabled={state === 'loading'}
+        className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
+      >
+        {state === 'loading' ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
+        {label}
+      </button>
+      {state === 'ok' && (
+        <span className="flex items-center gap-1 text-xs font-medium text-green-400">
+          <Check size={13} />
+          {msg}
+        </span>
+      )}
+      {state === 'fail' && (
+        <span className="flex items-center gap-1 text-xs font-medium text-red-400">
+          <X size={13} />
+          {msg}
+        </span>
+      )}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 function ApisTab() {
   const db = useDb()
@@ -347,7 +397,7 @@ function ApisTab() {
     return Array.from({ length: 5 }, (_, i) => saved[i] || '')
   })
   const [geminiKey, setGeminiKey] = useState(db.getSetting('geminiKey', ''))
-  const [geminiModel, setGeminiModel] = useState(db.getSetting('geminiModel', 'gemini-2.0-flash'))
+  const [geminiModel, setGeminiModel] = useState(db.getSetting('geminiModel', 'auto'))
   const [aiProvider, setAiProvider] = useState(db.getSetting('aiProvider', 'gemini'))
   const [groqKey, setGroqKey] = useState(db.getSetting('groqKey', ''))
   const [assemblyKey, setAssemblyKey] = useState(db.getSetting('assemblyKey', ''))
@@ -355,8 +405,10 @@ function ApisTab() {
   const [pixabayKey, setPixabayKey] = useState(db.getSetting('pixabayKey', ''))
   const [show, setShow] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [geminiModels, setGeminiModels] = useState([])
 
-  function save() {
+  // Persiste as chaves atuais (usado ao salvar E antes de cada teste)
+  function persist() {
     db.setSetting('ytKeys', ytKeys.map((k) => k.trim()))
     db.setSetting('geminiKey', geminiKey.trim())
     db.setSetting('geminiModel', geminiModel)
@@ -365,9 +417,28 @@ function ApisTab() {
     db.setSetting('assemblyKey', assemblyKey.trim())
     db.setSetting('pexelsKey', pexelsKey.trim())
     db.setSetting('pixabayKey', pixabayKey.trim())
+  }
+
+  function save() {
+    persist()
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
+
+  // Carrega os modelos Gemini disponíveis para a chave (alimenta o seletor).
+  async function loadModels() {
+    if (!geminiKey.trim()) return setGeminiModels([])
+    persist()
+    try {
+      const { models } = await api.ai.geminiModels()
+      setGeminiModels(models || [])
+    } catch {
+      setGeminiModels([])
+    }
+  }
+  useEffect(() => {
+    loadModels()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const keyInput = (value, onChange, placeholder) => (
     <div className="relative">
@@ -408,6 +479,9 @@ function ApisTab() {
         <p className="mt-3 text-[11px] text-slate-600">
           Crie chaves no Google Cloud Console → YouTube Data API v3. Mesmo com 5 chaves a cota é finita — as buscas são cacheadas no servidor pra economizar.
         </p>
+        <div className="mt-3">
+          <TestButton label="Testar YouTube" persist={persist} run={() => api.youtube.test()} />
+        </div>
       </Card>
 
       <Card title="Inteligência Artificial — SEO/CTR e Dobra de Nicho" subtitle="Escolha o provedor. As duas opções têm plano gratuito — as chaves são suas (BYOK).">
@@ -434,46 +508,65 @@ function ApisTab() {
           </Field>
 
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2.5 text-[11px] leading-relaxed text-amber-300/80">
-            ⚠️ <b>Sobre "cota atingida":</b> o free tier do Gemini tem limite <b>por modelo</b> — o gemini-1.5-pro grátis aguenta só ~2
-            chamadas/min e 50/dia; o gemini-2.0-flash aguenta 15/min e 1.500/dia. Se estourar, o sistema tenta automaticamente os outros
-            modelos gratuitos do Gemini e, por último, o Groq (se a chave estiver configurada abaixo). Aguardar ~1 minuto também resolve.
+            ⚠️ <b>Modo Automático:</b> o sistema descobre quais modelos a sua chave pode usar e escolhe o <b>mais barato disponível</b>
+            sozinho — se o Google aposentar um modelo (comum em contas novas), ele se adapta sem você mexer em nada. Se estourar a cota de um
+            modelo, ele tenta o próximo e, por último, o Groq (se configurado).
           </div>
 
-          <Field label="MODELO GEMINI PREFERIDO">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {[
-                ['gemini-2.0-flash', 'Recomendado', 'text-green-400 bg-green-500/10'],
-                ['gemini-1.5-flash', 'Mais veloz', 'text-sky-400 bg-sky-500/10'],
-                ['gemini-1.5-pro', 'Inteligência Avançada', 'text-amber-400 bg-amber-500/10'],
-              ].map(([model, badge, cls]) => (
+          <Field label="MODELO GEMINI">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setGeminiModel('auto')}
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                  geminiModel === 'auto' ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                ⚡ Automático (mais barato)
+              </button>
+              {geminiModels.map((m) => (
                 <button
-                  key={model}
+                  key={m}
                   type="button"
-                  onClick={() => setGeminiModel(model)}
-                  className={`rounded-lg border p-3 text-left transition-colors ${
-                    geminiModel === model ? 'border-cyan-500 bg-cyan-500/10' : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+                  onClick={() => setGeminiModel(m)}
+                  className={`rounded-lg border px-3 py-2 font-mono text-xs transition-colors ${
+                    geminiModel === m ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
                   }`}
                 >
-                  <p className="font-mono text-xs text-slate-200">{model}</p>
-                  <span className={`mt-1.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${cls}`}>{badge}</span>
+                  {m}
                 </button>
               ))}
+              <button type="button" onClick={loadModels} className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-400 hover:border-slate-700">
+                ↻ Recarregar
+              </button>
             </div>
+            {geminiModels.length === 0 && (
+              <p className="mt-2 text-[11px] text-slate-500">
+                Salve a chave e clique em <b>Recarregar</b> para listar os modelos. No modo <b>Automático</b> nem precisa escolher — o sistema decide.
+              </p>
+            )}
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="CHAVE DA API GEMINI (aistudio.google.com/apikey)">{keyInput(geminiKey, (e) => setGeminiKey(e.target.value), 'AIza...')}</Field>
             <Field label="CHAVE DA API GROQ (console.groq.com/keys)">{keyInput(groqKey, (e) => setGroqKey(e.target.value), 'gsk_...')}</Field>
           </div>
+          <TestButton label="Testar IA" persist={persist} run={() => api.ai.test()} />
         </div>
       </Card>
 
       <Card title="Outras integrações (BYOK)">
         <div className="space-y-4">
-          <Field label="ASSEMBLYAI (transcrição de áudio)">{keyInput(assemblyKey, (e) => setAssemblyKey(e.target.value), 'Chave da AssemblyAI')}</Field>
+          <div>
+            <Field label="ASSEMBLYAI (transcrição de áudio)">{keyInput(assemblyKey, (e) => setAssemblyKey(e.target.value), 'Chave da AssemblyAI')}</Field>
+            <div className="mt-2">
+              <TestButton label="Testar AssemblyAI" persist={persist} run={() => api.transcription.test()} />
+            </div>
+          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="PEXELS (banco de mídia)">{keyInput(pexelsKey, (e) => setPexelsKey(e.target.value), 'Chave do Pexels')}</Field>
             <Field label="PIXABAY (banco de mídia)">{keyInput(pixabayKey, (e) => setPixabayKey(e.target.value), 'Chave do Pixabay')}</Field>
           </div>
+          <TestButton label="Testar mídia (Pexels/Pixabay)" persist={persist} run={() => api.media.test()} />
         </div>
       </Card>
 

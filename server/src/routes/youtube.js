@@ -39,6 +39,18 @@ router.get('/keys-status', (req, res) => {
   res.json({ keys: keysStatus(parseKeys(req)) })
 })
 
+// GET /api/youtube/test — valida as chaves de verdade (custa 1 unidade de cota)
+router.get('/test', async (req, res) => {
+  try {
+    const keys = parseKeys(req)
+    // channels.list part=id → 1 unidade; canal do Google Developers (sempre existe)
+    await ytFetch(keys, 'channels', { part: 'id', id: 'UC_x5XG1OV2P6uZZ5FSM9Ttw' })
+    res.json({ ok: true, message: 'Chave(s) do YouTube válida(s).' })
+  } catch (err) {
+    res.json({ ok: false, code: err.code, message: err.message || 'Falha ao validar a(s) chave(s).' })
+  }
+})
+
 // GET /api/youtube/channel?q=<url|handle|id|nome>
 router.get('/channel', async (req, res) => {
   try {

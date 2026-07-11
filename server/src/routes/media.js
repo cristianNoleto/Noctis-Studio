@@ -40,6 +40,21 @@ function matchesOrientation(item, orientation) {
   return true
 }
 
+// GET /api/media/test — valida as chaves do Pexels/Pixabay presentes nos headers
+router.get('/test', async (req, res) => {
+  const pexelsKey = req.headers['x-pexels-key']
+  const pixabayKey = req.headers['x-pixabay-key']
+  if (!pexelsKey && !pixabayKey) return res.json({ ok: false, message: 'Nenhuma chave de mídia configurada.' })
+  const out = {}
+  if (pexelsKey) out.pexels = await searchPexels(pexelsKey, { type: 'image', q: 'sky', orientation: '', page: '1' }).then((l) => l.length > 0).catch(() => false)
+  if (pixabayKey) out.pixabay = await searchPixabay(pixabayKey, { type: 'image', q: 'sky', orientation: '', page: '1' }).then((l) => l.length > 0).catch(() => false)
+  const ok = out.pexels === true || out.pixabay === true
+  const parts = []
+  if (pexelsKey) parts.push(`Pexels: ${out.pexels ? 'OK' : 'falhou'}`)
+  if (pixabayKey) parts.push(`Pixabay: ${out.pixabay ? 'OK' : 'falhou'}`)
+  res.json({ ok, ...out, message: parts.join(' · ') })
+})
+
 async function searchPexels(key, { type, q, orientation, page }) {
   const base = type === 'video' ? 'https://api.pexels.com/videos/search' : 'https://api.pexels.com/v1/search'
   const url = new URL(base)

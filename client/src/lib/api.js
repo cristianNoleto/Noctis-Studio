@@ -115,14 +115,18 @@ export const api = {
       request(`/youtube/channel-videos?id=${encodeURIComponent(channelId)}&pageToken=${encodeURIComponent(pageToken)}`),
     checkChannels: (ids) => request(`/youtube/check-channels?ids=${encodeURIComponent(ids.join(','))}`),
     keysStatus: () => request('/youtube/keys-status'),
+    test: () => request('/youtube/test'),
   },
   ai: {
     seoReport: (payload) => request('/ai/seo-report', { method: 'POST', body: payload }),
     nicheDoubling: (payload) => request('/ai/niche-doubling', { method: 'POST', body: payload }),
     titles: (payload) => request('/ai/titles', { method: 'POST', body: payload }),
+    test: () => request('/ai/test', { method: 'POST', body: {} }),
+    geminiModels: () => request('/ai/gemini-models'),
   },
   media: {
     search: (params) => request(`/media/search?${new URLSearchParams(params)}`),
+    test: () => request('/media/test'),
   },
   transcription: {
     // Envia o arquivo de áudio direto para a AssemblyAI e abre o job.
@@ -136,6 +140,15 @@ export const api = {
         body: JSON.stringify({ audio_url: audioUrl, language_detection: true }),
       })
       return { id: data.id, status: assemblyStatusMap(data.status) }
+    },
+    // Testa a chave da AssemblyAI direto do navegador (lista transcrições — valida o auth).
+    async test() {
+      try {
+        await assemblyFetch('/transcript?limit=1')
+        return { ok: true, message: 'Chave da AssemblyAI válida.' }
+      } catch (err) {
+        return { ok: false, code: err.code, message: err.code === 'invalid_key' ? 'Chave da AssemblyAI rejeitada.' : err.message || 'Falha ao validar.' }
+      }
     },
     async status(id) {
       const data = await assemblyFetch(`/transcript/${id}`)
