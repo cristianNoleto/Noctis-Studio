@@ -128,6 +128,12 @@ export const api = {
     search: (params) => request(`/media/search?${new URLSearchParams(params)}`),
     test: () => request('/media/test'),
   },
+  channels: {
+    // Base global de canais do Niche Finder (Supabase, compartilhada por todos)
+    list: (params) => request(`/channels/list?${new URLSearchParams(params)}`),
+    stats: () => request('/channels/stats'),
+    upsert: (channels) => request('/channels/upsert', { method: 'POST', body: { channels } }),
+  },
   transcription: {
     // Envia o arquivo de áudio direto para a AssemblyAI e abre o job.
     // language_detection: o idioma é detectado sozinho (pt, en, es...) — com

@@ -34,7 +34,6 @@ import { inputCls, btnPrimary, btnGhost, EmptyState, formatCompact } from '../co
 import { PrivacyScope, PageEye, Masked, RestrictedThumb, useRestricted } from '../components/privacy'
 
 // Consulta padrão usada para pré-carregar a página na primeira visita.
-const DEFAULT_QUERY = 'curiosidades documentário histórias'
 
 // Idade do canal em dias (desde a criação no YouTube)
 function ageDays(c) {
@@ -397,37 +396,94 @@ export default function NicheFinder() {
   const [adv, setAdv] = useState(ADV_DEFAULT)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
   const [loadingMore, setLoadingMore] = useState(false)
-  const cache = db.getSetting('nicheFinderCache')
-  const results = cache?.results || []
+
+  // A base agora é GLOBAL (Supabase) e compartilhada por todos. O filtro por aba
+  // é feito no servidor; o cache local é só fallback offline.
+  const [results, setResults] = useState(() => db.getSetting('nicheFinderCache')?.results || [])
+  const [stats, setStats] = useState({ total: 0, thisWeek: 0 })
+  const [totalFiltered, setTotalFiltered] = useState(0)
+  const [pageNum, setPageNum] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const PAGE = 400
+
   const favorites = db.getSetting('nicheFavorites', [])
   const hasKeys = (db.getSetting('ytKeys', []) || []).some(Boolean)
 
-  // Auto-load só na primeira vez (base vazia). Depois disso a base é persistente
-  // e acumulativa — não sobrescrevemos o que o usuário já pesquisou.
-  useEffect(() => {
-    if (results.length === 0 && hasKeys && !loading) fetchChannels(DEFAULT_QUERY)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Carimba addedAt na primeira vez que o canal aparece (filtro "Adicionado em")
-  function stampAdded(list, previous = []) {
-    const prevById = new Map(previous.map((c) => [c.id, c.addedAt]))
-    return list.map((c) => ({ ...c, addedAt: prevById.get(c.id) || c.addedAt || Date.now() }))
+  const trendParam = (tk) => (tk === 'all' || tk === 'bycategory' ? '' : tk)
+  function baseParams(p) {
+    const [subMin, subMax] = subRange ? subRange.split('-') : ['', '']
+    const [viewMin, viewMax] = viewRange && viewRange !== 'custom' ? viewRange.split('-') : ['', '']
+    return {
+      trend: trendParam(tab),
+      category: category || '',
+      sort: order,
+      subMin: subMin || '',
+      subMax: subMax || '',
+      viewMin: viewMin || '',
+      viewMax: viewMax || '',
+      monetized: monetizedOnly ? '1' : '',
+      page: p,
+      pageSize: PAGE,
+    }
   }
 
+  async function loadStats() {
+    try {
+      setStats(await api.channels.stats())
+    } catch {
+      /* Supabase indisponível — segue com o cache local */
+    }
+  }
+
+  async function loadBase(reset = true) {
+    if (showFavorites) return
+    reset ? setLoading(true) : setLoadingMore(true)
+    setError('')
+    try {
+      const p = reset ? 0 : pageNum + 1
+      const { results: rows, total } = await api.channels.list(baseParams(p))
+      setResults((prev) => {
+        const merged = reset ? rows : [...prev, ...rows.filter((r) => !prev.some((x) => x.id === r.id))]
+        if (reset) db.setSetting('nicheFinderCache', { ts: Date.now(), results: merged.slice(0, 400) })
+        return merged
+      })
+      setPageNum(p)
+      setTotalFiltered(total)
+      setHasMore((p + 1) * PAGE < total)
+    } catch (err) {
+      setError(apiErrorMessage(err))
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }
+
+  useEffect(() => {
+    loadStats()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Recarrega do servidor quando muda a aba ou os filtros de faixa/ordem.
+  useEffect(() => {
+    loadBase(true)
+  }, [tab, subRange, viewRange, category, monetizedOnly, order]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Busca no YouTube → grava na base GLOBAL (todos passam a ver) e mostra na hora.
   async function fetchChannels(q) {
+    if (!hasKeys) {
+      setError('Configure suas chaves da YouTube API em Perfil → APIs para buscar novos canais.')
+      return
+    }
     setLoading(true)
     setError('')
     try {
-      const { results: found, nextPageToken } = await api.youtube.searchChannels({ q, language })
-      // Acumula na base: cada busca ADICIONA canais novos (dedupe por id) em vez
-      // de substituir. Assim a base cresce e alimenta as categorias, favoritos e
-      // a detecção de canais removidos — não volta mais "sempre os mesmos 50".
-      const existing = db.getSetting('nicheFinderCache')?.results || []
-      const seen = new Set(existing.map((c) => c.id))
-      const merged = [...existing, ...found.filter((c) => !seen.has(c.id))]
-      db.setSetting('nicheFinderCache', { ts: Date.now(), query: q, results: stampAdded(merged, existing), nextPageToken })
+      const { results: found } = await api.youtube.searchChannels({ q, language })
+      api.channels.upsert(found).catch(() => {}) // alimenta a base global
+      setResults((prev) => {
+        const seen = new Set(prev.map((c) => c.id))
+        return [...found.filter((c) => !seen.has(c.id)).map((c) => ({ ...c, addedAt: Date.now() })), ...prev]
+      })
+      loadStats()
     } catch (err) {
       setError(apiErrorMessage(err))
     } finally {
@@ -435,28 +491,8 @@ export default function NicheFinder() {
     }
   }
 
-  // "Mostrar mais": continua paginando a mesma busca até o YouTube esgotar a listagem.
-  async function loadMore() {
-    if (!cache?.nextPageToken || loadingMore) return
-    setLoadingMore(true)
-    setError('')
-    try {
-      const { results: more, nextPageToken } = await api.youtube.searchChannels({
-        q: cache.query,
-        language,
-        pageToken: cache.nextPageToken,
-      })
-      const seen = new Set(results.map((c) => c.id))
-      db.setSetting('nicheFinderCache', {
-        ...cache,
-        results: [...results, ...stampAdded(more.filter((c) => !seen.has(c.id)))],
-        nextPageToken,
-      })
-    } catch (err) {
-      setError(apiErrorMessage(err))
-    } finally {
-      setLoadingMore(false)
-    }
+  function loadMore() {
+    if (hasMore && !loadingMore) loadBase(false)
   }
 
   function toggleFavorite(c) {
@@ -520,9 +556,9 @@ export default function NicheFinder() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-100">Niche Finder</h1>
-              {results.length > 0 && (
+              {stats.total > 0 && (
                 <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300">
-                  {results.length} canais carregados{cache?.ts ? ` · atualizado há ${timeAgo(cache.ts)}` : ''}
+                  {formatCompact(stats.total)} canais{stats.thisWeek > 0 ? ` · +${formatCompact(stats.thisWeek)} esta semana` : ''}
                 </span>
               )}
             </div>
@@ -536,14 +572,19 @@ export default function NicheFinder() {
       <div className="flex items-center gap-2">
         <div className="flex flex-1 gap-1.5 overflow-x-auto pb-1">
           {TREND_TABS.map(({ key, label, Icon, desc }) => {
-            const count = (showFavorites ? favorites : results).filter((c) => TREND_TABS.find((t) => t.key === key).test(c)).length
             const active = tab === key
-            // "Explodindo Agora" fica sempre em vermelho (quente); com contagem >0, pulsa.
+            // Contagem: aba ativa mostra o total real do servidor; favoritos contam local.
+            const count = showFavorites
+              ? favorites.filter((c) => TREND_TABS.find((t) => t.key === key).test(c)).length
+              : active
+                ? totalFiltered
+                : null
+            // "Explodindo Agora" fica sempre em vermelho (quente).
             const hot = key === 'exploding'
             const cls = hot
               ? active
                 ? 'border-red-500 bg-red-500/15 text-red-300'
-                : `border-red-500/50 bg-red-500/10 text-red-400 hover:border-red-500 ${count > 0 ? 'animate-pulse' : ''}`
+                : 'border-red-500/50 bg-red-500/10 text-red-400 hover:border-red-500'
               : active
                 ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
                 : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
@@ -556,13 +597,15 @@ export default function NicheFinder() {
               >
                 <Icon size={13} className={hot ? 'fill-red-500/30' : ''} />
                 {label}
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                    active ? (hot ? 'bg-red-500/20 text-red-300' : 'bg-cyan-500/20 text-cyan-300') : 'bg-slate-800 text-slate-500'
-                  }`}
-                >
-                  {count}
-                </span>
+                {count != null && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      active ? (hot ? 'bg-red-500/20 text-red-300' : 'bg-cyan-500/20 text-cyan-300') : 'bg-slate-800 text-slate-500'
+                    }`}
+                  >
+                    {formatCompact(count)}
+                  </span>
+                )}
               </button>
             )
           })}
@@ -666,11 +709,11 @@ export default function NicheFinder() {
       {!loading && results.length === 0 && !error && (
         <EmptyState
           icon={Compass}
-          title={hasKeys ? 'Busque um nicho para começar' : 'Configure suas chaves da YouTube API'}
+          title={hasKeys ? 'Base ainda vazia' : 'Configure suas chaves da YouTube API'}
           description={
             hasKeys
-              ? "Digite um tema na busca e pressione Enter — ex: 'histórias de guerra', 'mistérios'."
-              : 'Adicione até 5 chaves em Perfil → APIs. Depois disso, esta página já abre com canais carregados automaticamente.'
+              ? "Digite um tema na busca e pressione Enter — os canais encontrados entram na base GLOBAL (compartilhada). Quanto mais você pesquisar, mais rica ela fica para todos."
+              : 'Adicione até 5 chaves em Perfil → APIs. A base de canais é global e cresce a cada busca.'
           }
         />
       )}
@@ -684,7 +727,7 @@ export default function NicheFinder() {
               isFavorite={favorites.some((f) => f.id === c.id)}
               onToggleFavorite={() => toggleFavorite(c)}
               onOpenDoubling={() => navigate(`/dobra-de-nicho?channel=${c.id}`)}
-              cacheTs={cache?.ts}
+              cacheTs={null}
               t={t}
             />
           ))}
@@ -717,7 +760,7 @@ export default function NicheFinder() {
                       isFavorite={favorites.some((f) => f.id === c.id)}
                       onToggleFavorite={() => toggleFavorite(c)}
                       onOpenDoubling={() => navigate(`/dobra-de-nicho?channel=${c.id}`)}
-                      cacheTs={cache?.ts}
+                      cacheTs={null}
                       t={t}
                     />
                   ))}
@@ -731,8 +774,8 @@ export default function NicheFinder() {
         <EmptyState icon={TrendingUp} title="Nenhum canal com esses filtros" description="Troque a aba de tendência ou limpe os filtros." />
       )}
 
-      {/* Mostrar mais (50 por página até acabar a listagem) */}
-      {!loading && !showFavorites && filtered.length > 0 && cache?.nextPageToken && (
+      {/* Mostrar mais — pagina a base global do servidor */}
+      {!loading && !showFavorites && filtered.length > 0 && hasMore && (
         <div className="flex justify-center pb-4">
           <button
             onClick={loadMore}
@@ -740,12 +783,12 @@ export default function NicheFinder() {
             className="flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-6 py-2.5 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
           >
             {loadingMore ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-            {loadingMore ? 'Carregando mais 50 canais...' : 'Mostrar mais'}
+            {loadingMore ? 'Carregando mais canais...' : 'Mostrar mais'}
           </button>
         </div>
       )}
-      {!loading && !showFavorites && results.length > 0 && !cache?.nextPageToken && (
-        <p className="pb-4 text-center text-xs text-slate-600">Fim da listagem do YouTube para esta busca.</p>
+      {!loading && !showFavorites && results.length > 0 && !hasMore && (
+        <p className="pb-4 text-center text-xs text-slate-600">Fim da base para esta categoria.</p>
       )}
 
       <AdvancedFiltersModal
