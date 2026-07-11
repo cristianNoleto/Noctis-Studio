@@ -24,6 +24,9 @@ import {
   X,
   Save,
   Trash2,
+  Link2,
+  GitBranch,
+  Rocket,
 } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
@@ -66,6 +69,16 @@ const TREND_TABS = [
     Icon: Flame,
     desc: 'Menos de 15 dias de canal e mais de 100 mil views — viral imediato',
     test: (c) => ageDays(c) <= 15 && c.views >= 100_000,
+  },
+  {
+    key: 'outlier',
+    label: 'Fora da Curva',
+    Icon: Rocket,
+    desc: 'Números absurdos, independente da idade: +5M inscritos OU +100M views totais (ou +50M views com menos de 500 vídeos)',
+    test: (c) =>
+      c.subscribers >= 5_000_000 ||
+      c.views >= 100_000_000 ||
+      (c.views >= 50_000_000 && (c.videoCount || 9999) < 500),
   },
   {
     key: 'rising',
@@ -891,10 +904,22 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
 
 function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling, cacheTs, t = CARD_I18N.pt }) {
   // Selo de tendência real do canal — ignora 'all' e o catch-all 'bycategory'
-  const badge = TREND_TABS.filter((t) => t.key !== 'all' && t.key !== 'bycategory').find((t) => t.test(c))
+  const badge = TREND_TABS.filter((t) => t.key !== 'all' && t.key !== 'bycategory' && t.key !== 'outlier').find((t) => t.test(c))
   const monetized = isMonetized(c)
   // Modo restrito: nome/números/thumbs NÃO entram no DOM — impossível "desborrar"
   const restricted = useRestricted()
+  const [copied, setCopied] = useState(false)
+  const channelUrl = `https://youtube.com/channel/${c.id}`
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(channelUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* clipboard indisponível */
+    }
+  }
 
   return (
     <div className="card-hover overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 hover:border-cyan-500/40">
@@ -914,13 +939,16 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <button onClick={onOpenDoubling} className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title="Analisar na Dobra de Nicho">
-                <Masked mask="•••••••">{c.title}</Masked>
-              </button>
-              {/* $ verde: elegível à monetização (estimativa, não confirmação) */}
-              {monetized && (
-                <DollarSign size={14} className="shrink-0 cursor-help text-green-400" title={t.monetTip} />
+              {/* Nome → abre o canal no YouTube (não mais a Dobra) */}
+              {restricted ? (
+                <span className="block max-w-full truncate text-sm font-bold text-slate-100"><Masked mask="•••••••">{c.title}</Masked></span>
+              ) : (
+                <a href={channelUrl} target="_blank" rel="noopener noreferrer" className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title="Abrir canal no YouTube">
+                  {c.title}
+                </a>
               )}
+              {/* $ verde: elegível à monetização (estimativa, não confirmação) */}
+              {monetized && <DollarSign size={14} className="shrink-0 cursor-help text-green-400" title={t.monetTip} />}
             </div>
             {/* Categoria/tópicos do canal, legível (como no original: "Música · Covers") */}
             <p className="truncate text-[11px] font-medium text-slate-400">
@@ -930,9 +958,18 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
               <span className="mt-1 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{badge.label}</span>
             )}
           </div>
-          <button onClick={onToggleFavorite} title={isFavorite ? 'Remover dos favoritos' : 'Favoritar'} className="shrink-0">
-            <Heart size={16} className={isFavorite ? 'fill-red-400 text-red-400' : 'text-slate-600 hover:text-red-400'} />
-          </button>
+          {/* Ações: copiar link · analisar na Dobra · favoritar */}
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button onClick={copyLink} title={copied ? 'Link copiado!' : 'Copiar link do canal'} className={copied ? 'text-green-400' : 'text-slate-600 hover:text-cyan-300'}>
+              {copied ? <Check size={15} /> : <Link2 size={15} />}
+            </button>
+            <button onClick={onOpenDoubling} title="Analisar na Dobra de Nicho" className="text-slate-600 hover:text-cyan-300">
+              <GitBranch size={15} />
+            </button>
+            <button onClick={onToggleFavorite} title={isFavorite ? 'Remover dos favoritos' : 'Favoritar'}>
+              <Heart size={15} className={isFavorite ? 'fill-red-400 text-red-400' : 'text-slate-600 hover:text-red-400'} />
+            </button>
+          </div>
         </div>
 
         {/* Thumbnails dos últimos vídeos — no modo restrito viram "?" */}

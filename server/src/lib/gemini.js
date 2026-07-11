@@ -11,9 +11,52 @@ export class AiError extends Error {
   }
 }
 
-// Ordem de fallback dentro do free tier do Gemini (limites/dia distintos por modelo)
-const GEMINI_FALLBACKS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']
-const ALLOWED_MODELS = [...GEMINI_FALLBACKS, 'gemini-1.5-pro']
+// Fallback estático (rede de segurança) caso o ListModels falhe. A descoberta
+// dinâmica abaixo é a fonte principal — assim o sistema nunca fica preso a um
+// modelo que o Google aposentou para contas novas.
+const GEMINI_FALLBACKS = [
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-flash-latest',
+  'gemini-1.5-flash',
+]
+
+// Cache curto dos modelos disponíveis por chave (evita um GET a cada geração).
+const modelCache = new Map() // keyHash -> { ts, models: [names] }
+
+// Descobre os modelos que a chave realmente pode usar para generateContent.
+export async function availableGeminiModels(key) {
+  const h = key.slice(-10)
+  const hit = modelCache.get(h)
+  if (hit && Date.now() - hit.ts < 30 * 60_000) return hit.models
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=100`)
+    if (!res.ok) return []
+    const data = await res.json()
+    const models = (data.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m) => (m.name || '').replace(/^models\//, ''))
+      .filter((n) => /gemini/i.test(n) && !/(vision|embedding|aqa|image|tts|thinking|exp|preview)/i.test(n))
+    modelCache.set(h, { ts: Date.now(), models })
+    return models
+  } catch {
+    return []
+  }
+}
+
+// Ordena do mais barato para o mais caro: flash-lite < flash < demais < pro.
+function cheapestFirst(models) {
+  const rank = (n) => {
+    const s = n.toLowerCase()
+    if (s.includes('flash-lite') || s.includes('lite')) return 0
+    if (s.includes('flash')) return 1
+    if (s.includes('pro')) return 3
+    return 2
+  }
+  return [...models].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
+}
 
 export async function aiGenerateJson(req, { system, prompt }) {
   const provider = req.headers['x-ai-provider'] || 'gemini'
@@ -30,8 +73,18 @@ export async function aiGenerateJson(req, { system, prompt }) {
     throw new AiError('missing_gemini_key')
   }
 
-  const preferred = ALLOWED_MODELS.includes(req.headers['x-gemini-model']) ? req.headers['x-gemini-model'] : 'gemini-2.0-flash'
-  const chain = [preferred, ...GEMINI_FALLBACKS.filter((m) => m !== preferred)]
+  // 'auto' (ou vazio) = deixa o sistema escolher o modelo mais barato disponível.
+  const requested = (req.headers['x-gemini-model'] || 'auto').trim()
+  let chain = []
+  const avail = await availableGeminiModels(geminiKey)
+  if (avail.length) {
+    const cheap = cheapestFirst(avail)
+    chain = requested !== 'auto' && avail.includes(requested) ? [requested, ...cheap.filter((m) => m !== requested)] : cheap
+  } else {
+    // ListModels indisponível → usa o pedido (se houver) + a rede de segurança
+    const preferred = requested !== 'auto' ? requested : GEMINI_FALLBACKS[0]
+    chain = [preferred, ...GEMINI_FALLBACKS.filter((m) => m !== preferred)]
+  }
 
   let lastErr = null
   for (const model of chain) {
@@ -39,7 +92,7 @@ export async function aiGenerateJson(req, { system, prompt }) {
       return await geminiGenerate(geminiKey, model, { system, prompt })
     } catch (err) {
       lastErr = err
-      // 429 (cota do modelo) → tenta o próximo modelo gratuito; outros erros param aqui
+      // 429 (cota) ou 404 (modelo indisponível) → tenta o próximo; outros erros param
       if (err.code !== 'ai_rate_limited') throw err
     }
   }

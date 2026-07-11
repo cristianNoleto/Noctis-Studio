@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Search, Loader2, TrendingUp, Bookmark, X, SlidersHorizontal, BarChart3, Target, Lightbulb, Trash2, ExternalLink } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
 import { inputCls, formatCompact } from '../components/ui'
@@ -294,7 +293,6 @@ function insightsFor(v) {
 
 function ResultsGrid({ videos }) {
   const db = useDb()
-  const navigate = useNavigate()
   const restricted = useRestricted()
   const saved = db.all('savedViralVideos')
   const [sort, setSort] = useState('views')
@@ -366,9 +364,9 @@ function ResultsGrid({ videos }) {
           const isSaved = saved.some((s) => s.video.id === v.id)
           const badge = scoreBadge(v.viralScore)
           return (
-            <div key={v.id} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-cyan-500/40">
+            <div key={v.id} className="relative rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:z-20 hover:border-cyan-500/40">
               {/* Thumb — no modo restrito vira "?" (a imagem nem é carregada) */}
-              <div className="relative">
+              <div className="relative overflow-hidden rounded-t-xl">
                 <RestrictedThumb src={v.thumbnail} className="aspect-video w-full object-cover" qClass="text-3xl" />
                 <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-semibold text-white">
                   {fmtDuration(v.durationSeconds)}
@@ -410,7 +408,7 @@ function ResultsGrid({ videos }) {
                       <span className={badge.cls}><Masked mask="••">{v.viralScore ?? '—'}</Masked></span>
                     </p>
                     {!restricted && (
-                      <div className="pointer-events-none absolute bottom-full left-0 right-0 z-30 mb-2 hidden rounded-xl border border-cyan-500/40 bg-slate-950/98 p-3 shadow-2xl group-hover/ins:block">
+                      <div className="pointer-events-none absolute left-0 right-0 top-full z-40 mt-2 hidden rounded-xl border border-cyan-500/40 bg-slate-950/98 p-3 shadow-2xl group-hover/ins:block">
                         <p className="mb-2 border-b border-slate-800 pb-1.5 text-[11px] font-bold text-slate-200">💡 Insights</p>
                         <div className="space-y-1.5">
                           {insightsFor(v).map((ins, i) => (
@@ -451,13 +449,15 @@ function ResultsGrid({ videos }) {
                   >
                     ▶ Ver
                   </a>
-                  <button
-                    onClick={() => navigate(`/dobra-de-nicho?channel=${v.channelId}`)}
+                  <a
+                    href={`https://youtube.com/channel/${v.channelId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-700 bg-slate-800/60 px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 hover:bg-slate-700"
                   >
                     <ExternalLink size={11} />
                     Canal
-                  </button>
+                  </a>
                 </div>
               </div>
             </div>

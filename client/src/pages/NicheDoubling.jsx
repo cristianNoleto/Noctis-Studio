@@ -70,12 +70,8 @@ export default function NicheDoubling() {
 
   useEffect(() => {
     const ch = params.get('channel')
-    if (ch) {
-      if (!current && !loading) analyze(ch)
-    } else if (!currentId && history.length > 0) {
-      // Sem canal na URL: reabre a última análise salva em vez de abrir zerado.
-      setCurrentId(history[0].id)
-    }
+    if (ch && !current && !loading) analyze(ch)
+    // Sem canal na URL: abre na tela de histórico de análises (não na última).
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function analyze(input, { force = false } = {}) {
@@ -361,6 +357,9 @@ export default function NicheDoubling() {
   // ------------------------------------------------------------------
   const r = normalizeResult(current.result)
   const outliers = computeOutliers(current.topVideos)
+  // Análises geradas antes do novo esquema não têm os campos ricos (gatilhos,
+  // preserva/muda em lista, etc.) — sinalizamos para o usuário reanalisar.
+  const isOldFormat = !(r.winningPattern?.triggers?.length || r.ideas?.[0]?.preserve?.length)
   const confidence = (r.confidence || 'alta').toLowerCase()
   const confidenceCls =
     confidence === 'alta' ? 'border-green-500/40 bg-green-500/10 text-green-400' : confidence === 'média' ? 'border-amber-500/40 bg-amber-500/10 text-amber-400' : 'border-red-500/40 bg-red-500/10 text-red-400'
@@ -408,7 +407,14 @@ export default function NicheDoubling() {
                 <span className="font-semibold text-slate-400">Território:</span> {r.territory}
               </p>
             )}
-            <p className="mt-1 text-[10px] text-slate-600">🕒 Atualizado {timeAgo(current.createdAt)}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-600">
+              🕒 Atualizado {timeAgo(current.createdAt)}
+              {isOldFormat && (
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-medium text-amber-400">
+                  ⚠️ Formato antigo — clique em Reanalisar para a análise completa
+                </span>
+              )}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
@@ -680,40 +686,50 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
         </motion.div>
 
         {/* Nós */}
-        {nodes.list.map((n, idx) => (
-          <motion.button
-            key={n.id}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.08 * idx }}
-            onClick={() => onSelect({ blockLabel: n.block, color: n.color, item: n.item })}
-            className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: n.pos.x, top: n.pos.y }}
-          >
-            <div className="flex flex-col items-center">
-              <div className="relative">
-                {n.badge && (
-                  <span className="absolute -top-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-red-500 px-2 py-0.5 text-[8px] font-bold text-white">
-                    {n.badge}
-                  </span>
-                )}
-                <div
-                  className={`flex items-center justify-center rounded-full border-2 bg-slate-950 text-center transition-shadow hover:shadow-[0_0_25px_rgba(255,255,255,0.1)] ${
-                    n.numbered ? 'h-16 w-16' : n.big ? 'h-24 w-24' : 'h-[5.5rem] w-[5.5rem]'
-                  }`}
-                  style={{ borderColor: n.color }}
-                >
-                  <span className={`px-2 font-bold leading-tight ${n.numbered ? 'text-xl' : 'text-[9px] tracking-wider'}`} style={{ color: n.color }}>
-                    {n.kind}
-                  </span>
+        {nodes.list.map((n, idx) => {
+          // O nó central "Dobra" é um rótulo do grupo — não abre nada (os alvos
+          // reais são os nós numerados 1..4 que saem dele).
+          const clickable = n.id !== 'dobra'
+          return (
+            <motion.button
+              key={n.id}
+              disabled={!clickable}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.08 * idx }}
+              onClick={clickable ? () => onSelect({ blockLabel: n.block, color: n.color, item: n.item }) : undefined}
+              className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 ${clickable ? '' : 'cursor-default'}`}
+              style={{ left: n.pos.x, top: n.pos.y }}
+            >
+              <div className="flex flex-col items-center">
+                <div className="relative">
+                  {n.badge && (
+                    <span className="absolute -top-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-red-500 px-2 py-0.5 text-[8px] font-bold text-white">
+                      {n.badge}
+                    </span>
+                  )}
+                  <div
+                    className={`flex items-center justify-center rounded-full border-2 bg-slate-950 text-center transition-shadow ${
+                      clickable ? 'hover:shadow-[0_0_25px_rgba(255,255,255,0.1)]' : ''
+                    } ${n.numbered ? 'h-16 w-16' : n.big ? 'h-24 w-24' : 'h-[5.5rem] w-[5.5rem]'}`}
+                    style={{ borderColor: n.color }}
+                  >
+                    <span className={`px-2 font-bold leading-tight ${n.numbered ? 'text-xl' : 'text-[9px] tracking-wider'}`} style={{ color: n.color }}>
+                      {n.kind}
+                    </span>
+                  </div>
                 </div>
+                <p
+                  className={`mt-2 text-center text-[11px] font-semibold leading-snug text-slate-200 ${
+                    n.id === 'dobra' ? 'w-56' : 'line-clamp-2 w-44'
+                  }`}
+                >
+                  {n.text || n.item?.title}
+                </p>
               </div>
-              <p className="mt-2 line-clamp-2 w-44 text-center text-[11px] font-semibold leading-snug text-slate-200">
-                {n.text || n.item?.title}
-              </p>
-            </div>
-          </motion.button>
-        ))}
+            </motion.button>
+          )
+        })}
       </div>
       <p className="border-t border-slate-800 px-4 py-2.5 text-center text-[11px] text-slate-600">
         Clique em qualquer nó para ver o plano completo (como aplicar, o que preservar, títulos recomendados)

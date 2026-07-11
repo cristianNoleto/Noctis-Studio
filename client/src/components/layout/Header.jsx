@@ -178,10 +178,6 @@ export default function Header() {
                 <HelpCircle size={15} />
                 Central de Ajuda
               </Link>
-              <Link to="/api-docs" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
-                <BookOpen size={15} />
-                Documentação da API
-              </Link>
               {isAdmin && (
                 <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-amber-400 hover:bg-slate-800">
                   <ShieldCheck size={15} />

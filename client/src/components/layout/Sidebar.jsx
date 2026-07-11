@@ -56,7 +56,6 @@ const groups = [
     key: 'support',
     items: [
       { to: '/suporte', label: 'community', Icon: MessagesSquare },
-      { to: '/api-docs', label: 'apiDocs', Icon: BookOpen },
     ],
   },
 ]

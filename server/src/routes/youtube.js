@@ -224,11 +224,15 @@ router.get('/viral', async (req, res) => {
         const vph = Math.round(views / hoursSince)
         // Engajamento % = (likes + comentários) / views, como no original
         const engagementPct = views > 0 ? +(((likes + comments) / views) * 100).toFixed(2) : null
-        // Score Viral™ (0-100): mistura alcance vs. inscritos, VPH e engajamento
-        const reach = subs > 0 ? Math.min(40, Math.log10(Math.max(1, views / subs)) * 20 + 20) : 20
-        const speed = Math.min(35, Math.log10(Math.max(1, vph)) * 10)
-        const engScore = Math.min(25, (engagementPct || 0) * 4)
-        const viralScore = Math.round(reach + speed + engScore)
+        // Score Viral™ (0-100) — recalibrado para ficar próximo do site de referência.
+        // Peso maior no alcance desproporcional (views vs. inscritos) e no engajamento;
+        // o VPH entra só como aceleração (não domina, como acontecia antes). Assim um
+        // vídeo antigo de canal gigante com engajamento baixo cai para a faixa média (⚡),
+        // e um vídeo recente com muito alcance e interação sobe para a faixa alta (🔥).
+        const reach = subs > 0 ? Math.min(30, Math.log10(Math.max(1, views / subs) + 1) * 22) : 15
+        const engScore = Math.min(35, (engagementPct || 0) * 8)
+        const velocity = Math.min(22, Math.log10(Math.max(1, vph)) * 6)
+        const viralScore = Math.min(100, Math.round(reach + engScore + velocity))
         return {
           id: v.id,
           title: v.snippet.title,

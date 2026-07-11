@@ -146,10 +146,17 @@ export default function MediaBank() {
       )}
 
       {results !== null && !loading && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-3 xl:grid-cols-4">
           {visible.map((item) => (
             <button key={item.id} onClick={() => setPreview(item)} className="group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-              <img src={item.thumb} alt="" className="aspect-video w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+              {/* proporção real do item — vertical fica em pé, quadrada fica 1:1 */}
+              <img
+                src={item.thumb}
+                alt=""
+                style={{ aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : '16 / 9' }}
+                className="w-full object-cover transition-transform group-hover:scale-105"
+                loading="lazy"
+              />
               <span className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{resBadge(item)}</span>
               <span className="absolute right-2 top-2 rounded bg-cyan-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.source}</span>
               {item.type === 'video' && (

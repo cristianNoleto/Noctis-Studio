@@ -22,7 +22,6 @@ import Support from './pages/Support'
 import Help from './pages/Help'
 import Admin from './pages/Admin'
 import MyPlan from './pages/MyPlan'
-import ApiDocs from './pages/ApiDocs'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -68,7 +67,6 @@ export default function App() {
         <Route path="/admin" element={<Admin />} />
         <Route path="/suporte" element={<Support />} />
         <Route path="/meu-plano" element={<MyPlan />} />
-        <Route path="/api-docs" element={<ApiDocs />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
