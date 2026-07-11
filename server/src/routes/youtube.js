@@ -181,11 +181,13 @@ router.get('/channel-videos', async (req, res) => {
   }
 })
 
-// GET /api/youtube/viral?q=&period=&minViews=&durMin=&durMax=  (Vídeos Virais)
+// GET /api/youtube/viral?q=&period=&minViews=&durMin=&durMax=&pageToken=  (Vídeos Virais)
+// Busca inteligente: vídeos com mais visualizações primeiro. Cada página traz
+// 50 (limite da API); o client pagina com "Ver mais" até o máx. de 100.
 router.get('/viral', async (req, res) => {
   try {
     const keys = parseKeys(req)
-    const { q, period, minViews, durMinSec, after, before } = req.query
+    const { q, period, minViews, durMinSec, after, before, pageToken } = req.query
 
     let publishedAfter
     const hours = { '24h': 24, '7d': 24 * 7, '30d': 24 * 30 }[period]
@@ -193,7 +195,7 @@ router.get('/viral', async (req, res) => {
     if (after) publishedAfter = new Date(`${after}T00:00:00Z`).toISOString()
     const publishedBefore = before ? new Date(`${before}T23:59:59Z`).toISOString() : undefined
 
-    const data = await cached(`viral:${q}:${period || ''}:${after || ''}:${before || ''}`, 15 * 60_000, async () => {
+    const data = await cached(`viral:${q}:${period || ''}:${after || ''}:${before || ''}:${pageToken || ''}`, 15 * 60_000, async () => {
       const search = await ytFetch(keys, 'search', {
         part: 'snippet',
         type: 'video',
@@ -201,17 +203,19 @@ router.get('/viral', async (req, res) => {
         order: 'viewCount',
         publishedAfter,
         publishedBefore,
-        maxResults: 25,
+        maxResults: 50,
+        pageToken: pageToken || undefined,
       })
+      const nextPageToken = search.nextPageToken || null
       const videoIds = (search.items || []).map((i) => i.id.videoId).join(',')
-      if (!videoIds) return []
+      if (!videoIds) return { results: [], nextPageToken }
       const videos = await ytFetch(keys, 'videos', { part: 'snippet,statistics,contentDetails,topicDetails', id: videoIds })
 
       const channelIds = [...new Set((videos.items || []).map((v) => v.snippet.channelId))].join(',')
       const channels = channelIds ? await ytFetch(keys, 'channels', { part: 'statistics', id: channelIds }) : { items: [] }
       const subsById = Object.fromEntries((channels.items || []).map((c) => [c.id, Number(c.statistics?.subscriberCount ?? 0)]))
 
-      return (videos.items || []).map((v) => {
+      const results = (videos.items || []).map((v) => {
         const views = Number(v.statistics?.viewCount ?? 0)
         const likes = Number(v.statistics?.likeCount ?? 0)
         const comments = Number(v.statistics?.commentCount ?? 0)
@@ -242,12 +246,13 @@ router.get('/viral', async (req, res) => {
           viralScore,
         }
       })
+      return { results, nextPageToken }
     })
 
-    let results = data
+    let results = data.results
     if (minViews) results = results.filter((v) => v.views >= Number(minViews))
     if (durMinSec) results = results.filter((v) => v.durationSeconds >= Number(durMinSec))
-    res.json({ results })
+    res.json({ results, nextPageToken: data.nextPageToken })
   } catch (err) {
     handleError(res, err)
   }
@@ -263,7 +268,7 @@ router.get('/top-videos', async (req, res) => {
         type: 'video',
         channelId: req.query.id,
         order: 'viewCount',
-        maxResults: 10,
+        maxResults: 25,
       })
       const ids = (search.items || []).map((i) => i.id.videoId).join(',')
       if (!ids) return []
@@ -273,6 +278,8 @@ router.get('/top-videos', async (req, res) => {
         title: v.snippet.title,
         views: Number(v.statistics?.viewCount ?? 0),
         likes: Number(v.statistics?.likeCount ?? 0),
+        comments: Number(v.statistics?.commentCount ?? 0),
+        publishedAt: v.snippet.publishedAt,
       }))
     })
     res.json({ results: data })

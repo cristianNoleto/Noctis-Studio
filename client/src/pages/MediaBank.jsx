@@ -29,13 +29,16 @@ export default function MediaBank() {
   const [results, setResults] = useState(null)
   const [preview, setPreview] = useState(null)
 
-  async function search(e, overrideType) {
+  // overrides evita o estado defasado: ao clicar em Imagens/Vídeos ou numa
+  // orientação, o valor novo chega direto (setState é assíncrono).
+  async function search(e, overrides = {}) {
     e?.preventDefault()
-    const t = overrideType || type
+    const t = overrides.type || type
+    const o = overrides.orientation || orientation
     setLoading(true)
     setError('')
     try {
-      const { results } = await api.media.search({ type: t, q: query.trim(), orientation })
+      const { results } = await api.media.search({ type: t, q: query.trim(), orientation: o })
       setResults(results)
     } catch (err) {
       setError(apiErrorMessage(err))
@@ -72,11 +75,11 @@ export default function MediaBank() {
       <form onSubmit={search} className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
         {/* Tipo + busca + Buscar */}
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => { setType('image'); if (results) search(null, 'image') }} className={pill(type === 'image')}>
+          <button type="button" onClick={() => { setType('image'); if (results) search(null, { type: 'image' }) }} className={pill(type === 'image')}>
             <ImageIcon size={13} />
             Imagens
           </button>
-          <button type="button" onClick={() => { setType('video'); if (results) search(null, 'video') }} className={pill(type === 'video')}>
+          <button type="button" onClick={() => { setType('video'); if (results) search(null, { type: 'video' }) }} className={pill(type === 'video')}>
             <Film size={13} />
             Vídeos
           </button>
@@ -113,7 +116,7 @@ export default function MediaBank() {
                 type="button"
                 onClick={() => {
                   setOrientation(v)
-                  if (results) search()
+                  if (results) search(null, { orientation: v })
                 }}
                 className={pill(orientation === v)}
               >

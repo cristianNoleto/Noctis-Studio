@@ -74,47 +74,116 @@ Responda neste formato JSON exato:
 })
 
 // POST /api/ai/niche-doubling  { channel: {...}, topVideos: [...] }
+// Engenharia reversa do padrão vencedor do canal semente e geração do grafo de
+// oportunidades (Mar de Ideias, Dobra de Nicho, Adaptação de Mercado) com a
+// mesma profundidade do relatório de referência.
 router.post('/niche-doubling', async (req, res) => {
   try {
     const { channel, topVideos = [] } = req.body || {}
     if (!channel?.title) return res.status(400).json({ error: 'missing_channel' })
 
+    // Outlier = quantas vezes o vídeo bate a mediana de views do canal.
+    const views = topVideos.map((v) => Number(v.views) || 0).filter(Boolean).sort((a, b) => a - b)
+    const median = views.length ? views[Math.floor(views.length / 2)] : 0
+    const evidence = topVideos
+      .map((v) => `- "${v.title}" — ${Number(v.views).toLocaleString('pt-BR')} views${median ? ` (${(v.views / median).toFixed(1)}x a mediana)` : ''}`)
+      .join('\n')
+
     const result = await aiGenerateJson(req, {
       system:
-        'Você é um estrategista de canais dark do YouTube, especialista em replicar formatos vencedores em novos nichos. ' +
-        'Responda SEMPRE em JSON válido, em português do Brasil. Os scores são estimativas suas baseadas em padrões, não métricas garantidas.',
-      prompt: `Analise o canal semente abaixo e gere a análise de "Dobra de Nicho" em 4 blocos.
+        'Você é um estrategista sênior de canais dark do YouTube (conteúdo narrado, sem rosto), especialista em engenharia reversa de formatos vencedores e em replicá-los em novos nichos e mercados. ' +
+        'Você é analítico, específico e cita evidências concretas dos dados. Responda SEMPRE em JSON válido, em português do Brasil. ' +
+        'REGRA DE TÍTULOS: se o canal semente é em inglês (ou outro idioma), mantenha os "recommendedTitles" no MESMO idioma do canal (âncoras de SEO), exceto no bloco "market" (adaptação de mercado), onde os títulos vão no idioma/cultura do mercado-alvo. ' +
+        'Os scores de sucesso e dificuldade são estimativas suas baseadas em padrões — não métricas garantidas.',
+      prompt: `Faça a engenharia reversa do canal semente abaixo e gere a análise de "Dobra de Nicho".
 
 CANAL SEMENTE: ${channel.title}
 DESCRIÇÃO: ${channel.description || '(sem descrição)'}
-INSCRITOS: ${channel.subscribers}
-VÍDEOS DE MAIOR SUCESSO:
-${topVideos.map((v) => `- "${v.title}" (${v.views} views)`).join('\n') || '(indisponível)'}
+PAÍS: ${channel.country || '(desconhecido)'}
+INSCRITOS: ${channel.subscribers} · VIEWS TOTAIS: ${channel.views} · VÍDEOS: ${channel.videoCount}
+TÓPICOS: ${(channel.topics || []).join(', ') || '(indisponível)'}
+VÍDEOS DE MAIOR DESEMPENHO (outliers):
+${evidence || '(indisponível)'}
 
-Responda neste formato JSON exato:
+Não seja genérico: derive o padrão a partir do que REALMENTE performou (os outliers acima), não da média do canal. Cada campo deve ser específico deste canal.
+
+Responda neste formato JSON exato (sem comentários, sem markdown):
 {
-  "mainNiche": "<nicho principal do canal em poucas palavras>",
-  "audience": "<descrição do público-alvo em 1 frase (hipótese)>",
-  "confidence": "<alta|média|baixa — sua confiança na análise dado o volume de dados>",
+  "mainNiche": "<nicho principal, poucas palavras>",
+  "subNiche": "<subnicho atual específico>",
+  "audience": "<público-alvo em 1 frase, marque como hipótese; inclua a emoção/fascínio que move esse público>",
+  "territory": "<o território/ângulo editorial que o canal ocupa>",
+  "confidence": "<alta|média|baixa — sua confiança dado o volume de dados>",
   "winningPattern": {
-    "description": "<1 frase descrevendo o padrão que faz os vídeos performarem>",
-    "tags": ["<3 a 4 tags curtas do padrão>"]
+    "description": "<1 frase densa: o padrão que faz os outliers vencerem>",
+    "tags": ["<3 a 4 tags curtas do padrão>"],
+    "commonTraits": ["<3 pontos: o que os vídeos vencedores têm em comum>"],
+    "triggers": ["<3 gatilhos psicológicos de clique/retenção que o padrão explora>"],
+    "titleFormulas": ["<3 fórmulas de título reutilizáveis, com [placeholders]>"],
+    "winningFunction": {
+      "promise": "<a promessa central que o vídeo entrega ao espectador>",
+      "emotion": "<a emoção dominante que o conteúdo desperta>",
+      "identity": "<a fantasia de identidade que o espectador assume ao assistir>"
+    }
   },
-  "howToApply": "<parágrafo prático: como o usuário aplica esse padrão no canal dele>",
+  "howToApply": "<parágrafo prático de como o usuário aplica esse padrão no próprio canal>",
   "ideas": [
-    { "title": "<ideia de vídeo no MESMO nicho>", "successScore": <0-100>, "difficulty": "<Fácil|Média|Difícil>",
-      "isTurnaround": <true apenas na ideia mais contraintuitiva/inovadora, false nas demais>,
+    {
+      "kind": "<Microtema|Nova Visão|Subnicho>",
+      "title": "<ideia de vídeo/série no MESMO público, aprofundando o nicho>",
+      "subtitle": "<1 frase descrevendo a ideia e para quem>",
+      "confidence": "<alta|média|baixa>",
+      "successScore": <0-100>, "difficulty": "<Fácil|Média|Difícil>",
+      "isTurnaround": <true só na ideia mais contraintuitiva, false nas demais>,
+      "targetTheme": "<ideia de tema-alvo concreta para o primeiro vídeo>",
       "howToApply": "<como aplicar na prática, 2-3 frases>",
-      "preserveVsChange": "<o que preservar do formato e o que muda>",
-      "recommendedTitles": ["<até 5 variações de título>"] }
+      "preserve": ["<3 elementos do formato vencedor que se PRESERVAM>"],
+      "change": ["<2-3 elementos que MUDAM nesta ideia>"],
+      "preserveVsChange": "<1 frase resumindo preserva vs muda>",
+      "recommendedTitles": ["<5 a 6 títulos prontos de alto CTR>"],
+      "equivalenceMap": [ { "from": "<título vencedor real do canal>", "to": "<título equivalente desta ideia>", "why": "<o mecanismo transposto>" } ],
+      "breakAlerts": ["<1-2 riscos de quebrar o padrão ou a audiência>"]
+    }
   ],
   "doubling": {
-    "summary": "<1 frase: como transpor o formato para outros nichos>",
-    "items": [ <mesmo formato dos itens de ideas, 4 itens — cada um em um nicho DIFERENTE> ]
+    "summary": "<1 frase: como transpor a fórmula para nichos totalmente diferentes>",
+    "items": [
+      {
+        "kind": "Dobra",
+        "title": "<nome do novo nicho-alvo>",
+        "subtitle": "<1 frase: que canal seria e para quem>",
+        "newNiche": "<nicho novo>", "subNicheNew": "<subnicho>", "audienceNew": "<público-alvo do novo nicho>",
+        "confidence": "<alta|média|baixa>", "successScore": <0-100>, "difficulty": "<Fácil|Média|Difícil>",
+        "targetTheme": "<ideia de tema-alvo concreta no novo nicho>",
+        "howToApply": "<como criar esse canal reaproveitando a fórmula>",
+        "preserve": ["<3 elementos que se preservam>"],
+        "change": ["<2-3 elementos que mudam>"],
+        "preserveVsChange": "<1 frase resumo>",
+        "recommendedTitles": ["<5 a 6 títulos prontos>"],
+        "equivalenceMap": [ { "from": "<título vencedor real>", "to": "<título no novo nicho>", "why": "<mecanismo>" } ],
+        "breakAlerts": ["<1-2 riscos>"]
+      }
+    ]
   },
-  "market": [ <mesmo formato dos itens de ideas, 2-3 itens — adaptação/tradução para outros mercados/idiomas> ]
+  "market": [
+    {
+      "kind": "Adaptação",
+      "title": "<adaptar a fórmula para outro mercado/cultura>",
+      "subtitle": "<1 frase>",
+      "marketHypothesis": true,
+      "confidence": "<alta|média|baixa>", "successScore": <0-100>, "difficulty": "<Fácil|Média|Difícil>",
+      "targetTheme": "<tema-alvo localizado (não traduzido)>",
+      "howToApply": "<como localizar de verdade, ancorando em referências culturais reais>",
+      "preserve": ["<3 elementos que se preservam>"],
+      "change": ["<2-3 elementos que mudam na localização>"],
+      "preserveVsChange": "<1 frase resumo>",
+      "recommendedTitles": ["<5 a 6 títulos no idioma/cultura do mercado-alvo>"],
+      "equivalenceMap": [ { "from": "<título vencedor real>", "to": "<título localizado>", "why": "<mecanismo>" } ],
+      "breakAlerts": ["<1-2 riscos da adaptação>"]
+    }
+  ]
 }
-Blocos "ideas" com 3 itens.`,
+Regras de contagem: "ideas" = 3 itens; "doubling.items" = 4 itens (nichos DIFERENTES entre si); "market" = 2 a 3 itens.`,
     })
     res.json(result)
   } catch (err) {

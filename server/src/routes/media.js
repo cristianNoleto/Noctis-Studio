@@ -22,8 +22,23 @@ router.get('/search', async (req, res) => {
   for (let i = 0; i < max; i++) {
     for (const list of lists) if (list[i]) merged.push(list[i])
   }
-  res.json({ results: merged })
+  // Garantia de orientação por proporção (as APIs de vídeo ignoram o parâmetro,
+  // então filtramos pelas dimensões — determinístico para imagem e vídeo).
+  const filtered = orientation && orientation !== 'all' ? merged.filter((m) => matchesOrientation(m, orientation)) : merged
+  res.json({ results: filtered })
 })
+
+// horizontal: mais largo que alto; vertical: mais alto que largo; square: ~1:1
+function matchesOrientation(item, orientation) {
+  const w = Number(item.width) || 0
+  const h = Number(item.height) || 0
+  if (!w || !h) return true // sem dimensões, não descarta
+  const ratio = w / h
+  if (orientation === 'square') return ratio >= 0.85 && ratio <= 1.18
+  if (orientation === 'vertical') return ratio < 0.85
+  if (orientation === 'horizontal') return ratio > 1.18
+  return true
+}
 
 async function searchPexels(key, { type, q, orientation, page }) {
   const base = type === 'video' ? 'https://api.pexels.com/videos/search' : 'https://api.pexels.com/v1/search'

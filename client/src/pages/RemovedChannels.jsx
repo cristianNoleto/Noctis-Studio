@@ -51,6 +51,12 @@ export default function RemovedChannels() {
           monitored.set(f.id, { name: f.title, subs: f.subscribers, views: f.views, videos: f.videoCount, niche: f.topics?.[0], src: 'fav' })
         }
       }
+      // Base acumulada do Niche Finder: todo canal já pesquisado também é monitorado.
+      for (const c of db.getSetting('nicheFinderCache')?.results || []) {
+        if (c.id && !monitored.has(c.id)) {
+          monitored.set(c.id, { name: c.title, subs: c.subscribers, views: c.views, videos: c.videoCount, niche: c.topics?.[0], src: 'niche' })
+        }
+      }
 
       const ids = [...monitored.keys()]
       if (!ids.length) {

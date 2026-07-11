@@ -401,11 +401,20 @@ function ResultPanel({ job, cfg }) {
     if (kind === 'palavra') downloadFile(`${base}-por-palavra.srt`, srtByWord(words, cfg.porPalavra, cfg.formato))
   }
 
+  const isEmpty = !job.text || !job.text.trim()
+
   return (
     <div>
       <p className="truncate text-xs font-semibold text-slate-300">{job.fileName}</p>
+      {isEmpty && (
+        <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-300">
+          ⚠️ A transcrição concluiu, mas voltou <b>vazia</b> (sem texto reconhecido). Causas comuns: áudio sem fala clara, muito curto,
+          ou idioma não detectado. Exclua esta transcrição, reenvie o áudio em <b>MP3 com fala nítida</b> e tente de novo. Se persistir com
+          um áudio bom, confira sua chave da AssemblyAI em Perfil → APIs (o plano gratuito exige a chave ativada).
+        </p>
+      )}
       <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-3">
-        <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-400">{applyCase(job.text || '', cfg.formato)}</p>
+        <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-400">{applyCase(job.text || '', cfg.formato) || '(vazio)'}</p>
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <button onClick={() => dl('tempo')} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 !text-[11px]`}>

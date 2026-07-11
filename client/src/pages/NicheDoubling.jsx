@@ -70,7 +70,12 @@ export default function NicheDoubling() {
 
   useEffect(() => {
     const ch = params.get('channel')
-    if (ch && !current && !loading) analyze(ch)
+    if (ch) {
+      if (!current && !loading) analyze(ch)
+    } else if (!currentId && history.length > 0) {
+      // Sem canal na URL: reabre a última análise salva em vez de abrir zerado.
+      setCurrentId(history[0].id)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function analyze(input, { force = false } = {}) {
@@ -138,17 +143,28 @@ export default function NicheDoubling() {
     const esc = (s) => String(s ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     const today = new Date().toLocaleDateString('pt-BR')
 
+    const bullets = (arr, c) =>
+      (arr || []).length ? `<ul class="bl">${arr.map((t) => `<li style="--d:${c}">${esc(t)}</li>`).join('')}</ul>` : ''
+
     const itemCard = (i, idx, color) => `
       <div class="item" style="border-left-color:${color}">
         <div class="item-head">
           <span class="num" style="background:${color}1f;color:${color}">${idx}</span>
           <h3>${esc(i.title)}</h3>
+          ${i.confidence ? `<span class="conf">Confiança ${esc(i.confidence)}</span>` : ''}
           <span class="score">Sucesso ~${esc(i.successScore)}%</span>
-          <span class="diff">${esc(i.difficulty)}</span>
+          ${i.difficulty ? `<span class="diff">${esc(i.difficulty)}</span>` : ''}
         </div>
-        <p class="lbl">Como aplicar</p><p>${esc(i.howToApply)}</p>
-        <p class="lbl">O que preservar / o que muda</p><p>${esc(i.preserveVsChange)}</p>
-        ${(i.recommendedTitles || []).length ? `<p class="lbl">Títulos recomendados</p><ul>${i.recommendedTitles.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+        ${i.subtitle ? `<p class="sub">${esc(i.subtitle)}</p>` : ''}
+        ${i.newNiche || i.subNicheNew || i.audienceNew ? `<div class="box">${i.newNiche ? `<p><b>Nicho novo:</b> ${esc(i.newNiche)}</p>` : ''}${i.subNicheNew ? `<p><b>Subnicho:</b> ${esc(i.subNicheNew)}</p>` : ''}${i.audienceNew ? `<p><b>Público-alvo:</b> ${esc(i.audienceNew)}</p>` : ''}</div>` : ''}
+        ${i.targetTheme ? `<p class="lbl">Ideia de tema-alvo</p><p>${esc(i.targetTheme)}</p>` : ''}
+        ${i.howToApply ? `<p class="lbl">Como aplicar</p><p>${esc(i.howToApply)}</p>` : ''}
+        ${(i.recommendedTitles || []).length ? `<p class="lbl">Títulos prontos</p><ul>${i.recommendedTitles.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+        ${(i.preserve || []).length || (i.change || []).length
+          ? `<div class="cols"><div><p class="lbl" style="color:#4ade80">O que preserva</p>${bullets(i.preserve, '#4ade80')}</div><div><p class="lbl" style="color:#f59e0b">O que muda</p>${bullets(i.change, '#f59e0b')}</div></div>`
+          : i.preserveVsChange ? `<p class="lbl">O que preservar / o que muda</p><p>${esc(i.preserveVsChange)}</p>` : ''}
+        ${(i.equivalenceMap || []).length ? `<p class="lbl">Mapa de equivalência</p>${i.equivalenceMap.map((e) => `<div class="eq"><p class="eqf">${esc(e.from)}</p>${e.why ? `<p class="eqw">↓ ${esc(e.why)}</p>` : ''}<p class="eqt">${esc(e.to)}</p></div>`).join('')}` : ''}
+        ${(i.breakAlerts || []).length ? `<p class="lbl" style="color:#f87171">Alertas de quebra</p>${bullets(i.breakAlerts, '#f87171')}` : ''}
       </div>`
 
     const section = (title, color, items) =>
@@ -187,9 +203,24 @@ export default function NicheDoubling() {
   .item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .item h3 { font-size: 13.5px; color: #f1f5f9; flex: 1; }
   .num { font-size: 11px; font-weight: 800; border-radius: 99px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
-  .score, .diff { font-size: 10px; font-weight: 700; border-radius: 99px; padding: 2px 8px; background: #1e293b; color: #cbd5e1; }
+  .score, .diff, .conf { font-size: 10px; font-weight: 700; border-radius: 99px; padding: 2px 8px; background: #1e293b; color: #cbd5e1; }
+  .conf { background: #0f2b22; color: #4ade80; }
   .item p { font-size: 11.5px; color: #a9b4c4; line-height: 1.55; margin-top: 3px; }
+  .item p.sub { color: #94a3b8; margin-top: 4px; }
   .item ul { margin: 4px 0 0 16px; } .item li { font-size: 11.5px; color: #cbd5e1; margin-top: 2px; }
+  .box { background: #0d0e12; border: 1px solid #1e293b; border-radius: 8px; padding: 8px 11px; margin-top: 8px; }
+  .box p { font-size: 11px; color: #cbd5e1; margin-top: 2px; } .box b { color: #00f2fe; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  ul.bl { list-style: none; margin: 4px 0 0 0; padding: 0; }
+  ul.bl li { position: relative; padding-left: 13px; font-size: 11px; color: #cbd5e1; margin-top: 4px; }
+  ul.bl li::before { content: ''; position: absolute; left: 0; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: var(--d); }
+  .eq { background: #0d0e12; border: 1px solid #1e293b; border-radius: 8px; padding: 8px 11px; margin-top: 6px; }
+  .eq .eqf { font-size: 11px; color: #94a3b8; } .eq .eqw { font-size: 10px; color: #00f2fe; margin-top: 2px; } .eq .eqt { font-size: 12px; font-weight: 600; color: #f1f5f9; margin-top: 2px; }
+  .dna { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .dna h4 { font-size: 9.5px; letter-spacing: 1px; margin-bottom: 5px; }
+  .fn { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+  .fn div { background: #16171d; border: 1px solid #1e293b; border-radius: 9px; padding: 10px 12px; }
+  .fn h5 { font-size: 8.5px; letter-spacing: 1px; color: #00f2fe; } .fn p { font-size: 11px; color: #e2e8f0; margin-top: 3px; }
   .foot { margin-top: 28px; border-top: 1px solid #1e293b; padding-top: 12px; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -207,7 +238,9 @@ export default function NicheDoubling() {
     <div>
       <h2>${esc(ch.title)}</h2>
       <p><b style="color:#00f2fe">Nicho principal:</b> ${esc(r.mainNiche || '—')}</p>
+      ${r.subNiche ? `<p><b style="color:#00f2fe">Subnicho:</b> ${esc(r.subNiche)}</p>` : ''}
       <p><b>Público:</b> ${esc(r.audience || '—')}</p>
+      ${r.territory ? `<p><b>Território:</b> ${esc(r.territory)}</p>` : ''}
       <span class="tag">Confiança ${esc((r.confidence || 'alta').toUpperCase())}</span>
     </div>
   </div>
@@ -221,7 +254,16 @@ export default function NicheDoubling() {
     <div class="stat"><b>${out.biggest ? `${out.biggest}x` : '—'}</b><span>MAIOR OUTLIER</span></div>
   </div>
 
-  ${r.winningPattern ? `<div class="pattern"><p class="lbl" style="margin-top:0">PADRÃO VENCEDOR</p><p class="desc">${esc(r.winningPattern.description)}</p><div class="chips">${(r.winningPattern.tags || []).map((t) => `<span>${esc(t)}</span>`).join('')}</div></div>` : ''}
+  ${r.winningPattern ? `<div class="pattern"><p class="lbl" style="margin-top:0">PADRÃO VENCEDOR</p><p class="desc">${esc(r.winningPattern.description)}</p><div class="chips">${(r.winningPattern.tags || []).map((t) => `<span>${esc(t)}</span>`).join('')}</div>
+    ${(r.winningPattern.commonTraits?.length || r.winningPattern.triggers?.length || r.winningPattern.titleFormulas?.length)
+      ? `<div class="dna">
+          <div><h4 style="color:#22d3ee">O QUE OS VENCEDORES TÊM EM COMUM</h4>${bullets(r.winningPattern.commonTraits, '#22d3ee')}</div>
+          <div><h4 style="color:#f59e0b">GATILHOS VENCEDORES</h4>${bullets(r.winningPattern.triggers, '#f59e0b')}</div>
+          <div><h4 style="color:#4ade80">FÓRMULAS DE TÍTULO</h4>${bullets(r.winningPattern.titleFormulas, '#4ade80')}</div>
+        </div>` : ''}
+    ${r.winningPattern.winningFunction
+      ? `<div class="fn"><div><h5>PROMESSA</h5><p>${esc(r.winningPattern.winningFunction.promise || '—')}</p></div><div><h5>EMOÇÃO DOMINANTE</h5><p>${esc(r.winningPattern.winningFunction.emotion || '—')}</p></div><div><h5>FANTASIA DE IDENTIDADE</h5><p>${esc(r.winningPattern.winningFunction.identity || '—')}</p></div></div>` : ''}
+  </div>` : ''}
   ${r.howToApply ? `<div class="pattern"><p class="lbl" style="margin-top:0">COMO APLICAR NA PRÁTICA</p><p class="desc">${esc(r.howToApply)}</p></div>` : ''}
 
   ${section('MAR DE IDEIAS', '#2dd4bf', r.ideas)}
@@ -353,9 +395,19 @@ export default function NicheDoubling() {
               <span className="font-semibold text-cyan-400">Nicho principal:</span>{' '}
               <span className="text-slate-300">{r.mainNiche || '—'}</span>
             </p>
+            {r.subNiche && (
+              <p className="mt-0.5 text-xs">
+                <span className="font-semibold text-cyan-400">Subnicho:</span> <span className="text-slate-300">{r.subNiche}</span>
+              </p>
+            )}
             <p className="mt-0.5 max-w-3xl text-xs text-slate-500">
               <span className="font-semibold text-slate-400">Público:</span> {r.audience || '—'}
             </p>
+            {r.territory && (
+              <p className="mt-0.5 max-w-3xl text-xs text-slate-500">
+                <span className="font-semibold text-slate-400">Território:</span> {r.territory}
+              </p>
+            )}
             <p className="mt-1 text-[10px] text-slate-600">🕒 Atualizado {timeAgo(current.createdAt)}</p>
           </div>
 
@@ -363,7 +415,7 @@ export default function NicheDoubling() {
             <HeaderBtn onClick={() => setCurrentId(null)} icon={<ArrowLeft size={13} />} label="Voltar" />
             <HeaderBtn onClick={() => setCurrentId(null)} icon={<Plus size={13} />} label="Analisar outro canal" />
             <HeaderBtn onClick={exportTxt} icon={<FileDown size={13} />} label="Baixar TXT" />
-            <HeaderBtn onClick={() => window.print()} icon={<Printer size={13} />} label="Baixar PDF" />
+            <HeaderBtn onClick={exportPdf} icon={<Printer size={13} />} label="Baixar PDF" />
             <HeaderBtn onClick={() => setCurrentId(null)} icon={<History size={13} />} title="Histórico" />
             <HeaderBtn onClick={() => analyze(current.sourceChannelId, { force: true })} icon={<RefreshCw size={13} />} label="Reanalisar" />
           </div>
@@ -379,7 +431,7 @@ export default function NicheDoubling() {
           <HeaderStat value={outliers.biggest ? `${outliers.biggest}x` : '—'} label="MAIOR OUTLIER" />
         </div>
 
-        {/* Padrão vencedor */}
+        {/* Padrão vencedor + DNA detalhado */}
         {r.winningPattern && (
           <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950 p-4">
             <p className="text-[10px] font-bold tracking-wider text-cyan-400">PADRÃO VENCEDOR</p>
@@ -391,6 +443,22 @@ export default function NicheDoubling() {
                 </span>
               ))}
             </div>
+
+            {(r.winningPattern.commonTraits?.length || r.winningPattern.triggers?.length || r.winningPattern.titleFormulas?.length || r.winningPattern.winningFunction) && (
+              <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-800 pt-4 md:grid-cols-3">
+                <DnaList title="O que os vencedores têm em comum" items={r.winningPattern.commonTraits} dot="#22d3ee" />
+                <DnaList title="Gatilhos vencedores" items={r.winningPattern.triggers} dot="#f59e0b" />
+                <DnaList title="Fórmulas de título" items={r.winningPattern.titleFormulas} dot="#4ade80" mono />
+              </div>
+            )}
+
+            {r.winningPattern.winningFunction && (
+              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-800 pt-4 sm:grid-cols-3">
+                <DnaFn label="Promessa" value={r.winningPattern.winningFunction.promise} />
+                <DnaFn label="Emoção dominante" value={r.winningPattern.winningFunction.emotion} />
+                <DnaFn label="Fantasia de identidade" value={r.winningPattern.winningFunction.identity} />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -459,6 +527,33 @@ function HeaderStat({ value, label }) {
     <div>
       <p className="text-lg font-bold text-slate-100">{value}</p>
       <p className="text-[9px] font-semibold tracking-wider text-slate-600">{label}</p>
+    </div>
+  )
+}
+
+function DnaList({ title, items, dot, mono }) {
+  if (!items?.length) return null
+  return (
+    <div>
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: dot }}>{title}</p>
+      <div className="space-y-1.5">
+        {items.map((t, i) => (
+          <div key={i} className={`relative pl-3.5 text-[12px] leading-snug text-slate-300 ${mono ? 'font-mono text-[11px]' : ''}`}>
+            <span className="absolute left-0 top-[6px] h-1.5 w-1.5 rounded-full" style={{ background: dot }} />
+            {t}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DnaFn({ label, value }) {
+  if (!value) return null
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-cyan-400">{label}</p>
+      <p className="mt-1 text-[12.5px] leading-snug text-slate-200">{value}</p>
     </div>
   )
 }
@@ -628,21 +723,20 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
 }
 
 // ---------------------------------------------------------------------------
+// Painel de detalhes rico (paridade com o relatório original): tema-alvo, como
+// aplicar, títulos prontos, o que preserva/muda, mapa de equivalência e alertas.
 function DetailDrawer({ detail, onClose, niche, pattern }) {
-  const [tab, setTab] = useState('apply')
   const [extraTitles, setExtraTitles] = useState([])
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
   const [copiedIdx, setCopiedIdx] = useState(null)
   useEffect(() => {
-    setTab('apply')
     setExtraTitles([])
     setGenError('')
   }, [detail])
   if (!detail?.item) return null
   const { blockLabel, color, item } = detail
 
-  // Gera mais títulos prontos com IA para esta oportunidade
   async function generateTitles() {
     setGenerating(true)
     setGenError('')
@@ -664,79 +758,166 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
   }
 
   const allTitles = [...(item.recommendedTitles || []), ...extraTitles]
+  // Compat: análises antigas só têm a frase preserveVsChange (sem arrays).
+  const preserve = item.preserve || []
+  const change = item.change || []
+  const equivalence = item.equivalenceMap || []
+  const breakAlerts = item.breakAlerts || []
+  const confidence = (item.confidence || '').toLowerCase()
 
   const difficultyCls =
     { Fácil: 'bg-green-500/15 text-green-400', Média: 'bg-amber-500/15 text-amber-400', Difícil: 'bg-red-500/15 text-red-400' }[item.difficulty] ||
     'bg-slate-800 text-slate-400'
+  const confidenceCls =
+    confidence === 'alta' ? 'bg-green-500/15 text-green-400' : confidence === 'média' ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400'
+
+  const Bullets = ({ items, dot }) => (
+    <div className="space-y-1.5">
+      {items.map((t, i) => (
+        <div key={i} className="relative pl-4 text-[13px] leading-snug text-slate-300">
+          <span className="absolute left-0 top-[7px] h-1.5 w-1.5 rounded-full" style={{ background: dot }} />
+          {t}
+        </div>
+      ))}
+    </div>
+  )
+  const SectionTitle = ({ children, c = '#94a3b8' }) => (
+    <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: c }}>
+      {children}
+    </p>
+  )
 
   return (
     <Drawer open onClose={onClose} title={item.title}>
       <div className="space-y-5 p-6">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: `${color}22`, color }}>
-            {blockLabel}
+            {item.kind ? `${blockLabel} · ${item.kind}` : blockLabel}
           </span>
+          {confidence && <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${confidenceCls}`}>Confiança {confidence}</span>}
           <span className="flex items-center gap-1 rounded-full bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-200">
             <Star size={11} style={{ color }} />
-            Sucesso estimado: {item.successScore}%
+            Sucesso ~{item.successScore}%
           </span>
-          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${difficultyCls}`}>Palavra-chave: {item.difficulty}</span>
+          {item.difficulty && <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${difficultyCls}`}>{item.difficulty}</span>}
         </div>
 
-        <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-300/80">
-          Estimativas geradas por IA a partir de padrões do canal semente — valide antes de investir na produção.
-        </p>
+        {item.subtitle && <p className="text-sm leading-relaxed text-slate-400">{item.subtitle}</p>}
 
-        <div className="flex gap-1 border-b border-slate-800">
-          {[
-            ['apply', 'Como aplicar na prática'],
-            ['preserve', 'O que preservar / O que muda'],
-            ['titles', 'Títulos Recomendados'],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
-                tab === key ? 'border-cyan-500 text-cyan-300' : 'border-transparent text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {item.marketHypothesis && (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[12px] text-amber-300">
+            ⚠️ Hipótese de mercado: não temos dados do mercado estrangeiro. Trate como direção a testar, não como gap validado.
+          </p>
+        )}
 
-        {tab === 'apply' && <p className="text-sm leading-relaxed text-slate-300">{item.howToApply}</p>}
-        {tab === 'preserve' && <p className="text-sm leading-relaxed text-slate-300">{item.preserveVsChange}</p>}
-        {tab === 'titles' && (
-          <div className="space-y-3">
-            <ul className="space-y-2">
-              {allTitles.map((t, i) => (
-                <li key={i} className="group flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2.5 text-sm text-slate-200">
-                  <span className="shrink-0 text-[10px] font-bold text-slate-600">{i + 1}</span>
-                  <span className="min-w-0 flex-1">{t}</span>
-                  <button
-                    onClick={() => copyTitle(t, i)}
-                    title="Copiar título"
-                    className={`shrink-0 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 ${
-                      copiedIdx === i ? 'text-green-400 !opacity-100' : 'text-slate-500 hover:text-cyan-300'
-                    }`}
-                  >
-                    {copiedIdx === i ? 'Copiado!' : 'Copiar'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {genError && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{genError}</p>}
-            <button
-              onClick={generateTitles}
-              disabled={generating}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 py-2.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
-            >
-              {generating ? <Loader2 size={13} className="animate-spin" /> : <Star size={13} />}
-              {generating ? 'Gerando títulos...' : 'Gerar mais 10 títulos com IA'}
-            </button>
+        {/* Nicho novo (blocos de Dobra) */}
+        {(item.newNiche || item.subNicheNew || item.audienceNew) && (
+          <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950 p-3.5 text-[13px]">
+            {item.newNiche && <p className="text-slate-300"><span className="text-[10px] font-bold uppercase text-cyan-400">Nicho novo: </span>{item.newNiche}</p>}
+            {item.subNicheNew && <p className="text-slate-300"><span className="text-[10px] font-bold uppercase text-cyan-400">Subnicho: </span>{item.subNicheNew}</p>}
+            {item.audienceNew && <p className="text-slate-300"><span className="text-[10px] font-bold uppercase text-cyan-400">Público-alvo: </span>{item.audienceNew}</p>}
           </div>
         )}
+
+        {/* Ideia de tema-alvo */}
+        {item.targetTheme && (
+          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.06] p-3.5">
+            <SectionTitle c="#22d3ee">Ideia de tema-alvo</SectionTitle>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-200">{item.targetTheme}</p>
+          </div>
+        )}
+
+        {/* Como aplicar */}
+        {item.howToApply && (
+          <div className="flex gap-2.5 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.06] p-3.5">
+            <Lightbulb size={16} className="mt-0.5 shrink-0 text-cyan-400" />
+            <div>
+              <SectionTitle c="#22d3ee">Como aplicar na prática</SectionTitle>
+              <p className="mt-1 text-sm leading-relaxed text-slate-200">{item.howToApply}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Títulos prontos */}
+        <div className="space-y-2.5">
+          <SectionTitle>Títulos prontos</SectionTitle>
+          <ul className="space-y-2">
+            {allTitles.map((t, i) => (
+              <li key={i} className="group flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2.5 text-sm text-slate-200">
+                <span className="shrink-0 text-[10px] font-bold text-slate-600">{i + 1}</span>
+                <span className="min-w-0 flex-1">{t}</span>
+                <button
+                  onClick={() => copyTitle(t, i)}
+                  title="Copiar título"
+                  className={`shrink-0 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 ${
+                    copiedIdx === i ? 'text-green-400 !opacity-100' : 'text-slate-500 hover:text-cyan-300'
+                  }`}
+                >
+                  {copiedIdx === i ? 'Copiado!' : 'Copiar'}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {genError && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{genError}</p>}
+          <button
+            onClick={generateTitles}
+            disabled={generating}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 py-2.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
+          >
+            {generating ? <Loader2 size={13} className="animate-spin" /> : <Star size={13} />}
+            {generating ? 'Gerando títulos...' : 'Gerar mais 10 títulos com IA'}
+          </button>
+        </div>
+
+        {/* O que preserva / O que muda */}
+        {(preserve.length > 0 || change.length > 0) && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {preserve.length > 0 && (
+              <div className="space-y-2">
+                <SectionTitle c="#4ade80">O que preserva</SectionTitle>
+                <Bullets items={preserve} dot="#4ade80" />
+              </div>
+            )}
+            {change.length > 0 && (
+              <div className="space-y-2">
+                <SectionTitle c="#f59e0b">O que muda</SectionTitle>
+                <Bullets items={change} dot="#f59e0b" />
+              </div>
+            )}
+          </div>
+        )}
+        {preserve.length === 0 && change.length === 0 && item.preserveVsChange && (
+          <div className="space-y-2">
+            <SectionTitle>O que preservar / o que muda</SectionTitle>
+            <p className="text-sm leading-relaxed text-slate-300">{item.preserveVsChange}</p>
+          </div>
+        )}
+
+        {/* Mapa de equivalência */}
+        {equivalence.length > 0 && (
+          <div className="space-y-2.5">
+            <SectionTitle>Mapa de equivalência</SectionTitle>
+            {equivalence.map((e, i) => (
+              <div key={i} className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                <p className="text-[12.5px] text-slate-500">{e.from}</p>
+                {e.why && <p className="my-1 text-[11px] text-cyan-400">↓ {e.why}</p>}
+                <p className="text-sm font-semibold text-slate-100">{e.to}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Alertas de quebra */}
+        {breakAlerts.length > 0 && (
+          <div className="space-y-2">
+            <SectionTitle c="#f87171">Alertas de quebra</SectionTitle>
+            <Bullets items={breakAlerts} dot="#f87171" />
+          </div>
+        )}
+
+        <p className="border-t border-slate-800 pt-3 text-[11px] leading-relaxed text-slate-600">
+          Estimativas geradas por IA a partir do padrão do canal semente — valide antes de investir na produção.
+        </p>
       </div>
     </Drawer>
   )

@@ -32,11 +32,21 @@ import { PrivacyScope, PageEye, Masked, RestrictedThumb, useRestricted } from '.
 
 // Consulta padrão usada para pré-carregar a página na primeira visita.
 const DEFAULT_QUERY = 'curiosidades documentário histórias'
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6h — depois disso o auto-load renova
 
 // Idade do canal em dias (desde a criação no YouTube)
 function ageDays(c) {
   return Math.max(0, Math.round((Date.now() - new Date(c.publishedAt).getTime()) / 86_400_000))
+}
+
+// Idade legível: "18d", "5m", "12a 6m" (como no original)
+function ageLabel(c) {
+  const d = ageDays(c)
+  if (d < 60) return `${d}d`
+  const months = Math.round(d / 30)
+  if (months < 12) return `${months}m`
+  const years = Math.floor(months / 12)
+  const rem = months % 12
+  return rem ? `${years}a ${rem}m` : `${years}a`
 }
 
 // Heurística de monetização (requisitos do YPP: 1.000 inscritos + horas de
@@ -108,15 +118,39 @@ const TREND_TABS = [
   },
 ]
 
-// Estimativa "Faceless %" — determinística por canal (nichos tipicamente sem
-// rosto pesam mais; o restante vem de um hash estável do id).
-const FACELESS_TOPICS = ['Música', 'Documentário', 'História', 'Educação', 'Cristão', 'Música Religiosa', 'Tecnologia', 'Militar']
+// Estimativa "Faceless %" — probabilidade do canal NÃO mostrar rosto. Não existe
+// API pública de detecção facial; usamos sinais determinísticos do canal:
+// tópicos que costumam ser narrados (sem rosto) somam, tópicos "de rosto"
+// (vlog, beleza, comédia) subtraem, e palavras-chave do título/descrição ajustam.
+const FACELESS_TOPICS = ['Documentário', 'História', 'Educação', 'Tecnologia', 'Militar', 'Música Religiosa', 'Cristão', 'Notícias', 'Ciência', 'Política', 'Sociedade']
+const FACE_TOPICS = ['Comédia', 'Beleza', 'Moda', 'Fitness', 'Lifestyle', 'Esportes', 'Games', 'Pets']
+const FACELESS_WORDS = [
+  'documentari', 'histór', 'history', 'curiosidad', 'fatos', 'facts', 'mistério', 'mystery', 'explained', 'explica',
+  'narrat', 'lyrics', 'relax', 'sleep', 'study', 'asmr', 'compilation', 'ranking', 'biografia', 'contos', 'tales',
+  'stories', 'top 10', 'top 5', 'dark', 'creepy', 'terror', 'universo', 'space', 'ciência', 'science',
+]
+const FACE_WORDS = ['vlog', 'meu canal', 'my channel', 'reaction', 'reagindo', 'gameplay', 'cadê', 'rotina', 'daily', 'face', 'eu ']
+
 export function facelessScore(c) {
+  const text = `${c.title || ''} ${c.description || ''}`.toLowerCase()
+  const topics = c.topics || []
+  let score = 45
+  score += topics.filter((t) => FACELESS_TOPICS.includes(t)).length * 12
+  score -= topics.filter((t) => FACE_TOPICS.includes(t)).length * 18
+  score += FACELESS_WORDS.filter((w) => text.includes(w)).length * 6
+  score -= FACE_WORDS.filter((w) => text.includes(w)).length * 10
+  // jitter estável por id só para não empatar tudo em múltiplos de 5 redondos
   let hash = 0
   for (const ch of c.id || '') hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
-  const base = 20 + (hash % 36) // 20–55
-  const bonus = (c.topics || []).some((t) => FACELESS_TOPICS.includes(t)) ? 15 : 0
-  return Math.min(95, Math.round((base + bonus) / 5) * 5)
+  score += (hash % 7) - 3
+  return Math.max(0, Math.min(98, Math.round(score / 5) * 5))
+}
+
+// Cor do número Faceless: verde >70%, amarelo até 70%, branco se 0% (como o original)
+export function facelessColor(score) {
+  if (!score) return 'text-slate-100'
+  if (score > 70) return 'text-green-400'
+  return 'text-amber-400'
 }
 
 const SUB_RANGES = [
@@ -226,6 +260,24 @@ const BASE_CATEGORIES = [
   'Notícias',
 ]
 
+// Idioma do card: segue a bandeira selecionada (Português → PT, qualquer outro → EN).
+const CARD_I18N = {
+  pt: {
+    subs: 'INSCRITOS', views: 'VIEWS', videos: 'VÍDEOS', faceless: 'FACELESS',
+    posting: 'postando', last: 'último há', vidMo: 'vid/mês', viewsMo: 'views/mês',
+    added: 'Adicionado há', updated: 'atualizado há', updatedNow: 'atualizado agora', noCat: 'Sem categoria',
+    facelessTip: 'Probabilidade do canal ser faceless. Quanto maior o score, maior a confiança de que o canal não mostra rosto.',
+    monetTip: 'Elegível à monetização (estimativa): +1.000 inscritos e +100 mil views totais, os mínimos do YouTube Partner Program. O YouTube não expõe o status real de monetização por API, então isto é uma estimativa, não uma confirmação.',
+  },
+  en: {
+    subs: 'SUBS', views: 'VIEWS', videos: 'VIDEOS', faceless: 'FACELESS',
+    posting: 'posting', last: 'last', vidMo: 'vid/mo', viewsMo: 'views/mo',
+    added: 'Added', updated: 'updated', updatedNow: 'updated now', noCat: 'No category',
+    facelessTip: 'Likelihood the channel is faceless. The higher the score, the higher the confidence the channel does not show a face.',
+    monetTip: 'Monetization-eligible (estimate): 1,000+ subscribers and 100k+ total views, the YouTube Partner Program minimums. YouTube does not expose real monetization status via API, so this is an estimate, not a confirmation.',
+  },
+}
+
 const ADV_DEFAULT = { monetization: 'any', subsMin: '', subsMax: '', viewsMin: '', viewsMax: '', addedIn: 'any' }
 const ADDED_IN = [
   ['any', 'Qualquer momento'],
@@ -320,7 +372,7 @@ export default function NicheFinder() {
   const db = useDb()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
-  const [tab, setTab] = useState('all')
+  const [tab, setTab] = useState('exploding') // padrão: "Explodindo Agora"
   const [subRange, setSubRange] = useState('')
   const [viewRange, setViewRange] = useState('')
   const [language, setLanguage] = useState('')
@@ -339,10 +391,10 @@ export default function NicheFinder() {
   const favorites = db.getSetting('nicheFavorites', [])
   const hasKeys = (db.getSetting('ytKeys', []) || []).some(Boolean)
 
-  // Auto-load: a página já abre com resultados, sem precisar buscar.
+  // Auto-load só na primeira vez (base vazia). Depois disso a base é persistente
+  // e acumulativa — não sobrescrevemos o que o usuário já pesquisou.
   useEffect(() => {
-    const stale = !cache || Date.now() - cache.ts > CACHE_TTL_MS
-    if (stale && hasKeys && !loading) fetchChannels(DEFAULT_QUERY)
+    if (results.length === 0 && hasKeys && !loading) fetchChannels(DEFAULT_QUERY)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Carimba addedAt na primeira vez que o canal aparece (filtro "Adicionado em")
@@ -356,7 +408,13 @@ export default function NicheFinder() {
     setError('')
     try {
       const { results: found, nextPageToken } = await api.youtube.searchChannels({ q, language })
-      db.setSetting('nicheFinderCache', { ts: Date.now(), query: q, results: stampAdded(found, results), nextPageToken })
+      // Acumula na base: cada busca ADICIONA canais novos (dedupe por id) em vez
+      // de substituir. Assim a base cresce e alimenta as categorias, favoritos e
+      // a detecção de canais removidos — não volta mais "sempre os mesmos 50".
+      const existing = db.getSetting('nicheFinderCache')?.results || []
+      const seen = new Set(existing.map((c) => c.id))
+      const merged = [...existing, ...found.filter((c) => !seen.has(c.id))]
+      db.setSetting('nicheFinderCache', { ts: Date.now(), query: q, results: stampAdded(merged, existing), nextPageToken })
     } catch (err) {
       setError(apiErrorMessage(err))
     } finally {
@@ -435,6 +493,7 @@ export default function NicheFinder() {
   )
 
   const advActive = JSON.stringify(adv) !== JSON.stringify(ADV_DEFAULT)
+  const t = CARD_I18N[language && language !== 'pt' ? 'en' : 'pt'] // idioma do card segue a bandeira
 
   return (
     <PrivacyScope page="niche-finder">
@@ -463,19 +522,32 @@ export default function NicheFinder() {
       {/* Abas de tendência */}
       <div className="flex items-center gap-2">
         <div className="flex flex-1 gap-1.5 overflow-x-auto pb-1">
-          {TREND_TABS.map(({ key, label, Icon }) => {
+          {TREND_TABS.map(({ key, label, Icon, desc }) => {
             const count = (showFavorites ? favorites : results).filter((c) => TREND_TABS.find((t) => t.key === key).test(c)).length
+            const active = tab === key
+            // "Explodindo Agora" fica sempre em vermelho (quente); com contagem >0, pulsa.
+            const hot = key === 'exploding'
+            const cls = hot
+              ? active
+                ? 'border-red-500 bg-red-500/15 text-red-300'
+                : `border-red-500/50 bg-red-500/10 text-red-400 hover:border-red-500 ${count > 0 ? 'animate-pulse' : ''}`
+              : active
+                ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
             return (
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium transition-colors ${
-                  tab === key ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
-                }`}
+                title={desc}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium transition-colors ${cls}`}
               >
-                <Icon size={13} />
+                <Icon size={13} className={hot ? 'fill-red-500/30' : ''} />
                 {label}
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${tab === key ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-500'}`}>
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    active ? (hot ? 'bg-red-500/20 text-red-300' : 'bg-cyan-500/20 text-cyan-300') : 'bg-slate-800 text-slate-500'
+                  }`}
+                >
                   {count}
                 </span>
               </button>
@@ -600,6 +672,7 @@ export default function NicheFinder() {
               onToggleFavorite={() => toggleFavorite(c)}
               onOpenDoubling={() => navigate(`/dobra-de-nicho?channel=${c.id}`)}
               cacheTs={cache?.ts}
+              t={t}
             />
           ))}
         </div>
@@ -632,6 +705,7 @@ export default function NicheFinder() {
                       onToggleFavorite={() => toggleFavorite(c)}
                       onOpenDoubling={() => navigate(`/dobra-de-nicho?channel=${c.id}`)}
                       cacheTs={cache?.ts}
+                      t={t}
                     />
                   ))}
                 </div>
@@ -815,8 +889,9 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
   )
 }
 
-function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling, cacheTs }) {
-  const badge = TREND_TABS.slice(1).find((t) => t.test(c))
+function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling, cacheTs, t = CARD_I18N.pt }) {
+  // Selo de tendência real do canal — ignora 'all' e o catch-all 'bycategory'
+  const badge = TREND_TABS.filter((t) => t.key !== 'all' && t.key !== 'bycategory').find((t) => t.test(c))
   const monetized = isMonetized(c)
   // Modo restrito: nome/números/thumbs NÃO entram no DOM — impossível "desborrar"
   const restricted = useRestricted()
@@ -842,12 +917,14 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
               <button onClick={onOpenDoubling} className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title="Analisar na Dobra de Nicho">
                 <Masked mask="•••••••">{c.title}</Masked>
               </button>
-              {/* $ verde: canal monetizado — diferencia mesmo sem o filtro ativo */}
-              {monetized && <DollarSign size={14} className="shrink-0 cursor-help text-green-400" title="Monetizado" />}
+              {/* $ verde: elegível à monetização (estimativa, não confirmação) */}
+              {monetized && (
+                <DollarSign size={14} className="shrink-0 cursor-help text-green-400" title={t.monetTip} />
+              )}
             </div>
-            <p className="truncate text-[11px] text-slate-500">
-              {(c.topics || []).length > 0 && <span className="text-cyan-400/80">{c.topics[0]} · </span>}
-              <Masked mask="••••••••••">{c.description || 'Sem descrição'}</Masked>
+            {/* Categoria/tópicos do canal, legível (como no original: "Música · Covers") */}
+            <p className="truncate text-[11px] font-medium text-slate-400">
+              {(c.topics || []).length > 0 ? c.topics.slice(0, 2).join(' · ') : t.noCat}
             </p>
             {badge && (
               <span className="mt-1 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{badge.label}</span>
@@ -878,25 +955,30 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
 
         {/* Stats: Inscritos / Views / Vídeos / Faceless (como no original) */}
         <div className="mt-3 grid grid-cols-4 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
-          <CardStat value={<Masked mask="••">{formatCompact(c.subscribers)}</Masked>} label="INSCRITOS" />
-          <CardStat value={<Masked mask="••">{formatCompact(c.views)}</Masked>} label="VIEWS" />
-          <CardStat value={<Masked mask="••">{c.videoCount ?? '—'}</Masked>} label="VÍDEOS" />
-          <CardStat value={<Masked mask="••">{`${facelessScore(c)}%`}</Masked>} label="FACELESS" faceless={facelessScore(c) >= 40} />
+          <CardStat value={<Masked mask="••">{formatCompact(c.subscribers)}</Masked>} label={t.subs} />
+          <CardStat value={<Masked mask="••">{formatCompact(c.views)}</Masked>} label={t.views} />
+          <CardStat value={<Masked mask="••">{c.videoCount ?? '—'}</Masked>} label={t.videos} />
+          <CardStat
+            value={<Masked mask="••">{`${facelessScore(c)}%`}</Masked>}
+            label={t.faceless}
+            facelessValue={facelessScore(c)}
+            title={t.facelessTip}
+          />
         </div>
 
         {/* Rodapé de cadência */}
         <div className="mt-3 space-y-1 border-t border-slate-800 pt-2.5 text-[10px] text-slate-500">
           <p className="flex items-center gap-1.5">
             <Calendar size={10} />
-            {ageDays(c) <= 90 ? `${ageDays(c)}d postando` : `${Math.round(ageDays(c) / 30)}m postando`}
-            {c.lastUploadDaysAgo != null && ` · último há ${c.lastUploadDaysAgo}d`}
-            {c.vidsPerMonth != null && ` · ${c.vidsPerMonth} vid/mês`}
-            {c.viewsPerMonth != null && ` · ${formatCompact(c.viewsPerMonth)} views/mês`}
+            {`${ageLabel(c)} ${t.posting}`}
+            {c.lastUploadDaysAgo != null && ` · ${t.last} ${c.lastUploadDaysAgo}d`}
+            {c.vidsPerMonth != null && ` · ${c.vidsPerMonth} ${t.vidMo}`}
+            {c.viewsPerMonth != null && ` · ${formatCompact(c.viewsPerMonth)} ${t.viewsMo}`}
           </p>
           <p className="flex items-center gap-1.5">
             <Clock size={10} />
-            {c.addedAt ? `Adicionado há ${timeAgo(c.addedAt)} · ` : ''}
-            {cacheTs ? `atualizado há ${timeAgo(cacheTs)}` : 'atualizado agora'}
+            {c.addedAt ? `${t.added} ${timeAgo(c.addedAt)} · ` : ''}
+            {cacheTs ? `${t.updated} ${timeAgo(cacheTs)}` : t.updatedNow}
           </p>
         </div>
       </div>
@@ -904,10 +986,11 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
   )
 }
 
-function CardStat({ value, label, accent, faceless }) {
+function CardStat({ value, label, accent, facelessValue, title }) {
+  const color = facelessValue != null ? facelessColor(facelessValue) : accent ? 'text-cyan-400' : 'text-slate-100'
   return (
-    <div className="px-1">
-      <p className={`truncate text-xs font-bold ${faceless ? 'text-amber-400' : accent ? 'text-cyan-400' : 'text-slate-100'}`}>{value}</p>
+    <div className="px-1" title={title}>
+      <p className={`truncate text-xs font-bold ${color} ${title ? 'cursor-help' : ''}`}>{value}</p>
       <p className="text-[8px] font-semibold tracking-wider text-slate-600">{label}</p>
     </div>
   )

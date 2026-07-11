@@ -16,18 +16,33 @@ const PERIODS = [
 
 const initialFilters = { q: '', period: '', durMinSec: 300, after: '', before: '', minViews: '' }
 
+const MAX_VIRAL = 100 // teto de vídeos por busca, como no original
+
 export default function ViralVideos() {
   const db = useDb()
   const [filters, setFilters] = useState(initialFilters)
   const [tab, setTab] = useState('search')
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState(null)
+  const [nextPageToken, setNextPageToken] = useState(null)
 
   const saved = db.all('savedViralVideos')
 
   function set(k, v) {
     setFilters((f) => ({ ...f, [k]: v }))
+  }
+
+  function baseParams() {
+    return {
+      q: filters.q.trim(),
+      period: filters.period,
+      durMinSec: filters.durMinSec || '',
+      after: filters.after,
+      before: filters.before,
+      minViews: filters.minViews,
+    }
   }
 
   async function search(e) {
@@ -37,19 +52,32 @@ export default function ViralVideos() {
     setLoading(true)
     setError('')
     try {
-      const { results } = await api.youtube.viralVideos({
-        q: filters.q.trim(),
-        period: filters.period,
-        durMinSec: filters.durMinSec || '',
-        after: filters.after,
-        before: filters.before,
-        minViews: filters.minViews,
-      })
+      const { results, nextPageToken } = await api.youtube.viralVideos(baseParams())
       setResults(results)
+      setNextPageToken(nextPageToken)
     } catch (err) {
       setError(apiErrorMessage(err))
     } finally {
       setLoading(false)
+    }
+  }
+
+  // "Ver mais": pagina a mesma busca e acumula, deduplicando por id (máx. 100).
+  async function loadMore() {
+    if (!nextPageToken || loadingMore) return
+    setLoadingMore(true)
+    setError('')
+    try {
+      const { results: more, nextPageToken: next } = await api.youtube.viralVideos({ ...baseParams(), pageToken: nextPageToken })
+      setResults((prev) => {
+        const seen = new Set((prev || []).map((v) => v.id))
+        return [...(prev || []), ...more.filter((v) => !seen.has(v.id))].slice(0, MAX_VIRAL)
+      })
+      setNextPageToken(next)
+    } catch (err) {
+      setError(apiErrorMessage(err))
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -140,10 +168,10 @@ export default function ViralVideos() {
         <div className="mt-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3.5 py-2.5 text-xs text-slate-400">
           <p>
             <TrendingUp size={12} className="mr-1.5 inline text-cyan-400" />
-            <b className="text-cyan-300">Busca inteligente:</b> vídeos com mais visualizações primeiro (máx: 25)
+            <b className="text-cyan-300">Busca inteligente:</b> vídeos com mais visualizações primeiro (máx: 100)
           </p>
           <p className="mt-1 text-[10px] text-slate-500">
-            Engajamento = views do vídeo ÷ inscritos do canal · quanto maior, mais desproporcional (viral) é o alcance 🔥
+            Score Viral™: baseado em engajamento, crescimento (VPH) e alcance vs. inscritos. Score alto = vídeo viral! 🔥
           </p>
         </div>
       </form>
@@ -181,6 +209,19 @@ export default function ViralVideos() {
           )}
 
           {!loading && results !== null && <ResultsGrid videos={results} />}
+
+          {!loading && results !== null && results.length > 0 && nextPageToken && results.length < MAX_VIRAL && (
+            <div className="flex justify-center pb-4">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-6 py-2.5 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
+              >
+                {loadingMore ? <Loader2 size={15} className="animate-spin" /> : <TrendingUp size={15} />}
+                {loadingMore ? 'Buscando mais vídeos...' : 'Ver mais'}
+              </button>
+            </div>
+          )}
         </>
       )}
 
@@ -229,9 +270,32 @@ const SORTS = [
   ['newest', 'Mais recentes'],
 ]
 
+// Insights automáticos do vídeo (como o hover ℹ️ do original)
+function insightsFor(v) {
+  const out = []
+  const ageDays = Math.max(1, Math.round((Date.now() - new Date(v.publishedAt).getTime()) / 86_400_000))
+  const perDay = Math.round(v.views / ageDays)
+  if (ageDays > 180 && perDay > 500) {
+    out.push({ emoji: '♻️', title: 'Conteúdo Evergreen', text: `Vídeo antigo (${ageDays} dias) que continua gerando ${formatCompact(perDay)} views/dia. Conteúdo atemporal!` })
+  }
+  if (v.engagement != null && v.engagement >= 2) {
+    out.push({ emoji: '✅', title: 'Alto Engajamento', text: `${v.engagement}% de engajamento está acima da média do YouTube (2%).` })
+  }
+  const likeRatio = v.views > 0 ? +((v.likes / v.views) * 100).toFixed(2) : 0
+  if (likeRatio >= 2) {
+    out.push({ emoji: '👍', title: 'Qualidade Aprovada', text: `${likeRatio}% de like ratio indica que a audiência gostou do conteúdo.` })
+  }
+  if (v.vph >= 1000) {
+    out.push({ emoji: '🚀', title: 'Crescimento Rápido', text: `${formatCompact(v.vph)} views/hora — o algoritmo está distribuindo forte.` })
+  }
+  if (!out.length) out.push({ emoji: '📊', title: 'Desempenho regular', text: 'Sem sinais fortes de viralização nas métricas atuais.' })
+  return out
+}
+
 function ResultsGrid({ videos }) {
   const db = useDb()
   const navigate = useNavigate()
+  const restricted = useRestricted()
   const saved = db.all('savedViralVideos')
   const [sort, setSort] = useState('views')
   const [desc, setDesc] = useState(true)
@@ -339,12 +403,28 @@ function ResultsGrid({ videos }) {
                 </div>
                 {/* Score Viral™ / Data de Publicação */}
                 <div className="mt-1 grid grid-cols-2 gap-1">
-                  <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5" title="Baseado em engajamento, crescimento e alcance. Score alto = vídeo viral! 🔥">
-                    <p className="text-[9px] font-medium text-slate-500">Score Viral™ ℹ️</p>
+                  <div className="group/ins relative rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5">
+                    <p className="cursor-help text-[9px] font-medium text-slate-500">Score Viral™ ℹ️</p>
                     <p className="text-center text-base font-extrabold">
                       <span className="mr-1">{badge.emoji}</span>
                       <span className={badge.cls}><Masked mask="••">{v.viralScore ?? '—'}</Masked></span>
                     </p>
+                    {!restricted && (
+                      <div className="pointer-events-none absolute bottom-full left-0 right-0 z-30 mb-2 hidden rounded-xl border border-cyan-500/40 bg-slate-950/98 p-3 shadow-2xl group-hover/ins:block">
+                        <p className="mb-2 border-b border-slate-800 pb-1.5 text-[11px] font-bold text-slate-200">💡 Insights</p>
+                        <div className="space-y-1.5">
+                          {insightsFor(v).map((ins, i) => (
+                            <div key={i} className="rounded-md border border-white/10 bg-white/[0.04] p-2">
+                              <p className="flex items-center gap-1.5 text-[10.5px] font-bold text-slate-200">
+                                <span>{ins.emoji}</span>
+                                {ins.title}
+                              </p>
+                              <p className="mt-0.5 text-[10px] leading-snug text-slate-400">{ins.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col items-center justify-center rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-1.5">
                     <p className="text-[9px] font-medium text-slate-500">Data de Publicação</p>
