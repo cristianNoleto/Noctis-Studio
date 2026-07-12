@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 import { createContext, useContext, useSyncExternalStore } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { useI18n } from '../i18n'
 
 const GLOBAL_KEY = 'noctis_privacy'
 const PAGES_KEY = 'noctis_privacy_pages'
@@ -73,19 +74,14 @@ export function useRestricted() {
 export function PageEye() {
   const page = useContext(ScopeCtx)
   const { global, pages } = usePrivacy()
+  const { t } = useI18n()
   if (!page) return null
   const active = !!pages[page]
   const on = active || global
   return (
     <button
       onClick={() => togglePrivacyPage(page)}
-      title={
-        global
-          ? 'Modo restrito GLOBAL ativo — desative pelo olho do topo do site'
-          : active
-            ? 'Modo restrito ATIVO nesta página — clique para mostrar os dados'
-            : 'Ativar modo restrito somente nesta página'
-      }
+      title={global ? t('privacy.globalActive') : active ? t('privacy.pageActive') : t('privacy.pageEnable')}
       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors ${
         on
           ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-400'

@@ -84,7 +84,7 @@ export default function Sidebar() {
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-slate-800/70 bg-slate-950">
       {/* Logo/nome clicável → volta ao dashboard */}
-      <Link to="/" className="flex h-16 items-center border-b border-slate-800/70 px-5 transition-opacity hover:opacity-80" title="Voltar ao Dashboard">
+      <Link to="/" className="flex h-16 items-center border-b border-slate-800/70 px-5 transition-opacity hover:opacity-80" title={t('nav.backToDashboard')}>
         <Logo />
       </Link>
 
@@ -159,7 +159,7 @@ export default function Sidebar() {
                           tabIndex={isOpen ? 0 : -1}
                           className="flex items-center gap-2 rounded-lg py-1.5 pl-8 pr-2.5 text-xs text-slate-600 transition-colors hover:text-cyan-400"
                         >
-                          + Novo Canal
+                          {t('nav.newChannel')}
                         </NavLink>
                       </li>
                     </>

@@ -93,7 +93,7 @@ export default function Header() {
         {/* Modo restrito global */}
         <button
           onClick={togglePrivacyGlobal}
-          title={privacy ? 'Modo restrito ATIVO — clique para mostrar os dados' : 'Modo restrito: esconde nomes de canais, títulos, números e thumbnails no site inteiro'}
+          title={privacy ? t('header.privacyOn') : t('header.privacyOff')}
           className={`${iconBtn} ${privacy ? '!border-cyan-500/50 !bg-cyan-500/10 !text-cyan-400' : ''}`}
         >
           {privacy ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -129,7 +129,7 @@ export default function Header() {
 
         {/* Notificações */}
         <div className="relative" ref={notifRef}>
-          <button onClick={openNotifications} title="Notificações" className={`${iconBtn} relative`}>
+          <button onClick={openNotifications} title={t('header.notifications')} className={`${iconBtn} relative`}>
             <Bell size={16} />
             {unread > 0 && (
               <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
@@ -141,10 +141,10 @@ export default function Header() {
             <div className="absolute right-0 top-full z-40 mt-2 w-80 rounded-xl border border-slate-800 bg-slate-900 shadow-xl">
               <div className="flex items-center gap-2 border-b border-slate-800 px-4 py-3">
                 <Sparkles size={14} className="text-cyan-400" />
-                <p className="text-sm font-semibold text-slate-100">Notificações</p>
+                <p className="text-sm font-semibold text-slate-100">{t('header.notifications')}</p>
               </div>
               <div className="max-h-80 overflow-y-auto p-2">
-                {updates.length === 0 && <p className="px-3 py-6 text-center text-xs text-slate-500">Nenhuma notificação por enquanto.</p>}
+                {updates.length === 0 && <p className="px-3 py-6 text-center text-xs text-slate-500">{t('header.notifEmpty')}</p>}
                 {updates.map((u) => (
                   <div key={u.id} className="rounded-lg px-3 py-2.5 hover:bg-slate-800/60">
                     <div className="flex items-center justify-between gap-2">
@@ -160,7 +160,7 @@ export default function Header() {
         </div>
 
         {/* Tema claro/escuro */}
-        <button onClick={toggleTheme} title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'} className={iconBtn}>
+        <button onClick={toggleTheme} title={theme === 'dark' ? t('header.themeLight') : t('header.themeDark')} className={iconBtn}>
           {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
         </button>
 
@@ -172,7 +172,7 @@ export default function Header() {
           >
             <span className="max-w-[180px] truncate text-sm text-slate-200">{displayName}</span>
             <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${planStyles[plan] || planStyles.FREE}`}>
-              {plan === 'FUNDADOR' ? '👑 FUNDADOR' : plan}
+              {plan === 'FUNDADOR' ? `👑 ${t('header.founder')}` : plan}
             </span>
             <div className="relative">
               {avatarDataUrl ? (
@@ -194,25 +194,25 @@ export default function Header() {
               </div>
               <Link to="/perfil" onClick={() => setMenuOpen(false)} className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
                 <Settings size={15} />
-                Meu Perfil
+                {t('header.myProfile')}
               </Link>
               <Link to="/meu-plano" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
                 <Crown size={15} />
-                Meu Plano
+                {t('header.myPlan')}
               </Link>
               <Link to="/ajuda" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
                 <HelpCircle size={15} />
-                Central de Ajuda
+                {t('header.helpCenter')}
               </Link>
               {isAdmin && (
                 <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-amber-400 hover:bg-slate-800">
                   <ShieldCheck size={15} />
-                  Administração
+                  {t('header.admin')}
                 </Link>
               )}
               <button onClick={handleLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-400 hover:bg-slate-800">
                 <LogOut size={15} />
-                Encerrar sessão
+                {t('header.logout')}
               </button>
             </div>
           )}
