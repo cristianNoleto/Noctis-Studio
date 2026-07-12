@@ -47,26 +47,41 @@ router.post('/seo-report', async (req, res) => {
     const result = await aiGenerateJson(req, {
       system:
         'Você é um especialista em SEO e CTR do YouTube para canais dark (conteúdo narrado sem rosto). ' +
+        'Analise com rigor: aponte problemas reais (título vago, gatilho fraco, sem palavra-chave, ' +
+        'descrição/tags ausentes) e dê sugestões acionáveis e específicas — nada genérico. ' +
         'Responda SEMPRE em JSON válido, em português do Brasil.',
-      prompt: `Analise o vídeo abaixo e devolva um relatório de SEO/CTR.
+      prompt: `Analise o vídeo abaixo e devolva um relatório de SEO/CTR completo.
 
 TÍTULO: ${title}
 DESCRIÇÃO: ${description || '(vazia)'}
 TAGS: ${tags.join(', ') || '(nenhuma)'}
 
+Regras:
+- "score" é a nota geral (0-100). "ctrScore" foca em atratividade/clique; "seoScore" foca em descoberta/busca.
+- "altTitles": 2 a 3 títulos alternativos prontos para usar (com gatilho de curiosidade, até 70 caracteres).
+- "tags": 8 a 15 tags relevantes de busca (sem #). "hashtags": 3 a 5 (com #).
+- Descrição sugerida: 2-4 frases otimizadas, com palavras-chave naturais.
+
 Responda neste formato JSON exato:
 {
-  "score": <número inteiro 0-100 avaliando o potencial de SEO/CTR>,
+  "score": <inteiro 0-100 geral>,
+  "ctrScore": <inteiro 0-100 atratividade/CTR>,
+  "seoScore": <inteiro 0-100 descoberta/SEO>,
   "strengths": ["<ponto forte 1>", "..."],
   "weaknesses": ["<ponto fraco 1>", "..."],
   "suggestions": {
-    "title": "<sugestão de melhoria do título>",
-    "thumbnail": "<sugestão de conceito de thumbnail>",
-    "description": "<sugestão de melhoria da descrição>"
+    "title": "<melhor sugestão de título>",
+    "altTitles": ["<alternativo 1>", "<alternativo 2>"],
+    "thumbnail": "<conceito de thumbnail com foco em CTR>",
+    "description": "<descrição otimizada>",
+    "tags": ["<tag1>", "<tag2>", "..."],
+    "hashtags": ["#<h1>", "#<h2>", "..."]
   }
 }`,
     })
     result.score = Math.max(0, Math.min(100, Math.round(Number(result.score) || 0)))
+    if (result.ctrScore != null) result.ctrScore = Math.max(0, Math.min(100, Math.round(Number(result.ctrScore) || 0)))
+    if (result.seoScore != null) result.seoScore = Math.max(0, Math.min(100, Math.round(Number(result.seoScore) || 0)))
     res.json(result)
   } catch (err) {
     handleError(res, err)

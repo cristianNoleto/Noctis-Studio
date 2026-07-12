@@ -812,9 +812,15 @@ function SeoReportModal({ open, onClose, video }) {
         <div className="space-y-5">
           <div className="flex items-center gap-4">
             <ScoreRing score={report.score} size={64} />
-            <div>
-              <p className="font-semibold text-slate-100">{video?.title}</p>
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-slate-100">{video?.title}</p>
               <p className="text-xs text-slate-500">Gerado em {new Date(report.createdAt).toLocaleString('pt-BR')}</p>
+              {(report.report?.ctrScore != null || report.report?.seoScore != null) && (
+                <div className="mt-1.5 flex gap-3 text-[11px]">
+                  {report.report?.ctrScore != null && <span className="text-slate-400">CTR <b className="text-cyan-300">{report.report.ctrScore}</b></span>}
+                  {report.report?.seoScore != null && <span className="text-slate-400">SEO <b className="text-cyan-300">{report.report.seoScore}</b></span>}
+                </div>
+              )}
             </div>
             <button className={`${btnGhost} ml-auto !px-3 !py-1.5 text-xs`} onClick={generate}>
               Gerar novamente
@@ -826,8 +832,23 @@ function SeoReportModal({ open, onClose, video }) {
             <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400">💡 SUGESTÕES</p>
             <div className="space-y-2 text-sm text-slate-300">
               {report.report?.suggestions?.title && <Suggestion label="Título" text={report.report.suggestions.title} />}
+              {report.report?.suggestions?.altTitles?.length > 0 && (
+                <div className="rounded-lg bg-slate-950 px-3 py-2">
+                  <span className="mb-1.5 inline-block rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-400">TÍTULOS ALTERNATIVOS</span>
+                  <ul className="space-y-1">
+                    {report.report.suggestions.altTitles.map((tt, i) => (
+                      <li key={i} className="flex items-start gap-2 text-[13px]">
+                        <span className="text-slate-600">›</span>
+                        {tt}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {report.report?.suggestions?.thumbnail && <Suggestion label="Thumbnail" text={report.report.suggestions.thumbnail} />}
               {report.report?.suggestions?.description && <Suggestion label="Descrição" text={report.report.suggestions.description} />}
+              {report.report?.suggestions?.tags?.length > 0 && <ChipSuggestion label="Tags" items={report.report.suggestions.tags} />}
+              {report.report?.suggestions?.hashtags?.length > 0 && <ChipSuggestion label="Hashtags" items={report.report.suggestions.hashtags} />}
             </div>
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -858,6 +879,34 @@ function Suggestion({ label, text }) {
     <div className="rounded-lg bg-slate-950 px-3 py-2">
       <span className="mr-2 rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-400">{label.toUpperCase()}</span>
       {text}
+    </div>
+  )
+}
+
+// Sugestão em chips (tags/hashtags) com botão para copiar tudo.
+function ChipSuggestion({ label, items }) {
+  const [copied, setCopied] = useState(false)
+  const joined = items.join(label === 'Hashtags' ? ' ' : ', ')
+  function copy() {
+    navigator.clipboard?.writeText(joined)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <div className="rounded-lg bg-slate-950 px-3 py-2">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-400">{label.toUpperCase()}</span>
+        <button onClick={copy} className="text-[10px] text-slate-500 hover:text-cyan-300">
+          {copied ? '✓ copiado' : 'copiar tudo'}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((it, i) => (
+          <span key={i} className="rounded-full border border-slate-800 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-300">
+            {it}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
