@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { supabase, isLocalMode } from '../lib/supabase'
+import { pullUserSettings } from '../lib/userSettings'
 
 const AuthContext = createContext(null)
 
@@ -53,9 +54,12 @@ export function AuthProvider({ children }) {
     supabase.auth.getSession().then(({ data }) => {
       setUser(sessionToUser(data.session))
       setLoading(false)
+      if (data.session?.user) pullUserSettings().catch(() => {})
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(sessionToUser(session))
+      // Ao logar, baixa as chaves de API salvas no servidor para este dispositivo.
+      if (event === 'SIGNED_IN' && session?.user) pullUserSettings().catch(() => {})
     })
     return () => sub.subscription.unsubscribe()
   }, [])

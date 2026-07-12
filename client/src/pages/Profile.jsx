@@ -5,6 +5,7 @@ import { useDb } from '../lib/db'
 import { api } from '../lib/api'
 import { inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
 import { downloadFile } from '../lib/text'
+import { pushUserSettings } from '../lib/userSettings'
 import { Field } from './channels/ChannelsList'
 
 // Abas do original: Perfil | Segurança | APIs | Preferências | Avançado
@@ -443,6 +444,8 @@ function ApisTab() {
 
   function save() {
     persist()
+    // Sobe as chaves para o servidor (persistem entre navegadores). Silencioso.
+    pushUserSettings().catch(() => {})
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
