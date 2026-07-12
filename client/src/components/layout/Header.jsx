@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { Bell, BookOpen, ChevronRight, Crown, Eye, EyeOff, HelpCircle, KeyRound, LogOut, Moon, Settings, ShieldCheck, Sun, Sparkles } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
-import { useI18n } from '../../i18n'
+import { useI18n, LANGUAGES } from '../../i18n'
 import { useDb } from '../../lib/db'
 import { api } from '../../lib/api'
 import { usePrivacy, togglePrivacyGlobal } from '../privacy'
+import { AnchoredMenu } from '../AnchoredMenu'
 
 const planStyles = {
   // FUNDADOR = criador do sistema (admin) — acima de qualquer plano
@@ -36,6 +37,8 @@ export default function Header() {
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [langOpen, setLangOpen] = useState(false)
+  const langBtnRef = useRef(null)
   const { global: privacy } = usePrivacy()
   const [theme, setTheme] = useState(document.documentElement.dataset.theme || 'dark')
   const menuRef = useClickOutside(() => setMenuOpen(false))
@@ -96,10 +99,33 @@ export default function Header() {
           {privacy ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
 
-        {/* Idioma (bandeira em imagem — emoji de bandeira não renderiza no Windows) */}
-        <button onClick={() => setLang(lang === 'pt' ? 'en' : 'pt')} title={lang === 'pt' ? 'Switch to English' : 'Mudar para Português'} className={iconBtn}>
-          <img src={`https://flagcdn.com/w40/${lang === 'pt' ? 'br' : 'us'}.png`} alt={lang === 'pt' ? 'Brasil' : 'EUA'} className="h-4 w-6 rounded-[3px] object-cover" />
-        </button>
+        {/* Idioma — seletor PT / EN / ES */}
+        {(() => {
+          const current = LANGUAGES.find((l) => l.code === lang) || LANGUAGES[0]
+          const flagCode = { pt: 'br', en: 'us', es: 'es' }[lang] || 'br'
+          return (
+            <>
+              <button ref={langBtnRef} onClick={() => setLangOpen((v) => !v)} title="Idioma / Language / Idioma" className={iconBtn}>
+                <img src={`https://flagcdn.com/w40/${flagCode}.png`} alt={current.label} className="h-4 w-6 rounded-[3px] object-cover" />
+              </button>
+              <AnchoredMenu open={langOpen} anchorRef={langBtnRef} onClose={() => setLangOpen(false)} width={168}>
+                {LANGUAGES.map((l) => (
+                  <button
+                    key={l.code}
+                    onClick={() => {
+                      setLang(l.code)
+                      setLangOpen(false)
+                    }}
+                    className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm ${l.code === lang ? 'bg-slate-800 text-cyan-300' : 'text-slate-300 hover:bg-slate-800'}`}
+                  >
+                    <img src={`https://flagcdn.com/w40/${{ pt: 'br', en: 'us', es: 'es' }[l.code]}.png`} alt="" className="h-4 w-6 rounded-[3px] object-cover" />
+                    {l.label}
+                  </button>
+                ))}
+              </AnchoredMenu>
+            </>
+          )
+        })()}
 
         {/* Notificações */}
         <div className="relative" ref={notifRef}>

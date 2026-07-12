@@ -1,8 +1,16 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import pt from './pt'
 import en from './en'
+import es from './es'
 
-const dictionaries = { pt, en }
+const dictionaries = { pt, en, es }
+
+// Idiomas disponíveis (usado pelo seletor de idioma).
+export const LANGUAGES = [
+  { code: 'pt', label: 'Português', flag: '🇧🇷' },
+  { code: 'en', label: 'English', flag: '🇺🇸' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+]
 
 const I18nContext = createContext(null)
 
@@ -12,7 +20,7 @@ export function I18nProvider({ children }) {
   const changeLang = useCallback((next) => {
     setLang(next)
     localStorage.setItem('dp_lang', next)
-    document.documentElement.lang = next === 'pt' ? 'pt-BR' : 'en'
+    document.documentElement.lang = { pt: 'pt-BR', en: 'en', es: 'es' }[next] || 'pt-BR'
   }, [])
 
   const t = useCallback(
