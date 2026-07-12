@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
-import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, GripVertical, LayoutGrid, Minus, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, GripVertical, LayoutGrid, Minus } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
 
@@ -78,7 +78,6 @@ export default function IdeaBoard() {
               cards={cards.filter((c) => c.columnId === col.id)}
               onRename={() => setRenameColumn(col)}
               onDelete={() => setDeleteColumn(col)}
-              onToggleCollapse={() => db.update('boardColumns', col.id, { collapsed: !col.collapsed })}
             />
           ))}
           {/* Coluna fantasma "+ Nova Coluna" */}
@@ -111,7 +110,7 @@ export default function IdeaBoard() {
 }
 
 // ---------------------------------------------------------------------------
-function Column({ column, cards, onRename, onDelete, onToggleCollapse }) {
+function Column({ column, cards, onRename, onDelete }) {
   const db = useDb()
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
@@ -123,25 +122,6 @@ function Column({ column, cards, onRename, onDelete, onToggleCollapse }) {
       content: type === 'nota' ? '' : null,
       position: cards.length,
     })
-  }
-
-  // Coluna recolhida: vira uma faixa estreita e vertical (clique para expandir).
-  if (column.collapsed) {
-    return (
-      <div
-        ref={setNodeRef}
-        className={`flex h-full min-h-[60vh] w-12 shrink-0 cursor-pointer flex-col items-center gap-2 rounded-xl border bg-slate-900/40 py-3 transition-colors ${
-          isOver ? 'border-cyan-500/60 bg-cyan-500/5' : 'border-slate-800 hover:border-slate-700'
-        }`}
-        onClick={onToggleCollapse}
-        title="Expandir coluna"
-      >
-        <ChevronRight size={14} className="text-slate-500" />
-        <span className="h-3 w-1 rounded-full" style={{ background: column.color || '#00f2fe' }} />
-        <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{cards.length}</span>
-        <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-300 [writing-mode:vertical-rl]">{column.title}</p>
-      </div>
-    )
   }
 
   return (
@@ -157,9 +137,6 @@ function Column({ column, cards, onRename, onDelete, onToggleCollapse }) {
         <p className="truncate text-xs font-bold uppercase tracking-wide text-slate-200">{column.title}</p>
         <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{cards.length}</span>
         <div className="ml-auto flex items-center gap-1">
-          <button onClick={onToggleCollapse} title="Minimizar coluna" className="text-slate-600 hover:text-slate-300">
-            <Minus size={13} />
-          </button>
           <button onClick={onRename} title="Configurar coluna" className="text-slate-600 hover:text-slate-300">
             <Settings2 size={13} />
           </button>
@@ -233,33 +210,46 @@ function Card({ card }) {
             NOTA
           </span>
           <button
+            onClick={() => db.update('boardCards', card.id, { collapsed: !card.collapsed })}
+            className="ml-auto text-slate-600 hover:text-slate-300"
+            title={card.collapsed ? 'Expandir' : 'Minimizar'}
+          >
+            {card.collapsed ? <Plus size={12} /> : <Minus size={12} />}
+          </button>
+          <button
             onClick={() => db.remove('boardCards', card.id)}
-            className="ml-auto text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+            className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
             title="Excluir"
           >
             <X size={12} />
           </button>
         </div>
-        {editing ? (
-          <textarea
-            autoFocus
-            defaultValue={card.content || card.title || ''}
-            onBlur={(e) => {
-              db.update('boardCards', card.id, { content: e.target.value, title: '' })
-              setEditing(false)
-            }}
-            className="mt-2 min-h-24 w-full resize-y rounded border border-slate-800 bg-slate-900 p-2 text-xs leading-relaxed text-slate-200 focus:outline-none"
-          />
+        {card.collapsed ? (
+          <p className="mt-2 truncate text-[11px] text-slate-500">{card.content || card.title || '(nota vazia)'}</p>
         ) : (
           <>
-            <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-slate-300">{card.content || card.title || '...'}</p>
-            <p className="mt-2 text-[9px] text-slate-600">Duplo clique para editar...</p>
+            {editing ? (
+              <textarea
+                autoFocus
+                defaultValue={card.content || card.title || ''}
+                onBlur={(e) => {
+                  db.update('boardCards', card.id, { content: e.target.value, title: '' })
+                  setEditing(false)
+                }}
+                className="mt-2 min-h-24 w-full resize-y rounded border border-slate-800 bg-slate-900 p-2 text-xs leading-relaxed text-slate-200 focus:outline-none"
+              />
+            ) : (
+              <>
+                <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-slate-300">{card.content || card.title || '...'}</p>
+                <p className="mt-2 text-[9px] text-slate-600">Duplo clique para editar...</p>
+              </>
+            )}
+            {card.source && card.source !== 'manual' && (
+              <span className="mt-2 inline-block rounded bg-black/30 px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-slate-500">
+                {{ niche_finder: 'NICHE FINDER', viral_videos: 'VÍDEOS VIRAIS', niche_doubling: 'DOBRA DE NICHO' }[card.source] || card.source}
+              </span>
+            )}
           </>
-        )}
-        {card.source && card.source !== 'manual' && (
-          <span className="mt-2 inline-block rounded bg-black/30 px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-slate-500">
-            {{ niche_finder: 'NICHE FINDER', viral_videos: 'VÍDEOS VIRAIS', niche_doubling: 'DOBRA DE NICHO' }[card.source] || card.source}
-          </span>
         )}
       </div>
     )
@@ -277,34 +267,53 @@ function Card({ card }) {
             <CheckSquare size={9} />
             CHECKLIST
           </span>
-          <button onClick={() => setChecklistOpen(true)} className="ml-auto text-slate-600 opacity-0 transition-opacity hover:text-slate-300 group-hover:opacity-100" title="Editar">
+          <button
+            onClick={() => db.update('boardCards', card.id, { collapsed: !card.collapsed })}
+            className="ml-auto text-slate-600 hover:text-slate-300"
+            title={card.collapsed ? 'Expandir' : 'Minimizar'}
+          >
+            {card.collapsed ? <Plus size={12} /> : <Minus size={12} />}
+          </button>
+          <button onClick={() => setChecklistOpen(true)} className="text-slate-600 opacity-0 transition-opacity hover:text-slate-300 group-hover:opacity-100" title="Editar">
             <Settings2 size={12} />
           </button>
           <button onClick={() => db.remove('boardCards', card.id)} className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100" title="Excluir">
             <X size={12} />
           </button>
         </div>
-        <p className="mt-2 text-xs font-semibold text-slate-200">{card.title}</p>
-        {items.slice(0, 4).map((item) => (
-          <label key={item.id} className="mt-1.5 flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={item.done}
-              onChange={(e) => db.update('checklistItems', item.id, { done: e.target.checked })}
-              className="h-3.5 w-3.5 rounded accent-cyan-500"
-            />
-            <span className={`text-[11px] ${item.done ? 'text-slate-600 line-through' : 'text-slate-300'}`}>{item.label}</span>
-          </label>
-        ))}
-        {items.length > 0 && (
-          <p className="mt-2 text-[10px] text-slate-500">
-            {done}/{items.length} tarefas completadas
-          </p>
-        )}
-        {items.length === 0 && (
-          <button onClick={() => setChecklistOpen(true)} className="mt-1.5 text-[10px] text-cyan-400 hover:underline">
-            + adicionar tarefas
-          </button>
+        <p className="mt-2 truncate text-xs font-semibold text-slate-200">{card.title}</p>
+        {card.collapsed ? (
+          items.length > 0 && (
+            <p className="mt-1 text-[10px] text-slate-500">
+              {done}/{items.length} tarefas
+            </p>
+          )
+        ) : (
+          <>
+            <div className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto">
+              {items.map((item) => (
+                <label key={item.id} className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={item.done}
+                    onChange={(e) => db.update('checklistItems', item.id, { done: e.target.checked })}
+                    className="h-3.5 w-3.5 shrink-0 rounded accent-cyan-500"
+                  />
+                  <span className={`text-[11px] ${item.done ? 'text-slate-600 line-through' : 'text-slate-300'}`}>{item.label}</span>
+                </label>
+              ))}
+            </div>
+            {items.length > 0 && (
+              <p className="mt-2 text-[10px] text-slate-500">
+                {done}/{items.length} tarefas completadas
+              </p>
+            )}
+            {items.length === 0 && (
+              <button onClick={() => setChecklistOpen(true)} className="mt-1.5 text-[10px] text-cyan-400 hover:underline">
+                + adicionar tarefas
+              </button>
+            )}
+          </>
         )}
       </div>
 

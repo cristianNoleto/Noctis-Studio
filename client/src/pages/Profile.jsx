@@ -465,9 +465,6 @@ function TwoFactorCard({ isLocalMode }) {
             {busy ? <Loader2 size={15} className="animate-spin" /> : <Shield size={15} />}
             Ativar 2FA (app autenticador)
           </button>
-          <p className="text-[11px] text-slate-600">
-            Também queremos oferecer 2FA por <strong>código no e-mail</strong>. Isso exige um serviço de envio de e-mail configurado (SMTP do Supabase ou Resend) — quando estiver ativo, adiciono essa opção aqui.
-          </p>
         </div>
       )}
       <ConfirmDialog
