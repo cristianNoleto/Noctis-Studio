@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Plus, Search, Bookmark, MoreVertical, Pencil, ExternalLink, Trash2, Loader2 } from 'lucide-react'
 import { useDb } from '../lib/db'
+import { useI18n } from '../i18n'
 import { api, apiErrorMessage } from '../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, EmptyState } from '../components/ui'
 import { AnchoredMenu } from '../components/AnchoredMenu'
@@ -10,6 +11,7 @@ import { Field } from './channels/ChannelsList'
 // accordion; referências sem nicho caem em "Sem Nicho".
 export default function References() {
   const db = useDb()
+  const { t } = useI18n()
   const [modal, setModal] = useState(null) // 'new' | referência (edição)
   const [channelFilter, setChannelFilter] = useState('')
   const [nicheFilter, setNicheFilter] = useState('')
@@ -19,7 +21,7 @@ export default function References() {
   const refs = db.all('referenceChannels')
   const channels = db.all('channels')
 
-  const channelName = (id) => (id ? channels.find((c) => c.id === id)?.name || 'Canal' : 'Global')
+  const channelName = (id) => (id ? channels.find((c) => c.id === id)?.name || t('references.channelFallback') : t('references.globalLabel'))
 
   let filtered = refs
   if (channelFilter === 'global') filtered = filtered.filter((r) => !r.channelId)
@@ -44,21 +46,21 @@ export default function References() {
             <Bookmark size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-100">Referências de Canais</h1>
-            <p className="text-sm text-slate-500">Canais que você acompanha para inspiração, análise e modelagem de títulos por nicho</p>
+            <h1 className="text-2xl font-bold text-slate-100">{t('references.title')}</h1>
+            <p className="text-sm text-slate-500">{t('references.subtitle')}</p>
           </div>
         </div>
         <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setModal('new')}>
           <Plus size={16} />
-          Novo Canal →
+          {t('references.newChannel')}
         </button>
       </div>
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2">
         <select className={`${inputCls} !w-52`} value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}>
-          <option value="">Todas as Referências</option>
-          <option value="global">Globais</option>
+          <option value="">{t('references.allRefs')}</option>
+          <option value="global">{t('references.global')}</option>
           {channels.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -66,27 +68,27 @@ export default function References() {
           ))}
         </select>
         <select className={`${inputCls} !w-48`} value={nicheFilter} onChange={(e) => setNicheFilter(e.target.value)}>
-          <option value="">Todos os Nichos</option>
+          <option value="">{t('references.allNiches')}</option>
           {niches.map((n) => (
             <option key={n} value={n}>
-              {n}
+              {n === 'Sem Nicho' ? t('references.noNiche') : n}
             </option>
           ))}
         </select>
         <div className="relative min-w-56 flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input className={`${inputCls} !pl-9`} placeholder="Buscar canais..." value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className={`${inputCls} !pl-9`} placeholder={t('references.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
       </div>
 
       {refs.length === 0 && (
         <EmptyState
           icon={Bookmark}
-          title="Nenhum canal de referência"
-          description="Cole a URL de um canal do YouTube — nome e foto são extraídos automaticamente e o canal entra no nicho que você definir."
+          title={t('references.emptyTitle')}
+          description={t('references.emptyDesc')}
           action={
             <button className={btnPrimary} onClick={() => setModal('new')}>
-              Adicionar primeiro canal
+              {t('references.addFirst')}
             </button>
           }
         />
@@ -104,9 +106,9 @@ export default function References() {
             >
               {open ? <ChevronDown size={16} className="text-cyan-400" /> : <ChevronRight size={16} className="text-slate-500" />}
               <div>
-                <p className="font-semibold text-slate-100">{niche}</p>
+                <p className="font-semibold text-slate-100">{niche === 'Sem Nicho' ? t('references.noNiche') : niche}</p>
                 <p className="text-[11px] text-slate-500">
-                  {items.length} {items.length === 1 ? 'canal' : 'canais'}
+                  {items.length} {items.length === 1 ? t('references.channelOne') : t('references.channelMany')}
                 </p>
               </div>
               <span className="ml-auto flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/15 text-[11px] font-bold text-cyan-300">
@@ -138,6 +140,7 @@ export default function References() {
 
 function ReferenceCard({ reference: r, linkedName, onEdit }) {
   const db = useDb()
+  const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
   const btnRef = useRef(null)
   const url = r.youtubeUrl.startsWith('http') ? r.youtubeUrl : `https://youtube.com/${r.youtubeUrl}`
@@ -159,13 +162,13 @@ function ReferenceCard({ reference: r, linkedName, onEdit }) {
       </div>
 
       <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => setMenuOpen(false)} width={176}>
-        <MenuItem icon={Pencil} label="Editar" onClick={() => { setMenuOpen(false); onEdit() }} />
-        <MenuItem icon={ExternalLink} label="Abrir no YouTube" onClick={() => { setMenuOpen(false); window.open(url, '_blank') }} />
-        <MenuItem icon={Trash2} label="Excluir" danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />
+        <MenuItem icon={Pencil} label={t('references.menuEdit')} onClick={() => { setMenuOpen(false); onEdit() }} />
+        <MenuItem icon={ExternalLink} label={t('references.menuOpen')} onClick={() => { setMenuOpen(false); window.open(url, '_blank') }} />
+        <MenuItem icon={Trash2} label={t('references.menuDelete')} danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />
       </AnchoredMenu>
 
       <span className="mt-2.5 inline-block rounded-full bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-300">
-        Vinculado: {linkedName}
+        {t('references.linked')} {linkedName}
       </span>
 
       {r.notes && <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{r.notes}</p>}
@@ -190,6 +193,7 @@ function MenuItem({ icon: Icon, label, onClick, danger }) {
 // ---------------------------------------------------------------------------
 export function ReferenceModal({ open, onClose, reference, channels, niches = [], presetUrl }) {
   const db = useDb()
+  const { t } = useI18n()
   const [url, setUrl] = useState('')
   const [channelId, setChannelId] = useState('')
   const [niche, setNiche] = useState('')
@@ -239,20 +243,20 @@ export function ReferenceModal({ open, onClose, reference, channels, niches = []
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={reference ? 'Editar Canal de Referência' : 'Adicionar Canal de Referência'}>
-      <p className="-mt-3 mb-5 text-xs text-slate-500">Cole a URL do Canal do YouTube. O nome e foto serão extraídos automaticamente.</p>
+    <Modal open={open} onClose={onClose} title={reference ? t('references.form.editTitle') : t('references.form.createTitle')}>
+      <p className="-mt-3 mb-5 text-xs text-slate-500">{t('references.form.desc')}</p>
       <form onSubmit={save} className="space-y-4">
         <div>
-          <Field label="URL DO CANAL DO YOUTUBE *">
+          <Field label={t('references.form.url')}>
             <input className={`${inputCls} font-mono text-xs`} required placeholder="https://www.youtube.com/@nomecanal" value={url} onChange={(e) => setUrl(e.target.value)} />
           </Field>
-          <p className="mt-1 text-[10px] text-slate-600">Exemplo: https://www.youtube.com/@parabolasdoprofeta</p>
+          <p className="mt-1 text-[10px] text-slate-600">{t('references.form.urlHint')}</p>
         </div>
 
         <div>
-          <Field label="VINCULAR AO CANAL (OPCIONAL)">
+          <Field label={t('references.form.link')}>
             <select className={inputCls} value={channelId} onChange={(e) => setChannelId(e.target.value)}>
-              <option value="">Global</option>
+              <option value="">{t('references.globalLabel')}</option>
               {channels.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -260,16 +264,16 @@ export function ReferenceModal({ open, onClose, reference, channels, niches = []
               ))}
             </select>
           </Field>
-          <p className="mt-1 text-[10px] text-slate-600">Deixe "Global" para referências compartilhadas entre todos os canais</p>
+          <p className="mt-1 text-[10px] text-slate-600">{t('references.form.linkHint')}</p>
         </div>
 
         <div>
-          <Field label="NICHO/CATEGORIA *">
+          <Field label={t('references.form.niche')}>
             <input
               className={inputCls}
               required
               list="niche-suggestions"
-              placeholder="Digite o nicho (ex: Religioso, Tecnologia, Educação...)"
+              placeholder={t('references.form.nichePlaceholder')}
               value={niche}
               onChange={(e) => setNiche(e.target.value)}
             />
@@ -279,22 +283,22 @@ export function ReferenceModal({ open, onClose, reference, channels, niches = []
               ))}
             </datalist>
           </Field>
-          <p className="mt-1 text-[10px] text-slate-600">Comece a digitar para ver sugestões ou crie um novo nicho</p>
+          <p className="mt-1 text-[10px] text-slate-600">{t('references.form.nicheHint')}</p>
         </div>
 
-        <Field label="NOTAS (OPCIONAL)">
-          <textarea className={`${inputCls} min-h-20 resize-y`} placeholder="Adicione observações sobre este canal..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <Field label={t('references.form.notes')}>
+          <textarea className={`${inputCls} min-h-20 resize-y`} placeholder={t('references.form.notesPlaceholder')} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
 
         {error && <p className="text-xs text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className={btnGhost} onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button type="submit" className={`${btnPrimary} flex items-center gap-2`} disabled={loading}>
             {loading && <Loader2 size={14} className="animate-spin" />}
-            Salvar Canal →
+            {t('references.form.save')}
           </button>
         </div>
       </form>
