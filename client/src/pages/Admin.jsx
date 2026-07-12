@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { ShieldCheck, Sparkles, Users, GraduationCap, ShieldAlert, Plus, Pencil, Trash2, Crown, X, Loader2, RefreshCw, Ban } from 'lucide-react'
+import { ShieldCheck, Sparkles, Users, GraduationCap, ShieldAlert, Plus, Pencil, Trash2, Crown, X, Loader2, RefreshCw, Ban, Radar, Play, Pause, Database } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
@@ -24,10 +24,13 @@ const TABS = [
 ]
 
 export default function Admin() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isFounder } = useAuth()
   const [tab, setTab] = useState('news')
 
   if (!isAdmin) return <Navigate to="/" replace />
+
+  // A aba "Descoberta" (busca automática da base) é exclusiva do fundador.
+  const tabs = isFounder ? [...TABS, ['crawl', 'Descoberta', Radar]] : TABS
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -42,7 +45,7 @@ export default function Admin() {
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {TABS.map(([key, label, Icon]) => (
+        {tabs.map(([key, label, Icon]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -60,6 +63,7 @@ export default function Admin() {
       {tab === 'members' && <MembersTab />}
       {tab === 'academy' && <AcademyTab />}
       {tab === 'removed' && <RemovedTab />}
+      {tab === 'crawl' && isFounder && <AutoCrawlTab />}
     </div>
   )
 }
@@ -527,6 +531,240 @@ function RemovedTab() {
         onConfirm={() => db.remove('removedChannels', deleting.id)}
         title="Remover da base"
         message={`Remover "${deleting?.name}" da base de canais removidos?`}
+      />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Descoberta automática (EXCLUSIVO do fundador) — enche a base global
+// niche_channels sozinha. É "client-driven": roda no navegador do fundador
+// enquanto esta aba estiver aberta (a Vercel é serverless, não roda loop
+// persistente). Respeita um teto diário de buscas p/ não estourar a cota do
+// YouTube, e pode ser ligada/desligada a qualquer momento (com confirmação).
+// ---------------------------------------------------------------------------
+const CRAWL_TERMS = [
+  'histórias de terror', 'curiosidades', 'fatos históricos', 'motivação', 'mistérios', 'contos de guerra',
+  'histórias bíblicas', 'frases de sabedoria', 'documentário', 'crimes reais', 'filosofia estoica', 'histórias reais',
+  'lendas urbanas', 'casos assustadores', 'reflexão', 'histórias de vingança', 'ciência espacial', 'universo',
+  'psicologia', 'desenvolvimento pessoal', 'dinheiro e finanças', 'histórias de sucesso', 'mitologia', 'egito antigo',
+  'segunda guerra mundial', 'histórias do além', 'contos sombrios', 'meditação', 'sabedoria antiga', 'estoicismo',
+  'true crime', 'scary stories', 'horror stories', 'creepypasta', 'space facts', 'history documentary',
+  'motivation', 'stoic philosophy', 'bible stories', 'mystery', 'unsolved mysteries', 'ancient history',
+  'psychology facts', 'science facts', 'sleep stories', 'reddit stories', 'money mindset', 'success stories',
+  'ancient civilizations', 'greek mythology', 'dark history', 'war stories', 'true horror', 'paranormal',
+  'facts', 'motivational speech', 'life lessons', 'philosophy', 'universe documentary', 'deep sleep',
+  'terror', 'suspense', 'assombração', 'sobrenatural', 'histórias sombrias', 'contos de fadas sombrios',
+]
+
+function crawlDaily(db) {
+  const d = db.getSetting('autoCrawlDaily')
+  return d && d.date === new Date().toDateString() ? d.count || 0 : 0
+}
+
+function AutoCrawlTab() {
+  const db = useDb()
+  const [stats, setStats] = useState({ total: 0, thisWeek: 0 })
+  const [running, setRunning] = useState(false)
+  const [confirm, setConfirm] = useState(null) // 'on' | 'off' | null
+  const [log, setLog] = useState([])
+  const [sessionAdded, setSessionAdded] = useState(0)
+  const [current, setCurrent] = useState('')
+  const [cap, setCap] = useState(() => db.getSetting('autoCrawlCap', 300))
+  const [usedToday, setUsedToday] = useState(() => crawlDaily(db))
+  const [error, setError] = useState('')
+
+  const runningRef = useRef(false)
+  const termRef = useRef(Math.floor(Math.random() * CRAWL_TERMS.length))
+  const usedRef = useRef(usedToday)
+  const capRef = useRef(cap)
+
+  const hasKeys = (db.getSetting('ytKeys', []) || []).some(Boolean)
+
+  useEffect(() => { capRef.current = cap }, [cap])
+
+  async function refreshStats() {
+    try { setStats(await api.channels.stats()) } catch { /* ignora */ }
+  }
+
+  // Carrega a contagem e retoma a busca se estava ligada (roda com a aba aberta).
+  useEffect(() => {
+    refreshStats()
+    if (db.getSetting('autoCrawlOn', false)) start(true)
+    return () => { runningRef.current = false }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function pushLog(entry) {
+    setLog((l) => [{ id: Date.now() + Math.random(), ...entry }, ...l].slice(0, 40))
+  }
+
+  function bumpDaily() {
+    const next = usedRef.current + 1
+    usedRef.current = next
+    setUsedToday(next)
+    db.setSetting('autoCrawlDaily', { date: new Date().toDateString(), count: next })
+  }
+
+  async function loop() {
+    while (runningRef.current) {
+      if (usedRef.current >= capRef.current) {
+        pushLog({ kind: 'stop', msg: `Teto diário atingido (${capRef.current} buscas). Volta amanhã.` })
+        stopInternal()
+        break
+      }
+      const term = CRAWL_TERMS[termRef.current % CRAWL_TERMS.length]
+      termRef.current += 1
+      setCurrent(term)
+      try {
+        const { results } = await api.youtube.searchChannels({ q: term })
+        const n = results?.length || 0
+        if (n) await api.channels.upsert(results)
+        setSessionAdded((s) => s + n)
+        bumpDaily()
+        pushLog({ kind: 'ok', msg: `"${term}" — ${n} canais`, n })
+        refreshStats()
+      } catch (err) {
+        const msg = apiErrorMessage(err)
+        pushLog({ kind: 'err', msg: `"${term}" — ${msg}` })
+        if (err?.code === 'all_keys_exhausted' || err?.code === 'missing_yt_keys') {
+          setError(msg)
+          stopInternal()
+          break
+        }
+      }
+      await new Promise((r) => setTimeout(r, 4500))
+    }
+  }
+
+  function start(silent) {
+    if (runningRef.current) return
+    setError('')
+    runningRef.current = true
+    setRunning(true)
+    db.setSetting('autoCrawlOn', true)
+    if (!silent) setSessionAdded(0)
+    loop()
+  }
+
+  function stopInternal() {
+    runningRef.current = false
+    setRunning(false)
+    setCurrent('')
+    db.setSetting('autoCrawlOn', false)
+  }
+
+  function applyToggle() {
+    if (confirm === 'on') start(false)
+    else if (confirm === 'off') stopInternal()
+    setConfirm(null)
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs leading-relaxed text-slate-500">
+        Enche a base global do Niche Finder automaticamente. A busca roda <strong className="text-slate-300">enquanto esta aba estiver aberta</strong> (pausa ao fechar/trocar de aba e retoma quando você voltar), usando <strong className="text-slate-300">suas chaves da YouTube API</strong>. Respeita um teto diário para não estourar a cota.
+      </p>
+
+      {/* Base global */}
+      <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-400">
+            <Database size={19} />
+          </div>
+          <div>
+            <p className="text-lg font-bold text-slate-100">{formatCompact(stats.total)} canais</p>
+            <p className="text-[11px] text-slate-500">na base global{stats.thisWeek > 0 ? ` · +${formatCompact(stats.thisWeek)} esta semana` : ''}</p>
+          </div>
+        </div>
+        <button onClick={refreshStats} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 text-xs`}>
+          <RefreshCw size={12} />
+          Atualizar
+        </button>
+      </div>
+
+      {!hasKeys && (
+        <p className="rounded-lg bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-400">
+          Configure suas chaves da YouTube API em <strong>Perfil → APIs</strong> antes de ligar a busca automática.
+        </p>
+      )}
+      {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400">{error}</p>}
+
+      {/* Controle liga/desliga */}
+      <div className={`rounded-xl border p-4 ${running ? 'border-cyan-500/40 bg-cyan-500/5' : 'border-slate-800 bg-slate-900/40'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${running ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-400'}`}>
+              <Radar size={18} className={running ? 'animate-pulse' : ''} />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-slate-100">Busca automática {running ? 'LIGADA' : 'desligada'}</p>
+              <p className="text-[11px] text-slate-500">
+                {running ? (current ? `Pesquisando "${current}"…` : 'Iniciando…') : 'Pronta para ligar'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setConfirm(running ? 'off' : 'on')}
+            disabled={!hasKeys && !running}
+            className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold transition-colors disabled:opacity-50 ${
+              running ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-cyan-500 text-slate-950 hover:bg-cyan-400'
+            }`}
+          >
+            {running ? <><Pause size={15} /> Desligar</> : <><Play size={15} /> Ligar busca</>}
+          </button>
+        </div>
+
+        {/* Métricas da sessão */}
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg bg-slate-900/60 px-2 py-2.5">
+            <p className="text-base font-bold text-cyan-300">{sessionAdded}</p>
+            <p className="text-[10px] text-slate-500">canais nesta sessão</p>
+          </div>
+          <div className="rounded-lg bg-slate-900/60 px-2 py-2.5">
+            <p className="text-base font-bold text-slate-200">{usedToday}<span className="text-slate-600">/{cap}</span></p>
+            <p className="text-[10px] text-slate-500">buscas hoje</p>
+          </div>
+          <div className="rounded-lg bg-slate-900/60 px-2 py-2.5">
+            <label className="block text-[10px] text-slate-500">teto diário</label>
+            <input
+              type="number"
+              min="10"
+              max="2000"
+              value={cap}
+              disabled={running}
+              onChange={(e) => { const v = Math.max(10, Math.min(2000, Number(e.target.value) || 10)); setCap(v); db.setSetting('autoCrawlCap', v) }}
+              className="mt-0.5 w-full bg-transparent text-center text-base font-bold text-slate-200 outline-none disabled:opacity-60"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Log ao vivo */}
+      {log.length > 0 && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+          <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Atividade recente</p>
+          <div className="max-h-64 space-y-1 overflow-y-auto">
+            {log.map((e) => (
+              <div key={e.id} className="flex items-center gap-2 rounded px-2 py-1 text-xs">
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.kind === 'ok' ? 'bg-green-400' : e.kind === 'err' ? 'bg-red-400' : 'bg-amber-400'}`} />
+                <span className={`flex-1 truncate ${e.kind === 'err' ? 'text-red-400' : 'text-slate-400'}`}>{e.msg}</span>
+                <span className="shrink-0 text-[10px] text-slate-600">{new Date(e.id).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirm !== null}
+        onClose={() => setConfirm(null)}
+        onConfirm={applyToggle}
+        title={confirm === 'off' ? 'Desligar busca automática' : 'Ligar busca automática'}
+        message={
+          confirm === 'off'
+            ? 'A busca para de rodar. Você pode religar quando quiser.'
+            : `Enquanto esta aba ficar aberta, o sistema vai pesquisar canais no YouTube e adicioná-los à base global — consumindo cota das suas chaves da YouTube API (até ${cap} buscas hoje, ~1 a cada 4,5s). Pode desligar a qualquer momento.`
+        }
       />
     </div>
   )
