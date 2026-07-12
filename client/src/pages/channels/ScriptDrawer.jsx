@@ -18,6 +18,12 @@ export default function ScriptDrawer({ video, onClose }) {
     const current = db.all('scripts').find((s) => s.videoId === video.id)
     if (current) db.update('scripts', current.id, { content: text })
     else db.insert('scripts', { videoId: video.id, content: text })
+    // Auto-marca a etapa "Roteiro" quando há ao menos 1 caractere salvo.
+    // Nunca desmarca sozinho: apagar o texto não desmarca a caixinha.
+    if (text.trim().length >= 1) {
+      const v = db.get('videos', video.id)
+      if (v && !v.steps?.roteiro) db.update('videos', video.id, { steps: { ...(v.steps || {}), roteiro: true } })
+    }
     setSavedAt(Date.now())
     setDirty(false)
   }

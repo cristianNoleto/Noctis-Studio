@@ -17,14 +17,43 @@ import {
   ExternalLink,
   DownloadCloud,
   Calendar,
+  ZoomIn,
+  Upload,
+  Download,
+  SquareCheckBig,
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
 import { importChannelVideos } from '../../lib/importVideos'
+import { deriveStatus, isPosted, REQUIRED_STEPS } from '../../lib/videoStatus'
 import { Modal, inputCls, btnPrimary, btnGhost, ScoreRing, ConfirmDialog, EmptyState } from '../../components/ui'
 import { Masked, RestrictedThumb } from '../../components/privacy'
 import { Field } from './ChannelsList'
 import ScriptDrawer from './ScriptDrawer'
+
+// Comprime a imagem no navegador para caber leve no localStorage (base64):
+// redimensiona para no máx. 320px de largura e salva em JPEG de baixa qualidade
+// — o suficiente para reconhecer qual é a thumb, sem pesar.
+function compressThumb(file, maxW = 320, quality = 0.55) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width)
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = reject
+      img.src = reader.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
 const TABS = [
   ['all', 'Todos'],
@@ -32,14 +61,6 @@ const TABS = [
   ['production', 'Produção'],
   ['finished', 'Finalizado'],
   ['scheduled_published', 'Agendado/Publicado'],
-]
-
-const STATUS_OPTIONS = [
-  ['planning', 'Planejamento'],
-  ['production', 'Produção'],
-  ['finished', 'Finalizado'],
-  ['scheduled', 'Agendado'],
-  ['published', 'Publicado'],
 ]
 
 export const STEPS = [
@@ -53,8 +74,7 @@ export const STEPS = [
 
 function matchesTab(video, tab) {
   if (tab === 'all') return true
-  if (tab === 'scheduled_published') return ['scheduled', 'published'].includes(video.status)
-  return video.status === tab
+  return deriveStatus(video) === tab
 }
 
 export default function VideosTable({ channelId, channel }) {
@@ -71,6 +91,7 @@ export default function VideosTable({ channelId, channel }) {
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState('')
   const [importError, setImportError] = useState('')
+  const [publishConfirm, setPublishConfirm] = useState(null) // { video, missing[] }
 
   const videos = db.all('videos').filter((v) => v.channelId === channelId)
   const counts = Object.fromEntries(TABS.map(([key]) => [key, videos.filter((v) => matchesTab(v, key)).length]))
@@ -102,8 +123,30 @@ export default function VideosTable({ channelId, channel }) {
   }
 
   function toggleStep(video, key) {
-    const steps = { ...(video.steps || {}), [key]: !video.steps?.[key] }
-    db.update('videos', video.id, { steps })
+    const turningOn = !video.steps?.[key]
+    // Ao marcar "Publicado" com etapas faltando, pede confirmação (completar tudo).
+    if (key === 'publicado' && turningOn) {
+      const missing = REQUIRED_STEPS.filter(([s]) => !video.steps?.[s])
+      if (missing.length) {
+        setPublishConfirm({ video, missing })
+        return
+      }
+    }
+    const steps = { ...(video.steps || {}), [key]: turningOn }
+    const patch = { steps }
+    // Ao virar publicado sem data definida, agenda para agora (cai em postados após a data).
+    if (key === 'publicado' && turningOn && !video.publishedAt) patch.publishedAt = new Date().toISOString()
+    db.update('videos', video.id, patch)
+  }
+
+  // "Sim, completar" no modal: marca todas as etapas e publica.
+  function confirmPublishAll() {
+    const v = publishConfirm.video
+    const steps = { titulo: true, roteiro: true, audio: true, thumbnail: true, renderizado: true, publicado: true }
+    const patch = { steps }
+    if (!v.publishedAt) patch.publishedAt = new Date().toISOString()
+    db.update('videos', v.id, patch)
+    setPublishConfirm(null)
   }
 
   // ------ Relatórios SEO em lote: analisa todos os vídeos sem relatório ------
@@ -276,6 +319,40 @@ export default function VideosTable({ channelId, channel }) {
         title="Excluir vídeo"
         message={`Excluir "${deleteVideo?.title}" apaga também o roteiro vinculado.`}
       />
+      <PublishConfirmModal data={publishConfirm} onClose={() => setPublishConfirm(null)} onConfirm={confirmPublishAll} />
+    </div>
+  )
+}
+
+// Modal ao marcar "Publicado" com etapas faltando (layout do print).
+function PublishConfirmModal({ data, onClose, onConfirm }) {
+  if (!data) return null
+  const missingLabels = data.missing.map(([, label]) => label).join(', ')
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-[420px] rounded-2xl border border-slate-800 bg-slate-900 p-7" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/12 text-sky-400">
+          <SquareCheckBig size={22} />
+        </div>
+        <h3 className="mb-2 text-base font-semibold text-slate-100">Completar checklist</h3>
+        <p className="mb-6 text-sm leading-relaxed text-slate-400">
+          Para marcar como "Agendado/Publicado", é necessário completar: {missingLabels}.
+          <br />
+          <br />
+          Deseja marcar todas as etapas como concluídas agora?
+        </p>
+        <div className="flex justify-end gap-2.5">
+          <button onClick={onClose} className="rounded-xl border border-slate-800 px-5 py-2 text-[13px] font-medium text-slate-400 transition-colors hover:bg-slate-800/50">
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="rounded-xl bg-gradient-to-br from-sky-500 to-blue-500 px-5 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Sim, completar
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -296,26 +373,45 @@ function ViewBtn({ active, onClick, icon, label }) {
 // Linha da lista (layout do print)
 // ---------------------------------------------------------------------------
 function StatusTag({ video }) {
-  if (['published', 'scheduled'].includes(video.status)) {
-    return <span className="rounded bg-purple-500/20 px-2 py-0.5 text-[10px] font-bold text-purple-300">Agendado/Publicado</span>
-  }
   const map = {
     planning: ['Planejamento', 'bg-slate-700/40 text-slate-300'],
     production: ['Produção', 'bg-amber-500/15 text-amber-400'],
     finished: ['Finalizado', 'bg-cyan-500/15 text-cyan-300'],
+    scheduled_published: ['Agendado/Publicado', 'bg-green-500/15 text-green-300'],
   }
-  const [label, cls] = map[video.status] || map.planning
+  const [label, cls] = map[deriveStatus(video)] || map.planning
   return <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${cls}`}>{label}</span>
 }
 
 function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, onDelete }) {
   const db = useDb()
   const report = db.all('seoReports').filter((r) => r.videoId === v.id).sort((a, b) => b.createdAt - a.createdAt)[0]
+  const fileRef = useRef(null)
+  const [zoom, setZoom] = useState(false)
+
+  async function onPickFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const dataUrl = await compressThumb(file)
+      db.update('videos', v.id, { thumbnailUrl: dataUrl })
+    } catch {
+      /* ignora arquivo inválido */
+    }
+  }
+
+  function downloadThumb() {
+    const a = document.createElement('a')
+    a.href = v.thumbnailUrl
+    a.download = `${(v.title || 'thumbnail').slice(0, 40)}.jpg`
+    a.click()
+  }
 
   return (
     <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-3 transition-colors hover:border-slate-700">
       {/* Thumb — no modo restrito vira "?" (a imagem nem é carregada) */}
-      <div className="relative shrink-0">
+      <div className="group/thumb relative shrink-0">
         <RestrictedThumb
           src={v.thumbnailUrl}
           className="h-14 w-24 rounded-lg object-cover"
@@ -327,6 +423,35 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
           }
         />
         {v.youtubeUrl && <span className="absolute bottom-1 right-1 rounded bg-red-500 px-1 text-[8px] font-bold text-white">▶</span>}
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickFile} />
+        {/* Overlay de ações da thumbnail */}
+        <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-black/70 opacity-0 transition-opacity group-hover/thumb:opacity-100">
+          {v.thumbnailUrl ? (
+            <>
+              <ThumbBtn title="Visualizar" onClick={() => setZoom(true)}>
+                <ZoomIn size={12} />
+              </ThumbBtn>
+              <ThumbBtn title="Substituir thumbnail" onClick={() => fileRef.current?.click()}>
+                <Upload size={12} />
+              </ThumbBtn>
+              <ThumbBtn title="Baixar thumbnail" onClick={downloadThumb}>
+                <Download size={12} />
+              </ThumbBtn>
+              <ThumbBtn title="Remover thumbnail" danger onClick={() => db.update('videos', v.id, { thumbnailUrl: null })}>
+                <Trash2 size={12} />
+              </ThumbBtn>
+            </>
+          ) : (
+            <ThumbBtn title="Enviar thumbnail" onClick={() => fileRef.current?.click()}>
+              <Upload size={12} />
+            </ThumbBtn>
+          )}
+        </div>
+        {zoom && v.thumbnailUrl && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-6" onClick={() => setZoom(false)}>
+            <img src={v.thumbnailUrl} alt="" className="max-h-[85vh] max-w-[85vw] rounded-lg object-contain" onClick={(e) => e.stopPropagation()} />
+          </div>
+        )}
       </div>
 
       {/* Badges + data */}
@@ -403,6 +528,18 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
   )
 }
 
+function ThumbBtn({ children, title, onClick, danger }) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      className={`flex items-center justify-center rounded p-1 transition-colors ${danger ? 'bg-red-500/30 text-red-300 hover:bg-red-500/50' : 'bg-white/15 text-white hover:bg-white/30'}`}
+    >
+      {children}
+    </button>
+  )
+}
+
 function RowBtn({ children, title, onClick, danger }) {
   return (
     <button
@@ -433,8 +570,18 @@ function VideosKanban({ videos, onOpenScript }) {
 
   function onDragEnd({ active, over }) {
     if (!over) return
-    const status = over.id === 'scheduled_published' ? 'published' : over.id
-    db.update('videos', active.id, { status })
+    const v = db.get('videos', active.id)
+    if (!v) return
+    // Arrastar para uma coluna ajusta as etapas para bater com aquele estágio.
+    const base = { titulo: true, roteiro: false, audio: false, thumbnail: false, renderizado: false, publicado: false }
+    const steps = { ...base, ...(v.steps || {}), titulo: true }
+    if (over.id === 'planning') Object.assign(steps, { roteiro: false, audio: false, thumbnail: false, renderizado: false, publicado: false })
+    else if (over.id === 'production') Object.assign(steps, { roteiro: true, renderizado: false, publicado: false })
+    else if (over.id === 'finished') Object.assign(steps, { roteiro: true, renderizado: true, publicado: false })
+    else if (over.id === 'scheduled_published') Object.assign(steps, { roteiro: true, renderizado: true, publicado: true })
+    const patch = { steps }
+    if (over.id === 'scheduled_published' && !v.publishedAt) patch.publishedAt = new Date().toISOString()
+    db.update('videos', active.id, patch)
   }
 
   return (
@@ -508,7 +655,6 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
         postDate: video?.publishedAt ? String(video.publishedAt).slice(0, 10) : '',
         tags: (video?.tags || []).join(', '),
         thumbnailUrl: video?.thumbnailUrl || '',
-        status: video?.status || 'planning',
       })
     }
   }, [open, video])
@@ -526,7 +672,6 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
       publishedAt: form.postDate ? `${form.postDate}T12:00:00Z` : video?.publishedAt || null,
       tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
       thumbnailUrl: form.thumbnailUrl || null,
-      status: form.status,
     }
     if (video) db.update('videos', video.id, payload)
     else db.insert('videos', { channelId, ...payload, videoNumber: nextNumber, steps: { titulo: true } })
@@ -568,23 +713,13 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
           <p className="mt-1 text-[10px] text-slate-600">Deixe vazio para definir automaticamente ao marcar como Agendado/Publicado</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="TAGS (separadas por vírgula)">
-            <input className={inputCls} value={form.tags || ''} onChange={(e) => set('tags', e.target.value)} />
-          </Field>
-          <Field label="STATUS">
-            <select className={inputCls} value={form.status} onChange={(e) => set('status', e.target.value)}>
-              {STATUS_OPTIONS.map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        <Field label="URL DA THUMBNAIL (opcional)">
-          <input className={inputCls} value={form.thumbnailUrl || ''} onChange={(e) => set('thumbnailUrl', e.target.value)} placeholder="https://..." />
+        <Field label="TAGS (separadas por vírgula)">
+          <input className={inputCls} value={form.tags || ''} onChange={(e) => set('tags', e.target.value)} />
         </Field>
+        <Field label="URL DA THUMBNAIL (opcional)">
+          <input className={inputCls} value={form.thumbnailUrl || ''} onChange={(e) => set('thumbnailUrl', e.target.value)} placeholder="https://... (ou use o upload na lista de vídeos)" />
+        </Field>
+        <p className="-mt-2 text-[10px] text-slate-600">O status (Planejamento → Produção → Finalizado → Agendado/Publicado) é automático, conforme as caixinhas de etapa marcadas.</p>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className={btnGhost} onClick={onClose}>
             Cancelar
@@ -610,8 +745,8 @@ function LinkYoutubeModal({ open, onClose, video }) {
     e.preventDefault()
     db.update('videos', video.id, {
       youtubeUrl: url.trim(),
-      status: 'published',
-      steps: { ...(video.steps || {}), publicado: true },
+      publishedAt: video.publishedAt || new Date().toISOString(),
+      steps: { ...(video.steps || {}), titulo: true, roteiro: true, audio: true, thumbnail: true, renderizado: true, publicado: true },
     })
     onClose()
   }

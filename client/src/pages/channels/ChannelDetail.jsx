@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
+import { isPosted } from '../../lib/videoStatus'
 import { ConfirmDialog, formatCompact } from '../../components/ui'
 import { PrivacyScope, PageEye, Masked } from '../../components/privacy'
 import { ChannelAvatar } from '../Dashboard'
@@ -66,7 +67,7 @@ export default function ChannelDetail() {
   const nextChannel = allChannels[chIndex + 1]
 
   const videos = db.all('videos').filter((v) => v.channelId === id)
-  const posted = videos.filter((v) => ['published', 'scheduled'].includes(v.status)).length
+  const posted = videos.filter(isPosted).length
   const pending = videos.length - posted
   const buttons = db.all('channelButtons').filter((b) => b.channelId === id).sort((a, b) => a.position - b.position)
   const promptsCount = db.all('prompts').filter((p) => p.channelId === id).length

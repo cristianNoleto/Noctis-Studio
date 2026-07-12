@@ -18,6 +18,7 @@ import {
 import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n'
 import { useDb } from '../lib/db'
+import { deriveStatus, isPosted } from '../lib/videoStatus'
 import { formatCompact } from '../components/ui'
 import { PrivacyScope, PageEye, Masked, useRestricted } from '../components/privacy'
 
@@ -55,9 +56,10 @@ export default function Dashboard() {
       date: new Date(u.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }),
     }))
 
-  const inProduction = videos.filter((v) => v.status === 'production').length
-  const published = videos.filter((v) => v.status === 'published').length
-  const scheduled = videos.filter((v) => v.status === 'scheduled').length
+  const inProduction = videos.filter((v) => deriveStatus(v) === 'production').length
+  const published = videos.filter(isPosted).length
+  // Agendados: já marcados como publicado, mas cuja data ainda não passou (não postados)
+  const scheduled = videos.filter((v) => deriveStatus(v) === 'scheduled_published' && !isPosted(v)).length
   const activeTranscriptions = transcriptions.filter((t) => !['done', 'error'].includes(t.status)).length
 
   const metrics = [
