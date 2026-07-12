@@ -142,7 +142,19 @@ export default function ChannelDetail() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h1 className="truncate text-xl font-bold text-slate-100"><Masked mask="•••••••">{channel.name}</Masked></h1>
-              <span className="flex items-center gap-1 rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">▶ YouTube</span>
+              {channel.youtubeChannelId ? (
+                <a
+                  href={`https://www.youtube.com/channel/${channel.youtubeChannelId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Abrir o canal no YouTube"
+                  className="flex shrink-0 items-center gap-1 rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white transition-colors hover:bg-red-600"
+                >
+                  ▶ YouTube
+                </a>
+              ) : (
+                <span className="flex shrink-0 items-center gap-1 rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">▶ YouTube</span>
+              )}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
               <span>🌐 {LANG_LABEL[channel.language] || channel.language}</span>

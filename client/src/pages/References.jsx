@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Plus, Search, Bookmark, MoreVertical, Pencil, ExternalLink, Trash2, Loader2 } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, EmptyState } from '../components/ui'
+import { AnchoredMenu } from '../components/AnchoredMenu'
 import { Field } from './channels/ChannelsList'
 
 // Agrupamento por NICHO (como no layout de referência): cada nicho vira um
@@ -138,6 +139,7 @@ export default function References() {
 function ReferenceCard({ reference: r, linkedName, onEdit }) {
   const db = useDb()
   const [menuOpen, setMenuOpen] = useState(false)
+  const btnRef = useRef(null)
   const url = r.youtubeUrl.startsWith('http') ? r.youtubeUrl : `https://youtube.com/${r.youtubeUrl}`
 
   return (
@@ -151,18 +153,16 @@ function ReferenceCard({ reference: r, linkedName, onEdit }) {
           </div>
         )}
         <p className="min-w-0 flex-1 truncate text-sm font-bold text-slate-100">{r.cachedStats?.title || r.youtubeUrl}</p>
-        <button onClick={() => setMenuOpen((v) => !v)} className="text-slate-600 hover:text-slate-300">
+        <button ref={btnRef} onClick={() => setMenuOpen((v) => !v)} className="text-slate-600 hover:text-slate-300">
           <MoreVertical size={15} />
         </button>
       </div>
 
-      {menuOpen && (
-        <div className="absolute right-3 top-11 z-20 w-44 rounded-lg border border-slate-800 bg-slate-900 p-1 shadow-xl" onMouseLeave={() => setMenuOpen(false)}>
-          <MenuItem icon={Pencil} label="Editar" onClick={() => { setMenuOpen(false); onEdit() }} />
-          <MenuItem icon={ExternalLink} label="Abrir no YouTube" onClick={() => window.open(url, '_blank')} />
-          <MenuItem icon={Trash2} label="Excluir" danger onClick={() => db.remove('referenceChannels', r.id)} />
-        </div>
-      )}
+      <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => setMenuOpen(false)} width={176}>
+        <MenuItem icon={Pencil} label="Editar" onClick={() => { setMenuOpen(false); onEdit() }} />
+        <MenuItem icon={ExternalLink} label="Abrir no YouTube" onClick={() => { setMenuOpen(false); window.open(url, '_blank') }} />
+        <MenuItem icon={Trash2} label="Excluir" danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />
+      </AnchoredMenu>
 
       <span className="mt-2.5 inline-block rounded-full bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-300">
         Vinculado: {linkedName}

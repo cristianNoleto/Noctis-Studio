@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { DndContext, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
-import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, GripVertical, LayoutGrid } from 'lucide-react'
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
+import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, GripVertical, LayoutGrid, Minus, ChevronRight } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
 
@@ -13,13 +13,16 @@ export default function IdeaBoard() {
   const [newSpaceOpen, setNewSpaceOpen] = useState(false)
   const [renameColumn, setRenameColumn] = useState(null)
   const [deleteColumn, setDeleteColumn] = useState(null)
+  const [activeId, setActiveId] = useState(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const spaces = db.all('boardSpaces')
   const columns = [...db.all('boardColumns')].filter((c) => (c.spaceId ?? null) === spaceId).sort((a, b) => a.position - b.position)
   const cards = db.all('boardCards')
+  const activeCard = activeId ? cards.find((c) => c.id === activeId) : null
 
   function onDragEnd({ active, over }) {
+    setActiveId(null)
     if (!over) return
     const card = db.get('boardCards', active.id)
     if (card && card.columnId !== over.id) db.update('boardCards', active.id, { columnId: over.id })
@@ -66,7 +69,7 @@ export default function IdeaBoard() {
       </div>
 
       {/* Colunas */}
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} onDragStart={({ active }) => setActiveId(active.id)} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
         <div className="flex flex-1 gap-3 overflow-x-auto pb-2">
           {columns.map((col) => (
             <Column
@@ -75,6 +78,7 @@ export default function IdeaBoard() {
               cards={cards.filter((c) => c.columnId === col.id)}
               onRename={() => setRenameColumn(col)}
               onDelete={() => setDeleteColumn(col)}
+              onToggleCollapse={() => db.update('boardColumns', col.id, { collapsed: !col.collapsed })}
             />
           ))}
           {/* Coluna fantasma "+ Nova Coluna" */}
@@ -85,6 +89,8 @@ export default function IdeaBoard() {
             + Nova Coluna
           </button>
         </div>
+        {/* Preview do card durante o arraste — renderizado acima de tudo, sem ser cortado */}
+        <DragOverlay dropAnimation={null}>{activeCard ? <CardPreview card={activeCard} /> : null}</DragOverlay>
       </DndContext>
 
       <NewColumnModal open={newColumnOpen} onClose={() => setNewColumnOpen(false)} position={columns.length} spaceId={spaceId} />
@@ -105,7 +111,7 @@ export default function IdeaBoard() {
 }
 
 // ---------------------------------------------------------------------------
-function Column({ column, cards, onRename, onDelete }) {
+function Column({ column, cards, onRename, onDelete, onToggleCollapse }) {
   const db = useDb()
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
@@ -117,6 +123,25 @@ function Column({ column, cards, onRename, onDelete }) {
       content: type === 'nota' ? '' : null,
       position: cards.length,
     })
+  }
+
+  // Coluna recolhida: vira uma faixa estreita e vertical (clique para expandir).
+  if (column.collapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={`flex h-full min-h-[60vh] w-12 shrink-0 cursor-pointer flex-col items-center gap-2 rounded-xl border bg-slate-900/40 py-3 transition-colors ${
+          isOver ? 'border-cyan-500/60 bg-cyan-500/5' : 'border-slate-800 hover:border-slate-700'
+        }`}
+        onClick={onToggleCollapse}
+        title="Expandir coluna"
+      >
+        <ChevronRight size={14} className="text-slate-500" />
+        <span className="h-3 w-1 rounded-full" style={{ background: column.color || '#00f2fe' }} />
+        <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{cards.length}</span>
+        <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-300 [writing-mode:vertical-rl]">{column.title}</p>
+      </div>
+    )
   }
 
   return (
@@ -132,6 +157,9 @@ function Column({ column, cards, onRename, onDelete }) {
         <p className="truncate text-xs font-bold uppercase tracking-wide text-slate-200">{column.title}</p>
         <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{cards.length}</span>
         <div className="ml-auto flex items-center gap-1">
+          <button onClick={onToggleCollapse} title="Minimizar coluna" className="text-slate-600 hover:text-slate-300">
+            <Minus size={13} />
+          </button>
           <button onClick={onRename} title="Configurar coluna" className="text-slate-600 hover:text-slate-300">
             <Settings2 size={13} />
           </button>
@@ -183,7 +211,9 @@ function Card({ card }) {
   const items = db.all('checklistItems').filter((i) => i.cardId === card.id)
   const done = items.filter((i) => i.done).length
   const type = card.type || 'nota'
-  const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined
+  // O movimento fica por conta do <DragOverlay>; aqui só esmaecemos a origem.
+  const style = undefined
+  void transform
 
   // ---- Nota (borda âmbar, editável com duplo clique) ----
   if (type === 'nota') {
@@ -191,7 +221,7 @@ function Card({ card }) {
       <div
         ref={setNodeRef}
         style={style}
-        className={`group rounded-lg border border-amber-500/40 bg-slate-950 p-3 ${isDragging ? 'opacity-80 shadow-2xl' : ''}`}
+        className={`group rounded-lg border border-amber-500/40 bg-slate-950 p-3 ${isDragging ? 'opacity-30' : ''}`}
         onDoubleClick={() => setEditing(true)}
       >
         <div className="flex items-center gap-1.5">
@@ -238,7 +268,7 @@ function Card({ card }) {
   // ---- Checklist ----
   return (
     <>
-      <div ref={setNodeRef} style={style} className={`group rounded-lg border border-cyan-500/30 bg-slate-950 p-3 ${isDragging ? 'opacity-80 shadow-2xl' : ''}`}>
+      <div ref={setNodeRef} style={style} className={`group rounded-lg border border-cyan-500/30 bg-slate-950 p-3 ${isDragging ? 'opacity-30' : ''}`}>
         <div className="flex items-center gap-1.5">
           <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title="Arrastar">
             <GripVertical size={12} />
@@ -280,6 +310,21 @@ function Card({ card }) {
 
       <ChecklistModal open={checklistOpen} onClose={() => setChecklistOpen(false)} card={card} items={items} />
     </>
+  )
+}
+
+// Visual do card enquanto arrasta (dentro do DragOverlay) — não usa hooks de
+// dnd, então nunca é cortado pelos containers com overflow.
+function CardPreview({ card }) {
+  const nota = (card.type || 'nota') === 'nota'
+  return (
+    <div className={`w-64 rotate-2 rounded-lg border bg-slate-950 p-3 shadow-2xl shadow-black/60 ${nota ? 'border-amber-500/60' : 'border-cyan-500/50'}`}>
+      <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wide ${nota ? 'bg-amber-500/15 text-amber-400' : 'bg-cyan-500/15 text-cyan-400'}`}>
+        {nota ? <FileText size={9} /> : <CheckSquare size={9} />}
+        {nota ? 'NOTA' : 'CHECKLIST'}
+      </span>
+      <p className="mt-2 line-clamp-3 whitespace-pre-line text-xs leading-relaxed text-slate-300">{card.content || card.title || '...'}</p>
+    </div>
   )
 }
 
