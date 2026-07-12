@@ -27,6 +27,7 @@ import {
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
 import { isPosted } from '../../lib/videoStatus'
+import { useI18n } from '../../i18n'
 import { ConfirmDialog, formatCompact } from '../../components/ui'
 import { PrivacyScope, PageEye, Masked } from '../../components/privacy'
 import { ChannelAvatar } from '../Dashboard'
@@ -35,12 +36,12 @@ import VideosTable from './VideosTable'
 
 const STATS_REFRESH_COOLDOWN_MS = 10 * 60 * 1000 // máx. 1x a cada 10 min (economia de cota)
 
-const LANG_LABEL = { pt: 'Português', en: 'Inglês', es: 'Espanhol', de: 'Alemão', fr: 'Francês', it: 'Italiano', ja: 'Japonês' }
 
 export default function ChannelDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const db = useDb()
+  const { t } = useI18n()
   const channel = db.get('channels', id)
 
   const [modal, setModal] = useState(null) // edit | buttons | share | prompts | references | delete | unlink | archive
@@ -106,14 +107,14 @@ export default function ChannelDetail() {
   const statsAge = channel.ytStatsUpdatedAt ? Math.round((Date.now() - channel.ytStatsUpdatedAt) / 60000) : null
 
   const menuItems = [
-    { icon: Pencil, label: 'Editar Canal', cls: 'text-sky-300', action: () => setModal('edit') },
-    { icon: Link2, label: 'Criar Atalhos', action: () => setModal('buttons') },
-    { icon: Share2, label: 'Compartilhar', action: () => setModal('share') },
-    ...(channel.youtubeChannelId ? [{ icon: Unlink, label: 'Desvincular YouTube', action: () => setModal('unlink') }] : []),
+    { icon: Pencil, label: t('channels.detail.editChannel'), cls: 'text-sky-300', action: () => setModal('edit') },
+    { icon: Link2, label: t('channels.detail.createShortcuts'), action: () => setModal('buttons') },
+    { icon: Share2, label: t('channels.detail.share'), action: () => setModal('share') },
+    ...(channel.youtubeChannelId ? [{ icon: Unlink, label: t('channels.detail.unlinkYoutube'), action: () => setModal('unlink') }] : []),
     channel.archived
-      ? { icon: Archive, label: 'Desarquivar Canal', action: () => db.update('channels', id, { archived: false }) }
-      : { icon: Archive, label: 'Arquivar Canal', action: () => setModal('archive') },
-    { icon: Trash2, label: 'Excluir Canal', cls: 'text-red-400', action: () => setModal('delete') },
+      ? { icon: Archive, label: t('channels.detail.unarchive'), action: () => db.update('channels', id, { archived: false }) }
+      : { icon: Archive, label: t('channels.detail.archive'), action: () => setModal('archive') },
+    { icon: Trash2, label: t('channels.detail.deleteChannel'), cls: 'text-red-400', action: () => setModal('delete') },
   ]
 
   return (
@@ -122,7 +123,7 @@ export default function ChannelDetail() {
       {/* Navegação superior */}
       <div className="flex items-center justify-between">
         <Link to="/canais" className="flex items-center gap-1.5 text-sm text-cyan-400 hover:text-cyan-300">
-          <ArrowLeft size={15} />← Voltar para Canais
+          <ArrowLeft size={15} />{t('channels.detail.back')}
         </Link>
         <div className="flex gap-1.5">
           <PageEye />
@@ -148,7 +149,7 @@ export default function ChannelDetail() {
                   href={`https://www.youtube.com/channel/${channel.youtubeChannelId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title="Abrir o canal no YouTube"
+                  title={t('videos.openYoutube')}
                   className="flex shrink-0 items-center gap-1 rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white transition-colors hover:bg-red-600"
                 >
                   ▶ YouTube
@@ -158,7 +159,7 @@ export default function ChannelDetail() {
               )}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-              <span>🌐 {LANG_LABEL[channel.language] || channel.language}</span>
+              <span>🌐 {t(`common.langFull.${channel.language}`)}</span>
               {(channel.postTimes?.length ? channel.postTimes : [channel.defaultPostTime]).filter(Boolean).map((t) => (
                 <span key={t} className="flex items-center gap-1">
                   <Clock size={11} />
@@ -227,9 +228,9 @@ export default function ChannelDetail() {
 
       {/* Métricas + YouTube Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Film} label="TOTAL DE VÍDEOS" value={videos.length} color="text-cyan-400" />
-        <MetricCard icon={CheckCircle} label="POSTADOS" value={posted} color="text-green-400" />
-        <MetricCard icon={Clock} label="PENDENTES" value={pending} color="text-amber-400" />
+        <MetricCard icon={Film} label={t('channels.detail.metricTotal')} value={videos.length} color="text-cyan-400" />
+        <MetricCard icon={CheckCircle} label={t('channels.detail.metricPosted')} value={posted} color="text-green-400" />
+        <MetricCard icon={Clock} label={t('channels.detail.metricPending')} value={pending} color="text-amber-400" />
 
         <div className="card-hover overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
           <div className="border-t-2 border-cyan-500/60" />
@@ -237,21 +238,21 @@ export default function ChannelDetail() {
             <div className="flex items-start justify-between">
               <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-500">
                 <BarChart3 size={12} className="text-cyan-400" />
-                YOUTUBE STATS
+                {t('channels.detail.ytStats')}
               </p>
               <div className="flex items-center gap-1.5">
                 <span className="text-[9px] text-slate-600">
-                  {statsAge == null ? 'nunca atualizado' : statsAge < 1 ? 'Atualizado agora' : `Atualizado há ${statsAge}min`}
+                  {statsAge == null ? t('channels.detail.neverUpdated') : statsAge < 1 ? t('channels.detail.updatedNow') : t('channels.detail.updatedAgo', { n: statsAge })}
                 </span>
                 <button
                   onClick={refreshStats}
                   disabled={!canRefresh || refreshing}
                   title={
                     !channel.youtubeChannelId
-                      ? 'Importe o canal do YouTube para habilitar'
+                      ? t('channels.detail.importToEnable')
                       : cooldownLeft > 0
-                        ? `Aguarde ${Math.ceil(cooldownLeft / 60000)}min`
-                        : 'Atualizar estatísticas'
+                        ? t('channels.detail.wait', { n: Math.ceil(cooldownLeft / 60000) })
+                        : t('channels.detail.refreshStats')
                   }
                   className="text-slate-500 transition-colors hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -260,9 +261,9 @@ export default function ChannelDetail() {
               </div>
             </div>
             <div className="mt-2.5 grid grid-cols-3 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
-              <YtStat icon={Users} value={formatCompact(channel.ytSubscribers)} label="Inscritos" />
-              <YtStat icon={Eye} value={formatCompact(channel.ytTotalViews)} label="Views" />
-              <YtStat icon={Film} value={channel.ytVideoCount ?? (videos.filter((v) => v.imported).length || '—')} label="Vídeos" />
+              <YtStat icon={Users} value={formatCompact(channel.ytSubscribers)} label={t('channels.detail.ytSubs')} />
+              <YtStat icon={Eye} value={formatCompact(channel.ytTotalViews)} label={t('channels.detail.ytViews')} />
+              <YtStat icon={Film} value={channel.ytVideoCount ?? (videos.filter((v) => v.imported).length || '—')} label={t('channels.detail.ytVideos')} />
             </div>
             {statsError && <p className="mt-2 text-[10px] text-red-400">{statsError}</p>}
           </div>
@@ -290,9 +291,9 @@ export default function ChannelDetail() {
         onConfirm={() =>
           db.update('channels', id, { youtubeChannelId: null, ytSubscribers: null, ytTotalViews: null, ytVideoCount: null, ytStatsUpdatedAt: null })
         }
-        title="Desvincular YouTube"
-        message="O canal continua no sistema, mas perde a conexão com o YouTube (stats e importação de vídeos). Os vídeos já importados são mantidos."
-        confirmLabel="Desvincular"
+        title={t('channels.detail.unlinkTitle')}
+        message={t('channels.detail.unlinkMsg')}
+        confirmLabel={t('channels.detail.unlinkConfirm')}
       />
       <ConfirmDialog
         open={modal === 'archive'}
@@ -301,16 +302,16 @@ export default function ChannelDetail() {
           db.update('channels', id, { archived: true })
           navigate('/canais')
         }}
-        title="Arquivar canal"
-        message={`"${channel.name}" sai da lista principal, mas nada é apagado — você pode desarquivar em Gestão de Canais.`}
-        confirmLabel="Arquivar"
+        title={t('channels.detail.archiveTitle')}
+        message={t('channels.detail.archiveMsg', { name: channel.name })}
+        confirmLabel={t('channels.detail.archiveConfirm')}
       />
       <ConfirmDialog
         open={modal === 'delete'}
         onClose={() => setModal(null)}
         onConfirm={deleteChannel}
-        title="Excluir canal"
-        message={`Excluir "${channel.name}" apaga também todos os vídeos, roteiros e configurações vinculados. Essa ação não pode ser desfeita.`}
+        title={t('channels.detail.deleteTitle')}
+        message={t('channels.detail.deleteMsg', { name: channel.name })}
       />
     </div>
     </PrivacyScope>
@@ -370,6 +371,7 @@ function ShortcutFavicon({ url }) {
 // total, preview inline dos prompts salvos e botão Gerenciar.
 function PromptsControlCard({ channelId, count, onManage }) {
   const db = useDb()
+  const { t } = useI18n()
   const prompts = db.all('prompts').filter((p) => p.channelId === channelId)
 
   return (
@@ -379,14 +381,14 @@ function PromptsControlCard({ channelId, count, onManage }) {
           <MessageSquare size={18} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-100">Prompts do Canal</p>
-          <p className="truncate text-xs text-slate-500">{count > 0 ? `${count} ${count === 1 ? 'prompt salvo' : 'prompts salvos'}` : 'Nenhum prompt salvo'}</p>
+          <p className="text-sm font-semibold text-slate-100">{t('channels.detail.promptsTitle')}</p>
+          <p className="truncate text-xs text-slate-500">{count > 0 ? t('channels.detail.promptsCount', { n: count }) : t('channels.detail.promptsEmpty')}</p>
         </div>
         <button
           onClick={onManage}
           className="shrink-0 rounded-lg border border-cyan-500/40 bg-cyan-500/5 px-3 py-1.5 text-xs font-medium text-cyan-300 transition-colors hover:bg-cyan-500/15"
         >
-          ✏️ Gerenciar
+          ✏️ {t('channels.detail.manage')}
         </button>
       </div>
       {prompts.length > 0 && (
@@ -411,6 +413,7 @@ function PromptsControlCard({ channelId, count, onManage }) {
 // Card "Canais de Referência" com os mini-perfis dos canais (layout do print)
 function ReferenceControlCard({ channelId, count, onManage }) {
   const db = useDb()
+  const { t } = useI18n()
   const refs = db
     .all('referenceChannels')
     .filter((r) => r.channelId === channelId)
@@ -423,14 +426,14 @@ function ReferenceControlCard({ channelId, count, onManage }) {
           <Bookmark size={18} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-100">Canais de Referência</p>
-          <p className="truncate text-xs text-slate-500">{count > 0 ? `${count} ${count === 1 ? 'canal' : 'canais'}` : 'Nenhuma referência vinculada'}</p>
+          <p className="text-sm font-semibold text-slate-100">{t('channels.detail.refsTitle')}</p>
+          <p className="truncate text-xs text-slate-500">{count > 0 ? t('channels.detail.refsCount', { n: count }) : t('channels.detail.refsEmpty')}</p>
         </div>
         <button
           onClick={onManage}
           className="shrink-0 rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/15"
         >
-          ✏️ Gerenciar
+          ✏️ {t('channels.detail.manage')}
         </button>
       </div>
       {refs.length > 0 && (
