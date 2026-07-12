@@ -23,6 +23,7 @@ import {
   SquareCheckBig,
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
+import { useI18n } from '../../i18n'
 import { api, apiErrorMessage } from '../../lib/api'
 import { importChannelVideos } from '../../lib/importVideos'
 import { deriveStatus, isPosted, REQUIRED_STEPS } from '../../lib/videoStatus'
@@ -79,6 +80,7 @@ function matchesTab(video, tab) {
 
 export default function VideosTable({ channelId, channel }) {
   const db = useDb()
+  const { t } = useI18n()
   const [view, setView] = useState('list')
   const [tab, setTab] = useState('all')
   const [query, setQuery] = useState('')
@@ -113,7 +115,7 @@ export default function VideosTable({ channelId, channel }) {
     setImportError('')
     try {
       const inserted = await importChannelVideos(channelId, channel.youtubeChannelId, setImportMsg)
-      setImportMsg(inserted > 0 ? `${inserted} vídeo${inserted > 1 ? 's' : ''} importado${inserted > 1 ? 's' : ''} do YouTube ✓` : 'Nenhum vídeo novo para importar.')
+      setImportMsg(inserted > 0 ? t('videos.importedOk', { n: inserted }) : t('videos.importedNone'))
       setTimeout(() => setImportMsg(''), 4000)
     } catch (err) {
       setImportError(apiErrorMessage(err))
@@ -187,14 +189,14 @@ export default function VideosTable({ channelId, channel }) {
       {/* Cabeçalho da seção */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-bold text-slate-100">Títulos & Vídeos</h2>
+          <h2 className="text-lg font-bold text-slate-100">{t('videos.section')}</h2>
           <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-950 p-1">
-            <ViewBtn active={view === 'list'} onClick={() => setView('list')} icon={<List size={12} />} label="Lista" />
-            <ViewBtn active={view === 'kanban'} onClick={() => setView('kanban')} icon={<LayoutGrid size={12} />} label="Kanban" />
+            <ViewBtn active={view === 'list'} onClick={() => setView('list')} icon={<List size={12} />} label={t('videos.viewList')} />
+            <ViewBtn active={view === 'kanban'} onClick={() => setView('kanban')} icon={<LayoutGrid size={12} />} label={t('videos.viewKanban')} />
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {TABS.map(([key, label]) => (
+          {TABS.map(([key]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -202,7 +204,7 @@ export default function VideosTable({ channelId, channel }) {
                 tab === key ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-500 hover:border-slate-700'
               }`}
             >
-              {label} ({counts[key]})
+              {t(`videos.tabs.${key}`)} ({counts[key]})
             </button>
           ))}
         </div>
@@ -212,11 +214,11 @@ export default function VideosTable({ channelId, channel }) {
       <div className="flex flex-wrap gap-2">
         <div className="relative min-w-56 flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input className={`${inputCls} !pl-9`} placeholder="Buscar títulos..." value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className={`${inputCls} !pl-9`} placeholder={t('videos.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <button
           onClick={() => setSortDesc((v) => !v)}
-          title={sortDesc ? 'Mais recentes primeiro' : 'Mais antigos primeiro'}
+          title={sortDesc ? t('videos.sortNewest') : t('videos.sortOldest')}
           className="flex items-center justify-center rounded-lg border border-slate-800 bg-slate-900 px-3 text-slate-400 hover:border-slate-700"
         >
           <ArrowUpDown size={14} />
@@ -224,23 +226,23 @@ export default function VideosTable({ channelId, channel }) {
         {channel?.youtubeChannelId && (
           <button onClick={importFromYoutube} disabled={importing} className={`${btnGhost} flex items-center gap-2 text-xs`}>
             {importing ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
-            {importing ? importMsg || 'Importando...' : 'Importar do YouTube'}
+            {importing ? importMsg || t('videos.importing') : t('videos.importYoutube')}
           </button>
         )}
         {videos.length > 0 && (
           <button
             onClick={analyzeAll}
             disabled={!batch?.running && pendingReports === 0}
-            title={pendingReports === 0 && !batch?.running ? 'Todos os vídeos já têm relatório' : 'Gera relatório de SEO/CTR (IA) para todos os vídeos sem relatório'}
+            title={pendingReports === 0 && !batch?.running ? t('videos.analyzeAllDone') : t('videos.analyzeAllHint')}
             className={`${btnGhost} flex items-center gap-2 text-xs disabled:cursor-not-allowed disabled:opacity-50`}
           >
             {batch?.running ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            {batch?.running ? 'Parar análise' : `Analisar todos (${pendingReports})`}
+            {batch?.running ? t('videos.stopAnalysis') : t('videos.analyzeAll', { n: pendingReports })}
           </button>
         )}
         <button className={`${btnPrimary} flex items-center gap-1.5`} onClick={() => setEditVideo('new')}>
           <Plus size={15} />
-          Novo Título
+          {t('videos.newTitle')}
         </button>
       </div>
 
@@ -251,13 +253,12 @@ export default function VideosTable({ channelId, channel }) {
             <span className="min-w-0 truncate text-slate-300">
               {batch.running ? (
                 <>
-                  Analisando <b className="text-cyan-300">{batch.current}</b>...
+                  {t('videos.analyzing')} <b className="text-cyan-300">{batch.current}</b>...
                 </>
               ) : (
                 <>
-                  Análise em lote concluída — {batch.done - batch.errors} relatório{batch.done - batch.errors === 1 ? '' : 's'} gerado
-                  {batch.done - batch.errors === 1 ? '' : 's'}
-                  {batch.errors > 0 && <span className="text-amber-400"> · {batch.errors} com erro (cota da IA?)</span>}
+                  {t('videos.batchDone', { n: batch.done - batch.errors })}
+                  {batch.errors > 0 && <span className="text-amber-400"> · {t('videos.batchErrors', { n: batch.errors })}</span>}
                 </>
               )}
             </span>
@@ -278,12 +279,8 @@ export default function VideosTable({ channelId, channel }) {
       {filtered.length === 0 ? (
         <EmptyState
           icon={Film}
-          title="Nenhum vídeo aqui"
-          description={
-            channel?.youtubeChannelId
-              ? 'Crie um título ou use "Importar do YouTube" para trazer os vídeos já publicados com thumb, data e link.'
-              : 'Crie um título para começar o pipeline de produção deste canal.'
-          }
+          title={t('videos.emptyTitle')}
+          description={channel?.youtubeChannelId ? t('videos.emptyDescYoutube') : t('videos.emptyDesc')}
         />
       ) : view === 'list' ? (
         <div className="space-y-2.5">
@@ -316,8 +313,8 @@ export default function VideosTable({ channelId, channel }) {
           db.removeWhere('scripts', (s) => s.videoId === deleteVideo.id)
           db.remove('videos', deleteVideo.id)
         }}
-        title="Excluir vídeo"
-        message={`Excluir "${deleteVideo?.title}" apaga também o roteiro vinculado.`}
+        title={t('videos.deleteTitle')}
+        message={t('videos.deleteMsg', { title: deleteVideo?.title })}
       />
       <PublishConfirmModal data={publishConfirm} onClose={() => setPublishConfirm(null)} onConfirm={confirmPublishAll} />
     </div>
@@ -326,30 +323,31 @@ export default function VideosTable({ channelId, channel }) {
 
 // Modal ao marcar "Publicado" com etapas faltando (layout do print).
 function PublishConfirmModal({ data, onClose, onConfirm }) {
+  const { t } = useI18n()
   if (!data) return null
-  const missingLabels = data.missing.map(([, label]) => label).join(', ')
+  const missingLabels = data.missing.map(([key]) => t(`videos.steps.${key}`)).join(', ')
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div className="w-full max-w-[420px] rounded-2xl border border-slate-800 bg-slate-900 p-7" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/12 text-sky-400">
           <SquareCheckBig size={22} />
         </div>
-        <h3 className="mb-2 text-base font-semibold text-slate-100">Completar checklist</h3>
+        <h3 className="mb-2 text-base font-semibold text-slate-100">{t('videos.publishTitle')}</h3>
         <p className="mb-6 text-sm leading-relaxed text-slate-400">
-          Para marcar como "Agendado/Publicado", é necessário completar: {missingLabels}.
+          {t('videos.publishBody', { list: missingLabels })}
           <br />
           <br />
-          Deseja marcar todas as etapas como concluídas agora?
+          {t('videos.publishAsk')}
         </p>
         <div className="flex justify-end gap-2.5">
           <button onClick={onClose} className="rounded-xl border border-slate-800 px-5 py-2 text-[13px] font-medium text-slate-400 transition-colors hover:bg-slate-800/50">
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             onClick={onConfirm}
             className="rounded-xl bg-gradient-to-br from-sky-500 to-blue-500 px-5 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
           >
-            Sim, completar
+            {t('videos.publishConfirm')}
           </button>
         </div>
       </div>
@@ -373,18 +371,20 @@ function ViewBtn({ active, onClick, icon, label }) {
 // Linha da lista (layout do print)
 // ---------------------------------------------------------------------------
 function StatusTag({ video }) {
-  const map = {
-    planning: ['Planejamento', 'bg-slate-700/40 text-slate-300'],
-    production: ['Produção', 'bg-amber-500/15 text-amber-400'],
-    finished: ['Finalizado', 'bg-cyan-500/15 text-cyan-300'],
-    scheduled_published: ['Agendado/Publicado', 'bg-green-500/15 text-green-300'],
+  const { t } = useI18n()
+  const cls = {
+    planning: 'bg-slate-700/40 text-slate-300',
+    production: 'bg-amber-500/15 text-amber-400',
+    finished: 'bg-cyan-500/15 text-cyan-300',
+    scheduled_published: 'bg-green-500/15 text-green-300',
   }
-  const [label, cls] = map[deriveStatus(video)] || map.planning
-  return <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${cls}`}>{label}</span>
+  const status = deriveStatus(video)
+  return <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${cls[status] || cls.planning}`}>{t(`videos.tabs.${status}`)}</span>
 }
 
 function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, onDelete }) {
   const db = useDb()
+  const { t } = useI18n()
   const report = db.all('seoReports').filter((r) => r.videoId === v.id).sort((a, b) => b.createdAt - a.createdAt)[0]
   const fileRef = useRef(null)
   const [zoom, setZoom] = useState(false)
@@ -428,21 +428,21 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
         <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-black/70 opacity-0 transition-opacity group-hover/thumb:opacity-100">
           {v.thumbnailUrl ? (
             <>
-              <ThumbBtn title="Visualizar" onClick={() => setZoom(true)}>
+              <ThumbBtn title={t('videos.thumbView')} onClick={() => setZoom(true)}>
                 <ZoomIn size={12} />
               </ThumbBtn>
-              <ThumbBtn title="Substituir thumbnail" onClick={() => fileRef.current?.click()}>
+              <ThumbBtn title={t('videos.thumbReplace')} onClick={() => fileRef.current?.click()}>
                 <Upload size={12} />
               </ThumbBtn>
-              <ThumbBtn title="Baixar thumbnail" onClick={downloadThumb}>
+              <ThumbBtn title={t('videos.thumbDownload')} onClick={downloadThumb}>
                 <Download size={12} />
               </ThumbBtn>
-              <ThumbBtn title="Remover thumbnail" danger onClick={() => db.update('videos', v.id, { thumbnailUrl: null })}>
+              <ThumbBtn title={t('videos.thumbRemove')} danger onClick={() => db.update('videos', v.id, { thumbnailUrl: null })}>
                 <Trash2 size={12} />
               </ThumbBtn>
             </>
           ) : (
-            <ThumbBtn title="Enviar thumbnail" onClick={() => fileRef.current?.click()}>
+            <ThumbBtn title={t('videos.thumbUpload')} onClick={() => fileRef.current?.click()}>
               <Upload size={12} />
             </ThumbBtn>
           )}
@@ -457,7 +457,7 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
       {/* Badges + data */}
       <div className="w-40 shrink-0 space-y-1.5">
         <div className="flex flex-wrap items-center gap-1.5">
-          {v.videoNumber != null && <span className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">Vídeo {v.videoNumber}</span>}
+          {v.videoNumber != null && <span className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">{t('videos.videoNum', { n: v.videoNumber })}</span>}
           <StatusTag video={v} />
         </div>
         <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
@@ -467,7 +467,7 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
               {new Date(v.publishedAt).toLocaleDateString('pt-BR')}
             </span>
           )}
-          {v.imported && <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-500">⬇ Importado</span>}
+          {v.imported && <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-500">{t('videos.importedTag')}</span>}
         </div>
       </div>
 
@@ -475,13 +475,14 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold text-slate-100"><Masked mask="•••••••••••">{v.title}</Masked></p>
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-          {STEPS.map(([key, label]) => {
+          {STEPS.map(([key]) => {
             const done = !!v.steps?.[key]
+            const label = t(`videos.steps.${key}`)
             return (
               <button
                 key={key}
                 onClick={() => onToggleStep(key)}
-                title={done ? `${label}: concluído (clique para desmarcar)` : `${label}: pendente (clique para marcar)`}
+                title={done ? t('videos.stepDone', { label }) : t('videos.stepPending', { label })}
                 className={`flex items-center gap-1 text-[10px] transition-colors ${done ? 'text-green-400' : 'text-slate-600 hover:text-slate-400'}`}
               >
                 <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border ${done ? 'border-green-500 bg-green-500/20' : 'border-slate-700'}`}>
@@ -496,10 +497,10 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
 
       {/* Score + ações (layout compacto do print) */}
       <div className="flex shrink-0 items-center gap-1.5">
-        <button onClick={onReport} title="Relatório de SEO/CTR (IA)" className="mr-0.5 text-sm font-bold text-cyan-400 transition-colors hover:text-cyan-300">
+        <button onClick={onReport} title={t('videos.reportTitle')} className="mr-0.5 text-sm font-bold text-cyan-400 transition-colors hover:text-cyan-300">
           {report?.score != null ? `${report.score}/100` : '—/100'}
         </button>
-        <RowBtn title="Editar" onClick={onEdit}>
+        <RowBtn title={t('videos.edit')} onClick={onEdit}>
           <Pencil size={14} />
         </RowBtn>
         {v.youtubeUrl ? (
@@ -507,26 +508,26 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
             href={v.youtubeUrl}
             target="_blank"
             rel="noopener noreferrer"
-            title="Abrir no YouTube"
+            title={t('videos.openYoutube')}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400"
           >
             <PlaySquare size={15} />
           </a>
         ) : (
-          <RowBtn title="Vincular URL do YouTube" onClick={onLink}>
+          <RowBtn title={t('videos.linkYoutube')} onClick={onLink}>
             <Link2 size={14} />
           </RowBtn>
         )}
-        <RowBtn title="Excluir" danger onClick={onDelete}>
+        <RowBtn title={t('videos.delete')} danger onClick={onDelete}>
           <Trash2 size={14} />
         </RowBtn>
         <button
           onClick={onScript}
-          title="Roteiro"
+          title={t('videos.roteiro')}
           className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
         >
           <FileText size={13} />
-          Roteiro
+          {t('videos.roteiro')}
         </button>
       </div>
     </div>
@@ -571,6 +572,7 @@ const KANBAN_COLUMNS = [
 
 function VideosKanban({ videos, onOpenScript }) {
   const db = useDb()
+  const { t } = useI18n()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   function onDragEnd({ active, over }) {
@@ -592,8 +594,8 @@ function VideosKanban({ videos, onOpenScript }) {
   return (
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       <div className="flex gap-3 overflow-x-auto pb-2">
-        {KANBAN_COLUMNS.map(([key, label, color]) => (
-          <KanbanColumn key={key} id={key} label={label} color={color} videos={videos.filter((v) => matchesTab(v, key))} onOpenScript={onOpenScript} />
+        {KANBAN_COLUMNS.map(([key, , color]) => (
+          <KanbanColumn key={key} id={key} label={t(`videos.tabs.${key}`)} color={color} videos={videos.filter((v) => matchesTab(v, key))} onOpenScript={onOpenScript} />
         ))}
       </div>
     </DndContext>
@@ -622,6 +624,7 @@ function KanbanColumn({ id, label, color, videos, onOpenScript }) {
 }
 
 function KanbanCard({ video: v, onOpenScript }) {
+  const { t } = useI18n()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: v.id })
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined
   return (
@@ -629,7 +632,7 @@ function KanbanCard({ video: v, onOpenScript }) {
       {v.thumbnailUrl && <RestrictedThumb src={v.thumbnailUrl} className="mb-2 aspect-video w-full rounded object-cover" loading="lazy" />}
       <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-200"><Masked mask="•••••••••••">{v.title}</Masked></p>
       <div className="mt-1.5 flex items-center justify-between">
-        {v.videoNumber != null && <span className="text-[9px] text-slate-600">Vídeo {v.videoNumber}</span>}
+        {v.videoNumber != null && <span className="text-[9px] text-slate-600">{t('videos.videoNum', { n: v.videoNumber })}</span>}
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -637,7 +640,7 @@ function KanbanCard({ video: v, onOpenScript }) {
           }}
           className="text-[10px] text-cyan-400 hover:underline"
         >
-          Roteiro
+          {t('videos.roteiro')}
         </button>
       </div>
     </div>
@@ -649,6 +652,7 @@ function KanbanCard({ video: v, onOpenScript }) {
 // ---------------------------------------------------------------------------
 function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
   const db = useDb()
+  const { t } = useI18n()
   const [form, setForm] = useState({})
 
   useEffect(() => {
@@ -684,53 +688,53 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={video ? 'Editar Vídeo' : 'Novo Título/Vídeo'} wide>
-      <p className="-mt-3 mb-5 text-xs text-slate-500">{video ? 'Atualize as informações do vídeo' : 'Criar um novo vídeo para o canal'}</p>
+    <Modal open={open} onClose={onClose} title={video ? t('videos.form.editTitle') : t('videos.form.createTitle')} wide>
+      <p className="-mt-3 mb-5 text-xs text-slate-500">{video ? t('videos.form.editSub') : t('videos.form.createSub')}</p>
       <form onSubmit={save} className="space-y-4">
         <div>
           <div className="mb-1.5 flex items-end justify-between">
-            <label className="block text-xs font-semibold tracking-wide text-slate-400">TÍTULO *</label>
+            <label className="block text-xs font-semibold tracking-wide text-slate-400">{t('videos.form.title')}</label>
             <span className="text-[10px] text-slate-600">{(form.title || '').length}/100</span>
           </div>
-          <input className={inputCls} required maxLength={100} placeholder="Digite o título do vídeo" value={form.title || ''} onChange={(e) => set('title', e.target.value)} />
+          <input className={inputCls} required maxLength={100} placeholder={t('videos.form.titlePlaceholder')} value={form.title || ''} onChange={(e) => set('title', e.target.value)} />
         </div>
 
         <div>
           <div className="mb-1.5 flex items-end justify-between">
-            <label className="block text-xs font-semibold tracking-wide text-slate-400">THUMBNAIL</label>
+            <label className="block text-xs font-semibold tracking-wide text-slate-400">{t('videos.form.thumbConcept')}</label>
             <span className="text-[10px] text-slate-600">{(form.thumbnailConcept || '').length}</span>
           </div>
-          <input className={inputCls} placeholder="Descrição ou conceito da thumbnail" value={form.thumbnailConcept || ''} onChange={(e) => set('thumbnailConcept', e.target.value)} />
+          <input className={inputCls} placeholder={t('videos.form.thumbConceptPlaceholder')} value={form.thumbnailConcept || ''} onChange={(e) => set('thumbnailConcept', e.target.value)} />
         </div>
 
         <div>
           <div className="mb-1.5 flex items-end justify-between">
-            <label className="block text-xs font-semibold tracking-wide text-slate-400">DESCRIÇÃO</label>
+            <label className="block text-xs font-semibold tracking-wide text-slate-400">{t('videos.form.description')}</label>
             <span className="text-[10px] text-slate-600">{(form.description || '').length}/5000</span>
           </div>
-          <textarea className={`${inputCls} min-h-24 resize-y`} maxLength={5000} placeholder="Descrição do vídeo..." value={form.description || ''} onChange={(e) => set('description', e.target.value)} />
+          <textarea className={`${inputCls} min-h-24 resize-y`} maxLength={5000} placeholder={t('videos.form.descriptionPlaceholder')} value={form.description || ''} onChange={(e) => set('description', e.target.value)} />
         </div>
 
         <div>
-          <Field label="DATA DE POSTAGEM">
+          <Field label={t('videos.form.postDate')}>
             <input className={inputCls} type="date" value={form.postDate || ''} onChange={(e) => set('postDate', e.target.value)} />
           </Field>
-          <p className="mt-1 text-[10px] text-slate-600">Deixe vazio para definir automaticamente ao marcar como Agendado/Publicado</p>
+          <p className="mt-1 text-[10px] text-slate-600">{t('videos.form.postDateHint')}</p>
         </div>
 
-        <Field label="TAGS (separadas por vírgula)">
+        <Field label={t('videos.form.tags')}>
           <input className={inputCls} value={form.tags || ''} onChange={(e) => set('tags', e.target.value)} />
         </Field>
-        <Field label="URL DA THUMBNAIL (opcional)">
-          <input className={inputCls} value={form.thumbnailUrl || ''} onChange={(e) => set('thumbnailUrl', e.target.value)} placeholder="https://... (ou use o upload na lista de vídeos)" />
+        <Field label={t('videos.form.thumbUrl')}>
+          <input className={inputCls} value={form.thumbnailUrl || ''} onChange={(e) => set('thumbnailUrl', e.target.value)} placeholder={t('videos.form.thumbUrlPlaceholder')} />
         </Field>
-        <p className="-mt-2 text-[10px] text-slate-600">O status (Planejamento → Produção → Finalizado → Agendado/Publicado) é automático, conforme as caixinhas de etapa marcadas.</p>
+        <p className="-mt-2 text-[10px] text-slate-600">{t('videos.form.statusAuto')}</p>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className={btnGhost} onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button type="submit" className={btnPrimary}>
-            {video ? '💾 Salvar' : '💾 Criar'}
+            {video ? t('videos.form.save') : t('videos.form.create')}
           </button>
         </div>
       </form>
@@ -740,6 +744,7 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
 
 function LinkYoutubeModal({ open, onClose, video }) {
   const db = useDb()
+  const { t } = useI18n()
   const [url, setUrl] = useState('')
 
   useEffect(() => {
@@ -757,16 +762,16 @@ function LinkYoutubeModal({ open, onClose, video }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Vincular URL do YouTube">
+    <Modal open={open} onClose={onClose} title={t('videos.link.title')}>
       <form onSubmit={save} className="space-y-4">
-        <p className="text-sm text-slate-500">Cole a URL definitiva do vídeo publicado. O status muda automaticamente para "Publicado".</p>
+        <p className="text-sm text-slate-500">{t('videos.link.desc')}</p>
         <input className={inputCls} required type="url" placeholder="https://youtube.com/watch?v=..." value={url} onChange={(e) => setUrl(e.target.value)} />
         <div className="flex justify-end gap-2">
           <button type="button" className={btnGhost} onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button type="submit" className={btnPrimary}>
-            Vincular
+            {t('videos.link.submit')}
           </button>
         </div>
       </form>
@@ -777,6 +782,7 @@ function LinkYoutubeModal({ open, onClose, video }) {
 // Relatório de SEO/CTR por IA — resultado cacheado localmente
 function SeoReportModal({ open, onClose, video }) {
   const db = useDb()
+  const { t } = useI18n()
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
 
@@ -796,13 +802,13 @@ function SeoReportModal({ open, onClose, video }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Relatório de SEO/CTR" wide>
+    <Modal open={open} onClose={onClose} title={t('videos.seo.title')} wide>
       {!report && !generating && (
         <div className="py-6 text-center">
-          <p className="text-sm text-slate-500">A IA analisa título, descrição e tags e devolve uma nota 0–100 com pontos fortes, fracos e sugestões.</p>
+          <p className="text-sm text-slate-500">{t('videos.seo.intro')}</p>
           <button className={`${btnPrimary} mt-4 inline-flex items-center gap-2`} onClick={generate}>
             <Sparkles size={15} />
-            Gerar relatório com IA
+            {t('videos.seo.generate')}
           </button>
           {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
         </div>
@@ -810,7 +816,7 @@ function SeoReportModal({ open, onClose, video }) {
       {generating && (
         <div className="flex flex-col items-center py-10">
           <Loader2 size={28} className="animate-spin text-cyan-400" />
-          <p className="mt-3 text-sm text-slate-500">Analisando com IA...</p>
+          <p className="mt-3 text-sm text-slate-500">{t('videos.seo.analyzing')}</p>
         </div>
       )}
       {report && !generating && (
@@ -819,7 +825,7 @@ function SeoReportModal({ open, onClose, video }) {
             <ScoreRing score={report.score} size={64} />
             <div className="min-w-0">
               <p className="truncate font-semibold text-slate-100">{video?.title}</p>
-              <p className="text-xs text-slate-500">Gerado em {new Date(report.createdAt).toLocaleString('pt-BR')}</p>
+              <p className="text-xs text-slate-500">{t('videos.seo.generatedAt', { date: new Date(report.createdAt).toLocaleString('pt-BR') })}</p>
               {(report.report?.ctrScore != null || report.report?.seoScore != null) && (
                 <div className="mt-1.5 flex gap-3 text-[11px]">
                   {report.report?.ctrScore != null && <span className="text-slate-400">CTR <b className="text-cyan-300">{report.report.ctrScore}</b></span>}
@@ -828,18 +834,18 @@ function SeoReportModal({ open, onClose, video }) {
               )}
             </div>
             <button className={`${btnGhost} ml-auto !px-3 !py-1.5 text-xs`} onClick={generate}>
-              Gerar novamente
+              {t('videos.seo.regenerate')}
             </button>
           </div>
-          <ReportSection title="✅ PONTOS FORTES" items={report.report?.strengths} />
-          <ReportSection title="⚠️ PONTOS FRACOS" items={report.report?.weaknesses} />
+          <ReportSection title={t('videos.seo.strengths')} items={report.report?.strengths} />
+          <ReportSection title={t('videos.seo.weaknesses')} items={report.report?.weaknesses} />
           <div>
-            <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400">💡 SUGESTÕES</p>
+            <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400">{t('videos.seo.suggestions')}</p>
             <div className="space-y-2 text-sm text-slate-300">
-              {report.report?.suggestions?.title && <Suggestion label="Título" text={report.report.suggestions.title} />}
+              {report.report?.suggestions?.title && <Suggestion label={t('videos.seo.labelTitle')} text={report.report.suggestions.title} />}
               {report.report?.suggestions?.altTitles?.length > 0 && (
                 <div className="rounded-lg bg-slate-950 px-3 py-2">
-                  <span className="mb-1.5 inline-block rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-400">TÍTULOS ALTERNATIVOS</span>
+                  <span className="mb-1.5 inline-block rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-400">{t('videos.seo.altTitles')}</span>
                   <ul className="space-y-1">
                     {report.report.suggestions.altTitles.map((tt, i) => (
                       <li key={i} className="flex items-start gap-2 text-[13px]">
@@ -850,10 +856,10 @@ function SeoReportModal({ open, onClose, video }) {
                   </ul>
                 </div>
               )}
-              {report.report?.suggestions?.thumbnail && <Suggestion label="Thumbnail" text={report.report.suggestions.thumbnail} />}
-              {report.report?.suggestions?.description && <Suggestion label="Descrição" text={report.report.suggestions.description} />}
-              {report.report?.suggestions?.tags?.length > 0 && <ChipSuggestion label="Tags" items={report.report.suggestions.tags} />}
-              {report.report?.suggestions?.hashtags?.length > 0 && <ChipSuggestion label="Hashtags" items={report.report.suggestions.hashtags} />}
+              {report.report?.suggestions?.thumbnail && <Suggestion label={t('videos.seo.labelThumbnail')} text={report.report.suggestions.thumbnail} />}
+              {report.report?.suggestions?.description && <Suggestion label={t('videos.seo.labelDescription')} text={report.report.suggestions.description} />}
+              {report.report?.suggestions?.tags?.length > 0 && <ChipSuggestion label={t('videos.seo.labelTags')} items={report.report.suggestions.tags} />}
+              {report.report?.suggestions?.hashtags?.length > 0 && <ChipSuggestion label={t('videos.seo.labelHashtags')} items={report.report.suggestions.hashtags} sep=" " />}
             </div>
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -889,9 +895,10 @@ function Suggestion({ label, text }) {
 }
 
 // Sugestão em chips (tags/hashtags) com botão para copiar tudo.
-function ChipSuggestion({ label, items }) {
+function ChipSuggestion({ label, items, sep = ', ' }) {
+  const { t } = useI18n()
   const [copied, setCopied] = useState(false)
-  const joined = items.join(label === 'Hashtags' ? ' ' : ', ')
+  const joined = items.join(sep)
   function copy() {
     navigator.clipboard?.writeText(joined)
     setCopied(true)
@@ -902,7 +909,7 @@ function ChipSuggestion({ label, items }) {
       <div className="mb-1.5 flex items-center gap-2">
         <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-400">{label.toUpperCase()}</span>
         <button onClick={copy} className="text-[10px] text-slate-500 hover:text-cyan-300">
-          {copied ? '✓ copiado' : 'copiar tudo'}
+          {copied ? t('videos.seo.copied') : t('videos.seo.copyAll')}
         </button>
       </div>
       <div className="flex flex-wrap gap-1.5">
