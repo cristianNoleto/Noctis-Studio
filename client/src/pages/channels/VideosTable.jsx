@@ -14,7 +14,7 @@ import {
   LayoutGrid,
   ArrowUpDown,
   Check,
-  ExternalLink,
+  PlaySquare,
   DownloadCloud,
   Calendar,
   ZoomIn,
@@ -494,26 +494,23 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
         </div>
       </div>
 
-      {/* Score + ações */}
+      {/* Score + ações (layout compacto do print) */}
       <div className="flex shrink-0 items-center gap-1.5">
-        <button onClick={onReport} title="Relatório de SEO/CTR (IA)" className="flex items-center">
-          <ScoreRing score={report?.score ?? null} size={34} />
+        <button onClick={onReport} title="Relatório de SEO/CTR (IA)" className="mr-0.5 text-sm font-bold text-cyan-400 transition-colors hover:text-cyan-300">
+          {report?.score != null ? `${report.score}/100` : '—/100'}
         </button>
         <RowBtn title="Editar" onClick={onEdit}>
           <Pencil size={14} />
-        </RowBtn>
-        <RowBtn title="Roteiro" onClick={onScript}>
-          <FileText size={14} />
         </RowBtn>
         {v.youtubeUrl ? (
           <a
             href={v.youtubeUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:border-red-500/50 hover:text-red-400"
+            title="Abrir no YouTube"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400"
           >
-            <ExternalLink size={11} />
-            YouTube
+            <PlaySquare size={15} />
           </a>
         ) : (
           <RowBtn title="Vincular URL do YouTube" onClick={onLink}>
@@ -523,6 +520,14 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
         <RowBtn title="Excluir" danger onClick={onDelete}>
           <Trash2 size={14} />
         </RowBtn>
+        <button
+          onClick={onScript}
+          title="Roteiro"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+        >
+          <FileText size={13} />
+          Roteiro
+        </button>
       </div>
     </div>
   )

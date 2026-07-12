@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
-import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, GripVertical, LayoutGrid, Minus } from 'lucide-react'
+import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, GripVertical, LayoutGrid, Minus, ChevronUp, ChevronDown } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
 
@@ -114,13 +114,28 @@ function Column({ column, cards, onRename, onDelete }) {
   const db = useDb()
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
 
+  // Ordena os cards por posição para permitir subir/descer dentro da coluna.
+  const ordered = [...cards].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+
+  function move(cardId, dir) {
+    const idx = ordered.findIndex((c) => c.id === cardId)
+    const j = idx + dir
+    if (j < 0 || j >= ordered.length) return
+    const arr = [...ordered]
+    ;[arr[idx], arr[j]] = [arr[j], arr[idx]]
+    // Reescreve posições sequenciais (0..n) para a nova ordem valer sempre.
+    arr.forEach((c, i) => {
+      if (c.position !== i) db.update('boardCards', c.id, { position: i })
+    })
+  }
+
   function addCard(type) {
     db.insert('boardCards', {
       columnId: column.id,
       type,
       title: type === 'checklist' ? 'Nova checklist' : '',
       content: type === 'nota' ? '' : null,
-      position: cards.length,
+      position: ordered.length,
     })
   }
 
@@ -154,8 +169,8 @@ function Column({ column, cards, onRename, onDelete }) {
             <p className="mt-2 text-xs">Arraste cards aqui</p>
           </div>
         )}
-        {cards.map((card) => (
-          <Card key={card.id} card={card} />
+        {ordered.map((card, i) => (
+          <Card key={card.id} card={card} onMoveUp={() => move(card.id, -1)} onMoveDown={() => move(card.id, 1)} isFirst={i === 0} isLast={i === ordered.length - 1} />
         ))}
       </div>
 
@@ -179,7 +194,20 @@ function Column({ column, cards, onRename, onDelete }) {
 }
 
 // ---------------------------------------------------------------------------
-function Card({ card }) {
+function MoveBtns({ onMoveUp, onMoveDown, isFirst, isLast }) {
+  return (
+    <>
+      <button onClick={onMoveUp} disabled={isFirst} title="Subir" className="text-slate-600 hover:text-slate-300 disabled:opacity-25">
+        <ChevronUp size={12} />
+      </button>
+      <button onClick={onMoveDown} disabled={isLast} title="Descer" className="text-slate-600 hover:text-slate-300 disabled:opacity-25">
+        <ChevronDown size={12} />
+      </button>
+    </>
+  )
+}
+
+function Card({ card, onMoveUp, onMoveDown, isFirst, isLast }) {
   const db = useDb()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id })
   const [editing, setEditing] = useState(!card.content && card.type === 'nota' && !card.title)
@@ -202,9 +230,10 @@ function Card({ card }) {
         onDoubleClick={() => setEditing(true)}
       >
         <div className="flex items-center gap-1.5">
-          <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title="Arrastar">
+          <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title="Arrastar (entre colunas)">
             <GripVertical size={12} />
           </button>
+          <MoveBtns onMoveUp={onMoveUp} onMoveDown={onMoveDown} isFirst={isFirst} isLast={isLast} />
           <span className="flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-amber-400">
             <FileText size={9} />
             NOTA
@@ -260,9 +289,10 @@ function Card({ card }) {
     <>
       <div ref={setNodeRef} style={style} className={`group rounded-lg border border-cyan-500/30 bg-slate-950 p-3 ${isDragging ? 'opacity-30' : ''}`}>
         <div className="flex items-center gap-1.5">
-          <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title="Arrastar">
+          <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title="Arrastar (entre colunas)">
             <GripVertical size={12} />
           </button>
+          <MoveBtns onMoveUp={onMoveUp} onMoveDown={onMoveDown} isFirst={isFirst} isLast={isLast} />
           <span className="flex items-center gap-1 rounded bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-cyan-400">
             <CheckSquare size={9} />
             CHECKLIST
