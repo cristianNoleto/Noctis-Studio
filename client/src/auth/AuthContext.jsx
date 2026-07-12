@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, isLocalMode } from '../lib/supabase'
 import { pullUserSettings } from '../lib/userSettings'
 
@@ -163,6 +163,59 @@ export function AuthProvider({ children }) {
     if (error) throw error
   }, [])
 
+  // ------ 2FA / MFA (Supabase — TOTP de app autenticador, nativo e grátis) ------
+  const refreshUserRef = useRef(null)
+  const mfa = useMemo(
+    () => ({
+      // Nível de garantia atual x necessário (aal1 = só senha, aal2 = 2FA feito)
+      async aal() {
+        if (isLocalMode) return { currentLevel: 'aal1', nextLevel: 'aal1' }
+        const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+        return data || { currentLevel: 'aal1', nextLevel: 'aal1' }
+      },
+      // Fatores cadastrados (apps autenticadores)
+      async factors() {
+        if (isLocalMode) return []
+        const { data } = await supabase.auth.mfa.listFactors()
+        return data?.totp || []
+      },
+      // Inicia o cadastro de um app autenticador → devolve QR code + segredo
+      async enroll() {
+        if (isLocalMode) throw new Error('local_mode')
+        // Remove fatores ainda não verificados que tenham sobrado de tentativas
+        const { data: list } = await supabase.auth.mfa.listFactors()
+        for (const f of list?.all || []) {
+          if (f.status !== 'verified') await supabase.auth.mfa.unenroll({ factorId: f.id })
+        }
+        const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' })
+        if (error) throw error
+        return data // { id, totp: { qr_code, secret, uri } }
+      },
+      // Confirma o cadastro com o código de 6 dígitos do app
+      async activate(factorId, code) {
+        const { data: ch, error: ce } = await supabase.auth.mfa.challenge({ factorId })
+        if (ce) throw ce
+        const { error } = await supabase.auth.mfa.verify({ factorId, challengeId: ch.id, code })
+        if (error) throw error
+        await refreshUserRef.current?.()
+      },
+      // Verifica o código no login (step-up para aal2)
+      async verifyLogin(factorId, code) {
+        const { data: ch, error: ce } = await supabase.auth.mfa.challenge({ factorId })
+        if (ce) throw ce
+        const { error } = await supabase.auth.mfa.verify({ factorId, challengeId: ch.id, code })
+        if (error) throw error
+      },
+      // Desativa o 2FA
+      async disable(factorId) {
+        const { error } = await supabase.auth.mfa.unenroll({ factorId })
+        if (error) throw error
+        await refreshUserRef.current?.()
+      },
+    }),
+    [],
+  ) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Token JWT da sessão — usado pelas rotas /api/admin
   const getAccessToken = useCallback(async () => {
     if (isLocalMode) return null
@@ -175,6 +228,7 @@ export function AuthProvider({ children }) {
     const { data } = await supabase.auth.getSession()
     setUser(sessionToUser(data.session))
   }, [])
+  refreshUserRef.current = refreshUser
 
   // Fundador: e-mail na allowlist VITE_FOUNDER_EMAIL. Blindado — nunca perde acesso.
   const isFounder = isFounderEmail(user?.email)
@@ -209,10 +263,11 @@ export function AuthProvider({ children }) {
       updatePassword,
       getAccessToken,
       refreshUser,
+      mfa,
       isLocalMode,
       isAdmin,
     }),
-    [exposedUser, isFounder, loading, signIn, signUp, signInWithGoogle, resetPassword, signOut, linkGoogle, unlinkIdentity, updateEmail, updatePassword, getAccessToken, refreshUser, isAdmin],
+    [exposedUser, isFounder, loading, signIn, signUp, signInWithGoogle, resetPassword, signOut, linkGoogle, unlinkIdentity, updateEmail, updatePassword, getAccessToken, refreshUser, mfa, isAdmin],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

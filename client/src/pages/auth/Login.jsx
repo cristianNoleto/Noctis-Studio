@@ -8,7 +8,7 @@ import { useI18n } from '../../i18n'
 
 export default function Login() {
   const { t } = useI18n()
-  const { signIn, signInWithGoogle, resetPassword } = useAuth()
+  const { signIn, signInWithGoogle, resetPassword, mfa } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -18,6 +18,9 @@ export default function Login() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [recoveryOpen, setRecoveryOpen] = useState(false)
+  // Desafio 2FA (quando a conta tem app autenticador ativo)
+  const [mfaFactorId, setMfaFactorId] = useState(null)
+  const [mfaCode, setMfaCode] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -25,9 +28,34 @@ export default function Login() {
     setSubmitting(true)
     try {
       await signIn(email, password)
+      // A conta exige 2FA? (aal1 → aal2)
+      const aal = await mfa.aal()
+      if (aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+        const factors = await mfa.factors()
+        const verified = factors.find((f) => f.status === 'verified') || factors[0]
+        if (verified) {
+          setMfaFactorId(verified.id)
+          setSubmitting(false)
+          return
+        }
+      }
       navigate('/')
     } catch (err) {
       setError(t(err.message === 'invalid_credentials' ? 'auth.errors.invalidCredentials' : 'auth.errors.generic'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleMfaVerify(e) {
+    e.preventDefault()
+    setError('')
+    setSubmitting(true)
+    try {
+      await mfa.verifyLogin(mfaFactorId, mfaCode.trim())
+      navigate('/')
+    } catch {
+      setError(t('auth.errors.invalid2fa'))
     } finally {
       setSubmitting(false)
     }
@@ -41,6 +69,40 @@ export default function Login() {
     } catch {
       setError(t('auth.errors.generic'))
     }
+  }
+
+  // Tela de verificação em duas etapas (após senha correta)
+  if (mfaFactorId) {
+    return (
+      <AuthShell>
+        <h2 className="text-2xl font-bold text-slate-100">{t('auth.twoFactorTitle')}</h2>
+        <p className="mt-1 text-sm text-slate-400">{t('auth.twoFactorSubtitle')}</p>
+        <form onSubmit={handleMfaVerify} className="mt-6 space-y-4">
+          <input
+            autoFocus
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={6}
+            required
+            value={mfaCode}
+            onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="000000"
+            className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2.5 text-center text-2xl font-bold tracking-[0.4em] text-slate-100 placeholder:text-slate-700 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+          />
+          {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}
+          <button
+            type="submit"
+            disabled={submitting || mfaCode.length < 6}
+            className="w-full rounded-lg bg-cyan-500 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-60"
+          >
+            {submitting ? t('common.loading') : t('auth.verify')}
+          </button>
+          <button type="button" onClick={() => { setMfaFactorId(null); setMfaCode(''); setError('') }} className="w-full text-center text-xs text-slate-500 hover:text-slate-300">
+            {t('common.back')}
+          </button>
+        </form>
+      </AuthShell>
+    )
   }
 
   return (

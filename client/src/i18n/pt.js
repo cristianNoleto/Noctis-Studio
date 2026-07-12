@@ -3,6 +3,7 @@ export default {
     cancel: 'Cancelar',
     save: 'Salvar',
     close: 'Fechar',
+    back: 'Voltar',
     loading: 'Carregando...',
     comingSoon: 'Em breve',
     comingSoonDesc: 'Esta funcionalidade está em desenvolvimento e será liberada em uma próxima atualização.',
@@ -36,10 +37,14 @@ export default {
     recoveryDesc: 'Informe seu e-mail e enviaremos um link para redefinir sua senha.',
     recoverySend: 'Enviar link de recuperação',
     recoverySent: 'Se o e-mail existir na base, um link de recuperação foi enviado.',
+    twoFactorTitle: 'Verificação em duas etapas',
+    twoFactorSubtitle: 'Digite o código de 6 dígitos do seu app autenticador.',
+    verify: 'Verificar',
     errors: {
       invalidCredentials: 'E-mail ou senha inválidos.',
       passwordMismatch: 'As senhas não coincidem.',
       termsRequired: 'É necessário aceitar os termos para continuar.',
+      invalid2fa: 'Código inválido ou expirado. Tente de novo.',
       generic: 'Algo deu errado. Tente novamente.',
     },
     features: {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { User, Shield, KeyRound, SlidersHorizontal, Wrench, Eye, EyeOff, Check, Camera, DownloadCloud, UploadCloud, AlertTriangle, Loader2, X, Plug } from 'lucide-react'
+import { User, Shield, ShieldCheck, KeyRound, SlidersHorizontal, Wrench, Eye, EyeOff, Check, Camera, DownloadCloud, UploadCloud, AlertTriangle, Loader2, X, Plug } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
 import { api } from '../lib/api'
@@ -337,7 +337,148 @@ function SecurityTab() {
           </div>
         </form>
       </Card>
+
+      {/* Verificação em duas etapas (2FA) */}
+      <TwoFactorCard isLocalMode={isLocalMode} />
     </div>
+  )
+}
+
+// Card de 2FA — app autenticador (TOTP, nativo do Supabase, grátis).
+function TwoFactorCard({ isLocalMode }) {
+  const { mfa } = useAuth()
+  const [factors, setFactors] = useState([])
+  const [enrolling, setEnrolling] = useState(null) // { id, qr, secret }
+  const [code, setCode] = useState('')
+  const [msg, setMsg] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [confirmOff, setConfirmOff] = useState(false)
+
+  async function load() {
+    try {
+      setFactors(await mfa.factors())
+    } catch {
+      /* ignora */
+    }
+  }
+  useEffect(() => {
+    if (!isLocalMode) load()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const active = factors.find((f) => f.status === 'verified')
+
+  async function startEnroll() {
+    setMsg(null)
+    setBusy(true)
+    try {
+      const d = await mfa.enroll()
+      setEnrolling({ id: d.id, qr: d.totp.qr_code, secret: d.totp.secret })
+      setCode('')
+    } catch (e) {
+      setMsg({ ok: false, text: e?.message || 'Não foi possível iniciar o 2FA.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function confirmEnroll(e) {
+    e.preventDefault()
+    setBusy(true)
+    setMsg(null)
+    try {
+      await mfa.activate(enrolling.id, code.trim())
+      setEnrolling(null)
+      setMsg({ ok: true, text: '2FA ativado com sucesso.' })
+      await load()
+    } catch {
+      setMsg({ ok: false, text: 'Código inválido. Confira o app e tente de novo.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function disable() {
+    setBusy(true)
+    setMsg(null)
+    try {
+      await mfa.disable(active.id)
+      setMsg({ ok: true, text: '2FA desativado.' })
+      await load()
+    } catch (e) {
+      setMsg({ ok: false, text: e?.message || 'Falha ao desativar.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const Msg = ({ msg }) => (msg ? <p className={`text-xs ${msg.ok ? 'text-green-400' : 'text-amber-400'}`}>{msg.text}</p> : null)
+
+  return (
+    <Card title="Verificação em duas etapas (2FA)" subtitle="Proteja o login com um app autenticador (Google Authenticator, Authy, etc.). Além da senha, será pedido um código de 6 dígitos.">
+      {isLocalMode ? (
+        <p className="text-xs text-amber-400">Modo local: o 2FA funciona no site publicado (Supabase).</p>
+      ) : active ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/5 px-3 py-2.5">
+            <ShieldCheck size={16} className="text-green-400" />
+            <p className="flex-1 text-sm text-green-300">2FA ativo — seu login está protegido.</p>
+          </div>
+          <Msg msg={msg} />
+          <button onClick={() => setConfirmOff(true)} disabled={busy} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50">
+            Desativar 2FA
+          </button>
+        </div>
+      ) : enrolling ? (
+        <form onSubmit={confirmEnroll} className="space-y-3">
+          <p className="text-xs text-slate-400">1. Escaneie o QR code no seu app autenticador (ou use o código manual). 2. Digite o código de 6 dígitos que aparecer.</p>
+          <div className="flex flex-wrap items-center gap-4">
+            <img src={enrolling.qr} alt="QR code 2FA" className="h-40 w-40 rounded-lg border border-slate-800 bg-white p-1" />
+            <div className="text-xs text-slate-500">
+              <p className="mb-1 font-semibold text-slate-400">Código manual:</p>
+              <code className="break-all rounded bg-slate-950 px-2 py-1 text-[11px] text-cyan-300">{enrolling.secret}</code>
+            </div>
+          </div>
+          <input
+            autoFocus
+            inputMode="numeric"
+            maxLength={6}
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="000000"
+            className={`${inputCls} max-w-[180px] text-center text-lg font-bold tracking-[0.3em]`}
+          />
+          <Msg msg={msg} />
+          <div className="flex gap-2">
+            <button type="submit" disabled={busy || code.length < 6} className={`${btnPrimary} disabled:opacity-50`}>
+              Ativar 2FA
+            </button>
+            <button type="button" onClick={() => { setEnrolling(null); setMsg(null) }} className={btnGhost}>
+              Cancelar
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="space-y-3">
+          <Msg msg={msg} />
+          <button onClick={startEnroll} disabled={busy} className={`${btnPrimary} flex items-center gap-2 disabled:opacity-50`}>
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <Shield size={15} />}
+            Ativar 2FA (app autenticador)
+          </button>
+          <p className="text-[11px] text-slate-600">
+            Também queremos oferecer 2FA por <strong>código no e-mail</strong>. Isso exige um serviço de envio de e-mail configurado (SMTP do Supabase ou Resend) — quando estiver ativo, adiciono essa opção aqui.
+          </p>
+        </div>
+      )}
+      <ConfirmDialog
+        open={confirmOff}
+        onClose={() => setConfirmOff(false)}
+        onConfirm={disable}
+        title="Desativar 2FA"
+        message="Sua conta ficará protegida apenas pela senha. Você pode reativar quando quiser."
+        confirmLabel="Desativar"
+      />
+    </Card>
   )
 }
 

@@ -3,6 +3,7 @@ export default {
     cancel: 'Cancel',
     save: 'Save',
     close: 'Close',
+    back: 'Back',
     loading: 'Loading...',
     comingSoon: 'Coming soon',
     comingSoonDesc: 'This feature is under development and will be released in an upcoming update.',
@@ -36,10 +37,14 @@ export default {
     recoveryDesc: "Enter your email and we'll send you a link to reset your password.",
     recoverySend: 'Send recovery link',
     recoverySent: 'If the email exists in our database, a recovery link has been sent.',
+    twoFactorTitle: 'Two-step verification',
+    twoFactorSubtitle: 'Enter the 6-digit code from your authenticator app.',
+    verify: 'Verify',
     errors: {
       invalidCredentials: 'Invalid email or password.',
       passwordMismatch: 'Passwords do not match.',
       termsRequired: 'You must accept the terms to continue.',
+      invalid2fa: 'Invalid or expired code. Try again.',
       generic: 'Something went wrong. Please try again.',
     },
     features: {
