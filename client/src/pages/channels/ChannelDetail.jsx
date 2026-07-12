@@ -268,15 +268,9 @@ export default function ChannelDetail() {
         </div>
       </div>
 
-      {/* Cards de controle central */}
+      {/* Cards de controle central — mesmo padrão de bloco (largura total, preview inline) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <ControlCard
-          icon={MessageSquare}
-          title="Prompts do Canal"
-          desc={promptsCount > 0 ? `${promptsCount} prompt${promptsCount === 1 ? '' : 's'} salvo${promptsCount === 1 ? '' : 's'}` : '0 prompts salvos'}
-          actionLabel="Gerenciar"
-          onAction={() => setModal('prompts')}
-        />
+        <PromptsControlCard channelId={id} count={promptsCount} onManage={() => setModal('prompts')} />
         <ReferenceControlCard channelId={id} count={refsCount} onManage={() => setModal('references')} />
       </div>
 
@@ -371,6 +365,48 @@ function ShortcutFavicon({ url }) {
   return <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt="" className="h-4 w-4 rounded-sm" loading="lazy" />
 }
 
+// Card "Prompts do Canal" — mesmo padrão do bloco de referências: largura
+// total, preview inline dos prompts salvos e botão Gerenciar.
+function PromptsControlCard({ channelId, count, onManage }) {
+  const db = useDb()
+  const prompts = db.all('prompts').filter((p) => p.channelId === channelId)
+
+  return (
+    <div className="card-hover rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:col-span-2">
+      <div className="flex items-center gap-3.5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+          <MessageSquare size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-100">Prompts do Canal</p>
+          <p className="truncate text-xs text-slate-500">{count > 0 ? `${count} ${count === 1 ? 'prompt salvo' : 'prompts salvos'}` : 'Nenhum prompt salvo'}</p>
+        </div>
+        <button
+          onClick={onManage}
+          className="shrink-0 rounded-lg border border-cyan-500/40 bg-cyan-500/5 px-3 py-1.5 text-xs font-medium text-cyan-300 transition-colors hover:bg-cyan-500/15"
+        >
+          ✏️ Gerenciar
+        </button>
+      </div>
+      {prompts.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-slate-800 pt-3">
+          {prompts.slice(0, 6).map((p) => (
+            <span
+              key={p.id}
+              title={p.content}
+              className="flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] text-slate-300"
+            >
+              <MessageSquare size={11} className="text-cyan-400" />
+              <span className="max-w-[140px] truncate">{p.name}</span>
+            </span>
+          ))}
+          {prompts.length > 6 && <span className="self-center text-[11px] text-slate-500">+{prompts.length - 6}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Card "Canais de Referência" com os mini-perfis dos canais (layout do print)
 function ReferenceControlCard({ channelId, count, onManage }) {
   const db = useDb()
@@ -423,24 +459,3 @@ function ReferenceControlCard({ channelId, count, onManage }) {
   )
 }
 
-function ControlCard({ icon: Icon, title, desc, actionLabel, onAction, disabled, title2 }) {
-  return (
-    <div className="flex items-center gap-3.5 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
-        <Icon size={18} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-slate-100">{title}</p>
-        <p className="truncate text-xs text-slate-500">{desc}</p>
-      </div>
-      <button
-        onClick={onAction}
-        disabled={disabled}
-        title={title2}
-        className="shrink-0 rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        ✏️ {actionLabel}
-      </button>
-    </div>
-  )
-}
