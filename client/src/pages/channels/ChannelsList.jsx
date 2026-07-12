@@ -2,24 +2,19 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Tv, Search, Loader2, Users, Eye, Film } from 'lucide-react'
 import { useDb } from '../../lib/db'
+import { useI18n } from '../../i18n'
 import { api, apiErrorMessage } from '../../lib/api'
 import { importChannelVideos } from '../../lib/importVideos'
+import { isPosted } from '../../lib/videoStatus'
 import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, formatCompact } from '../../components/ui'
 import { PrivacyScope, PageEye, Masked } from '../../components/privacy'
 import { ChannelAvatar } from '../Dashboard'
 
-const LANGUAGES = [
-  ['pt', 'Português'],
-  ['en', 'Inglês'],
-  ['es', 'Espanhol'],
-  ['de', 'Alemão'],
-  ['fr', 'Francês'],
-  ['it', 'Italiano'],
-  ['ja', 'Japonês'],
-]
+const LANG_CODES = ['pt', 'en', 'es', 'de', 'fr', 'it', 'ja']
 
 export default function ChannelsList() {
   const db = useDb()
+  const { t } = useI18n()
   const [params, setParams] = useSearchParams()
   const [createOpen, setCreateOpen] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
@@ -45,8 +40,8 @@ export default function ChannelsList() {
     <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Gestão de Canais</h1>
-          <p className="mt-1 text-sm text-slate-500">Opere todos os seus canais dark em um só lugar.</p>
+          <h1 className="text-2xl font-bold text-slate-100">{t('channels.title')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('channels.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <PageEye />
@@ -57,12 +52,12 @@ export default function ChannelsList() {
                 showArchived ? 'border-amber-500/50 bg-amber-500/10 text-amber-400' : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
               }`}
             >
-              {showArchived ? '← Voltar aos ativos' : `Arquivados (${archivedCount})`}
+              {showArchived ? t('channels.backToActive') : t('channels.archived', { count: archivedCount })}
             </button>
           )}
           <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setCreateOpen(true)}>
             <Plus size={16} />
-            Criar Canal
+            {t('channels.createChannel')}
           </button>
         </div>
       </div>
@@ -72,7 +67,7 @@ export default function ChannelsList() {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
         <input
           className={`${inputCls} !pl-9`}
-          placeholder="Buscar canal pelo nome..."
+          placeholder={t('channels.search')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -80,21 +75,21 @@ export default function ChannelsList() {
 
       {showArchived && channels.length > 0 && (
         <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-xs text-amber-300/80">
-          Canais arquivados — clique num canal e use o menu ⋮ para desarquivar (Editar Canal mantém tudo intacto).
+          {t('channels.archivedHint')}
         </p>
       )}
 
       {channels.length === 0 ? (
         term ? (
-          <EmptyState icon={Search} title="Nenhum canal encontrado" description={`Nenhum canal com "${search}" no nome.`} />
+          <EmptyState icon={Search} title={t('channels.emptyFoundTitle')} description={t('channels.emptyFoundDesc', { q: search })} />
         ) : (
           <EmptyState
             icon={Tv}
-            title="Nenhum canal cadastrado"
-            description="Crie seu primeiro canal manualmente ou importe direto do YouTube pela URL/handle."
+            title={t('channels.emptyTitle')}
+            description={t('channels.emptyDesc')}
             action={
               <button className={btnPrimary} onClick={() => setCreateOpen(true)}>
-                Criar meu primeiro canal
+                {t('channels.createFirst')}
               </button>
             }
           />
@@ -103,7 +98,7 @@ export default function ChannelsList() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {channels.map((ch) => {
             const chVideos = videos.filter((v) => v.channelId === ch.id)
-            const posted = chVideos.filter((v) => v.status === 'published').length
+            const posted = chVideos.filter(isPosted).length
             const pending = chVideos.length - posted
             return (
               <Link
@@ -117,14 +112,14 @@ export default function ChannelsList() {
                     <p className="truncate font-semibold text-slate-100 group-hover:text-cyan-300"><Masked mask="•••••••">{ch.name}</Masked></p>
                     <div className="mt-0.5 flex items-center gap-2">
                       <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold text-red-400">YouTube</span>
-                      <span className="text-xs text-slate-500">{LANGUAGES.find(([c]) => c === ch.language)?.[1] || ch.language}</span>
+                      <span className="text-xs text-slate-500">{t(`common.langFull.${ch.language}`)}</span>
                     </div>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-3 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2.5 text-center">
-                  <MiniStat icon={Users} value={formatCompact(ch.ytSubscribers)} label="INSCRITOS" />
-                  <MiniStat icon={Film} value={chVideos.length} label="VÍDEOS" />
-                  <MiniStat icon={Eye} value={`${posted}/${posted + pending}`} label="POSTADOS" />
+                  <MiniStat icon={Users} value={formatCompact(ch.ytSubscribers)} label={t('channels.statSubs')} />
+                  <MiniStat icon={Film} value={chVideos.length} label={t('channels.statVideos')} />
+                  <MiniStat icon={Eye} value={`${posted}/${posted + pending}`} label={t('channels.statPosted')} />
                 </div>
               </Link>
             )
@@ -152,6 +147,7 @@ function MiniStat({ icon: Icon, value, label }) {
 
 export function CreateChannelModal({ open, onClose }) {
   const db = useDb()
+  const { t } = useI18n()
   const [importQuery, setImportQuery] = useState('')
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState('')
@@ -233,21 +229,21 @@ export function CreateChannelModal({ open, onClose }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Criar Novo Canal" wide>
+    <Modal open={open} onClose={onClose} title={t('channels.create.title')} wide>
       {/* Importação rápida */}
       <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-4">
-        <p className="text-xs font-semibold tracking-wide text-cyan-300">IMPORTAR DE CANAL DO YOUTUBE</p>
+        <p className="text-xs font-semibold tracking-wide text-cyan-300">{t('channels.create.importLabel')}</p>
         <div className="mt-2 flex gap-2">
           <input
             className={inputCls}
-            placeholder="URL ou @handle do canal (ex: youtube.com/@canal)"
+            placeholder={t('channels.create.importPlaceholder')}
             value={importQuery}
             onChange={(e) => setImportQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleImport())}
           />
           <button type="button" className={`${btnPrimary} flex shrink-0 items-center gap-2`} onClick={handleImport} disabled={importing}>
             {importing ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-            Buscar
+            {t('channels.create.searchBtn')}
           </button>
         </div>
         {importError && <p className="mt-2 text-xs text-red-400">{importError}</p>}
@@ -257,34 +253,34 @@ export function CreateChannelModal({ open, onClose }) {
             <div>
               <p className="text-sm font-semibold text-slate-100">{imported.title}</p>
               <p className="text-xs text-slate-500">
-                {formatCompact(imported.subscribers)} inscritos · {formatCompact(imported.views)} views
+                {formatCompact(imported.subscribers)} {t('channels.create.subsWord')} · {formatCompact(imported.views)} views
               </p>
             </div>
-            <span className="ml-auto rounded bg-green-500/15 px-2 py-0.5 text-[10px] font-bold text-green-400">IMPORTADO</span>
+            <span className="ml-auto rounded bg-green-500/15 px-2 py-0.5 text-[10px] font-bold text-green-400">{t('channels.create.importedTag')}</span>
           </div>
         )}
       </div>
 
       <form onSubmit={handleCreate} className="mt-5 space-y-4">
-        <Field label="NOME DO CANAL">
+        <Field label={t('channels.create.name')}>
           <input className={inputCls} required value={form.name} onChange={(e) => set('name', e.target.value)} />
         </Field>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="IDIOMA">
+          <Field label={t('channels.create.language')}>
             <select className={inputCls} value={form.language} onChange={(e) => set('language', e.target.value)}>
-              {LANGUAGES.map(([code, label]) => (
+              {LANG_CODES.map((code) => (
                 <option key={code} value={code}>
-                  {label}
+                  {t(`common.langFull.${code}`)}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="E-MAIL DE CONTATO">
+          <Field label={t('channels.create.email')}>
             <input className={inputCls} type="email" value={form.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} />
           </Field>
         </div>
         {/* Horários ilimitados — grid 3 colunas com rolagem, igual ao original */}
-        <Field label="HORÁRIO DE POSTAGEM">
+        <Field label={t('channels.create.postTime')}>
           <div className="max-h-[120px] overflow-y-auto pt-1">
             <div className="grid grid-cols-3 gap-2">
               {form.postTimes.map((time, i) => (
@@ -300,7 +296,7 @@ export function CreateChannelModal({ open, onClose }) {
                       type="button"
                       onClick={() => set('postTimes', form.postTimes.filter((_, idx) => idx !== i))}
                       className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-red-400"
-                      title="Remover horário"
+                      title={t('channels.create.removeTime')}
                     >
                       ×
                     </button>
@@ -310,7 +306,7 @@ export function CreateChannelModal({ open, onClose }) {
               <button
                 type="button"
                 onClick={() => set('postTimes', [...form.postTimes, '12:00'])}
-                title="Adicionar horário"
+                title={t('channels.create.addTime')}
                 className="flex h-10 items-center justify-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-400 transition-colors hover:bg-cyan-500/20"
               >
                 <Plus size={16} />
@@ -320,28 +316,28 @@ export function CreateChannelModal({ open, onClose }) {
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="FREQUÊNCIA DE POSTAGEM">
-            <input className={inputCls} placeholder="3x por semana..." value={form.frequency} onChange={(e) => set('frequency', e.target.value)} />
+          <Field label={t('channels.create.frequency')}>
+            <input className={inputCls} placeholder={t('channels.create.frequencyPlaceholder')} value={form.frequency} onChange={(e) => set('frequency', e.target.value)} />
           </Field>
-          <Field label="VÍDEOS JÁ POSTADOS">
+          <Field label={t('channels.create.postedBaseline')}>
             <input className={inputCls} type="number" min="0" placeholder="0" value={form.postedBaseline} onChange={(e) => set('postedBaseline', e.target.value)} />
           </Field>
         </div>
-        <Field label="ANOTAÇÕES">
+        <Field label={t('channels.create.notes')}>
           <textarea className={`${inputCls} min-h-20 resize-y`} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
         </Field>
         {creating && (
           <p className="flex items-center gap-2 rounded-lg bg-cyan-500/10 px-3 py-2 text-xs text-cyan-300">
             <Loader2 size={13} className="animate-spin" />
-            {creatingMsg || 'Importando vídeos publicados do YouTube...'}
+            {creatingMsg || t('channels.create.importingVideos')}
           </p>
         )}
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className={btnGhost} onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button type="submit" className={btnPrimary} disabled={creating}>
-            {creating ? 'Criando...' : 'Criar Canal'}
+            {creating ? t('channels.create.creating') : t('channels.create.submit')}
           </button>
         </div>
       </form>
