@@ -407,6 +407,14 @@ export default function NicheFinder() {
   const [hasMore, setHasMore] = useState(false)
   const PAGE = 400
 
+  // Aba "Por Categoria": acordeão de TODAS as categorias com contagem/views
+  // globais (agregação no servidor). Cada categoria expande sob demanda.
+  const [catStats, setCatStats] = useState([])
+  const [catLoading, setCatLoading] = useState(false)
+  const [catOpen, setCatOpen] = useState(null)
+  const [catChannels, setCatChannels] = useState({})
+  const [catBusy, setCatBusy] = useState(false)
+
   const favorites = db.getSetting('nicheFavorites', [])
   const hasKeys = (db.getSetting('ytKeys', []) || []).some(Boolean)
 
@@ -467,6 +475,33 @@ export default function NicheFinder() {
   useEffect(() => {
     loadBase(true)
   }, [tab, subRange, viewRange, category, monetizedOnly, order]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Carrega a agregação global de categorias ao abrir a aba "Por Categoria".
+  useEffect(() => {
+    if (tab !== 'bycategory') return
+    setCatLoading(true)
+    api.channels
+      .categories()
+      .then(({ categories }) => setCatStats(categories || []))
+      .catch(() => setCatStats([]))
+      .finally(() => setCatLoading(false))
+  }, [tab])
+
+  // Expande/recolhe uma categoria; na 1ª abertura busca os canais dela.
+  async function toggleCat(cat) {
+    if (catOpen === cat) return setCatOpen(null)
+    setCatOpen(cat)
+    if (catChannels[cat]) return
+    setCatBusy(true)
+    try {
+      const { results: list } = await api.channels.list({ category: cat, pageSize: 60, sort: order })
+      setCatChannels((m) => ({ ...m, [cat]: list || [] }))
+    } catch {
+      setCatChannels((m) => ({ ...m, [cat]: [] }))
+    } finally {
+      setCatBusy(false)
+    }
+  }
 
   // Busca no YouTube → grava na base GLOBAL (todos passam a ver) e mostra na hora.
   async function fetchChannels(q) {
@@ -734,48 +769,83 @@ export default function NicheFinder() {
         </div>
       )}
 
-      {/* Aba "Por Categoria": canais agrupados pela categoria de vídeo */}
-      {!loading && filtered.length > 0 && tab === 'bycategory' && (
-        <div className="space-y-6">
-          {Object.entries(
-            filtered.reduce((acc, c) => {
-              const cat = c.topics?.[0] || 'Outros'
-              ;(acc[cat] = acc[cat] || []).push(c)
-              return acc
-            }, {}),
-          )
-            .sort(([, a], [, b]) => b.length - a.length)
-            .map(([cat, list]) => (
-              <div key={cat}>
-                <div className="mb-3 flex items-center gap-2">
-                  <FolderOpen size={15} className="text-cyan-400" />
-                  <h3 className="text-sm font-bold text-slate-100">{cat}</h3>
-                  <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold text-cyan-300">{list.length}</span>
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-                  {list.map((c) => (
-                    <ChannelCard
-                      key={c.id}
-                      channel={c}
-                      isFavorite={favorites.some((f) => f.id === c.id)}
-                      onToggleFavorite={() => toggleFavorite(c)}
-                      onOpenDoubling={() => navigate(`/dobra-de-nicho?channel=${c.id}`)}
-                      cacheTs={null}
-                      t={t}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
+      {/* Aba "Por Categoria": acordeão global — TODAS as categorias com contagem/views,
+          expandindo sob demanda em mini-cards (como no original). */}
+      {tab === 'bycategory' && (
+        <div>
+          <p className="mb-3 text-xs text-slate-500">Canais agrupados por nicho</p>
+          {catLoading && catStats.length === 0 ? (
+            <div className="flex justify-center py-10">
+              <Loader2 size={20} className="animate-spin text-cyan-400" />
+            </div>
+          ) : catStats.length === 0 ? (
+            <EmptyState icon={FolderOpen} title="Base ainda sem categorias" description="Faça buscas no Niche Finder para popular a base global — as categorias aparecem aqui." />
+          ) : (
+            <div className="space-y-2">
+              {catStats.map(({ category: cat, count, views }) => {
+                const open = catOpen === cat
+                const list = catChannels[cat]
+                return (
+                  <div key={cat} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
+                    <button onClick={() => toggleCat(cat)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-800/40">
+                      <FolderOpen size={17} className="shrink-0 text-cyan-400" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-bold text-slate-100">{cat}</span>
+                        <span className="text-[11px] text-slate-500">
+                          {formatCompact(count)} · {formatCompact(views)} views
+                        </span>
+                      </span>
+                      <ChevronDown size={17} className={`shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+                    </button>
+                    {open && (
+                      <div className="border-t border-slate-800/70 p-4">
+                        {!list ? (
+                          <div className="flex justify-center py-6">
+                            <Loader2 size={18} className="animate-spin text-cyan-400" />
+                          </div>
+                        ) : list.length === 0 ? (
+                          <p className="py-4 text-center text-xs text-slate-600">Nenhum canal nesta categoria.</p>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                            {list.map((c) => (
+                              <a
+                                key={c.id}
+                                href={`https://youtube.com/channel/${c.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-2.5 rounded-lg border border-slate-800 bg-slate-900/60 p-2.5 transition-colors hover:border-cyan-500/40"
+                              >
+                                {c.avatar ? (
+                                  <img src={c.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                                ) : (
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-slate-400">{(c.title || '?').charAt(0)}</div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-xs font-semibold text-slate-100">{c.title}</p>
+                                  <p className="text-[10px] text-slate-500">
+                                    {formatCompact(c.subscribers)} inscritos · {formatCompact(c.views)} views
+                                  </p>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {!loading && results.length > 0 && filtered.length === 0 && (
+      {!loading && tab !== 'bycategory' && results.length > 0 && filtered.length === 0 && (
         <EmptyState icon={TrendingUp} title="Nenhum canal com esses filtros" description="Troque a aba de tendência ou limpe os filtros." />
       )}
 
       {/* Mostrar mais — pagina a base global do servidor */}
-      {!loading && !showFavorites && filtered.length > 0 && hasMore && (
+      {!loading && !showFavorites && tab !== 'bycategory' && filtered.length > 0 && hasMore && (
         <div className="flex justify-center pb-4">
           <button
             onClick={loadMore}
@@ -787,7 +857,7 @@ export default function NicheFinder() {
           </button>
         </div>
       )}
-      {!loading && !showFavorites && results.length > 0 && !hasMore && (
+      {!loading && !showFavorites && tab !== 'bycategory' && results.length > 0 && !hasMore && (
         <p className="pb-4 text-center text-xs text-slate-600">Fim da base para esta categoria.</p>
       )}
 

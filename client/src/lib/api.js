@@ -131,6 +131,7 @@ export const api = {
   channels: {
     // Base global de canais do Niche Finder (Supabase, compartilhada por todos)
     list: (params) => request(`/channels/list?${new URLSearchParams(params)}`),
+    categories: () => request('/channels/categories'),
     stats: () => request('/channels/stats'),
     upsert: (channels) => request('/channels/upsert', { method: 'POST', body: { channels } }),
   },

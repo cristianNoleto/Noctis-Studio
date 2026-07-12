@@ -108,6 +108,19 @@ router.get('/list', async (req, res) => {
   res.json({ results: (data || []).map(toClient), total: count || 0, page: p, pageSize: ps })
 })
 
+// GET /api/channels/categories — agregação global por categoria (acordeão "Por Categoria").
+// Usa a função SQL niche_category_stats() (ver supabase/niche_category_stats.sql).
+router.get('/categories', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const { data, error } = await supa.rpc('niche_category_stats')
+  if (error) return res.status(500).json({ error: 'categories_failed', message: error.message })
+  const categories = (data || [])
+    .map((r) => ({ category: r.category || 'Outros', count: Number(r.count) || 0, views: Number(r.views) || 0 }))
+    .filter((r) => r.count > 0)
+  res.json({ categories })
+})
+
 // GET /api/channels/stats — contagem global + novos nesta semana (visível a todos).
 router.get('/stats', async (req, res) => {
   const supa = requireSupabase(res)
