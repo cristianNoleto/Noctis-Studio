@@ -139,6 +139,7 @@ function SupabaseMembersTab() {
             <div className="min-w-0 flex-1">
               <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-100">
                 {u.name || u.email}
+                {u.founder && <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-400">🛡️ FUNDADOR</span>}
                 {isMe && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">👑 VOCÊ</span>}
                 {u.banned && <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[9px] font-bold text-red-400">SUSPENSO</span>}
                 {u.providers.map((p) => (
@@ -155,7 +156,8 @@ function SupabaseMembersTab() {
             <select
               className={`${inputCls} !w-28 !py-1.5 text-xs`}
               value={u.plan}
-              disabled={busy}
+              disabled={busy || u.founder}
+              title={u.founder ? 'Conta blindada do fundador — não pode ser alterada' : undefined}
               onChange={(e) => act(u.id, () => api.admin.setPlan(u.id, e.target.value))}
             >
               {PLAN_OPTIONS.map((p) => (
@@ -164,7 +166,7 @@ function SupabaseMembersTab() {
                 </option>
               ))}
             </select>
-            {!isMe && (
+            {!isMe && !u.founder && (
               <>
                 <button
                   onClick={() => act(u.id, () => api.admin.setBan(u.id, !u.banned))}

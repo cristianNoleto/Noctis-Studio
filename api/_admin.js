@@ -13,15 +13,37 @@ import { createClient } from '@supabase/supabase-js'
 
 const router = Router()
 
+function parseEmails(v) {
+  return (v || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+}
+
 function getConfig() {
+  const founders = parseEmails(process.env.FOUNDER_EMAIL)
+  // O fundador é sempre admin, mesmo que não esteja em ADMIN_EMAILS.
+  const admins = [...new Set([...parseEmails(process.env.ADMIN_EMAILS), ...founders])]
   return {
     url: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    admins: (process.env.ADMIN_EMAILS || '')
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
+    admins,
+    founders,
   }
+}
+
+// Bloqueia qualquer ação sobre a conta do fundador (plano, ban, exclusão).
+// Busca o alvo pelo id e compara o e-mail com a allowlist FOUNDER_EMAIL.
+async function blockIfFounder(req, res) {
+  const founders = getConfig().founders
+  if (!founders.length) return false
+  const { data } = await req.supa.auth.admin.getUserById(req.params.id)
+  const email = (data?.user?.email || '').toLowerCase()
+  if (email && founders.includes(email)) {
+    res.status(403).json({ error: 'cannot_modify_founder', message: 'A conta do fundador é blindada e não pode ser alterada.' })
+    return true
+  }
+  return false
 }
 
 // Toda rota daqui exige token válido + e-mail na allowlist
@@ -48,11 +70,13 @@ router.use(async (req, res, next) => {
 })
 
 function toUserJson(u) {
+  const founder = getConfig().founders.includes((u.email || '').toLowerCase())
   return {
     id: u.id,
     email: u.email,
     name: u.user_metadata?.display_name || null,
-    plan: u.app_metadata?.plan || 'FREE',
+    founder,
+    plan: founder ? 'MASTER' : u.app_metadata?.plan || 'FREE',
     providers: [...new Set((u.identities || []).map((i) => i.provider))],
     createdAt: u.created_at,
     lastSignInAt: u.last_sign_in_at || null,
@@ -74,6 +98,7 @@ router.patch('/users/:id', async (req, res) => {
   if (!['FREE', 'BASIC', 'LITE', 'PRO', 'MASTER'].includes(plan)) {
     return res.status(400).json({ error: 'invalid_plan' })
   }
+  if (await blockIfFounder(req, res)) return
   const { data, error } = await req.supa.auth.admin.updateUserById(req.params.id, { app_metadata: { plan } })
   if (error) return res.status(502).json({ error: 'admin_failed', message: error.message })
   res.json({ user: toUserJson(data.user) })
@@ -82,6 +107,7 @@ router.patch('/users/:id', async (req, res) => {
 // POST /api/admin/users/:id/ban { banned: true|false } — suspende/reativa
 router.post('/users/:id/ban', async (req, res) => {
   if (req.params.id === req.adminUser.id) return res.status(400).json({ error: 'cannot_ban_self' })
+  if (await blockIfFounder(req, res)) return
   const banned = !!req.body?.banned
   const { data, error } = await req.supa.auth.admin.updateUserById(req.params.id, {
     ban_duration: banned ? '87600h' : 'none', // ~10 anos ou remove o ban
@@ -93,6 +119,7 @@ router.post('/users/:id/ban', async (req, res) => {
 // DELETE /api/admin/users/:id — exclui a conta (irreversível)
 router.delete('/users/:id', async (req, res) => {
   if (req.params.id === req.adminUser.id) return res.status(400).json({ error: 'cannot_delete_self' })
+  if (await blockIfFounder(req, res)) return
   const { error } = await req.supa.auth.admin.deleteUser(req.params.id)
   if (error) return res.status(502).json({ error: 'admin_failed', message: error.message })
   res.json({ ok: true })

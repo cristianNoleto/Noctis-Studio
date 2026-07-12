@@ -14,6 +14,17 @@ const ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || '')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean)
 
+// FUNDADOR: conta blindada. O(s) e-mail(s) em VITE_FOUNDER_EMAIL (Vercel) têm,
+// PARA SEMPRE, acesso de fundador + plano MASTER + todas as funcionalidades —
+// independente do que estiver salvo no banco. O painel Admin não consegue
+// mudar plano, banir nem excluir essa conta (bloqueio também no servidor).
+const FOUNDER_EMAILS = (import.meta.env.VITE_FOUNDER_EMAIL || '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean)
+
+const isFounderEmail = (email) => !!email && FOUNDER_EMAILS.includes(email.toLowerCase())
+
 // Modo local: a primeira conta criada vira o administrador da instalação.
 function ensureLocalAdmin(email) {
   if (!localStorage.getItem(LOCAL_ADMIN_KEY)) localStorage.setItem(LOCAL_ADMIN_KEY, email)
@@ -161,16 +172,28 @@ export function AuthProvider({ children }) {
     setUser(sessionToUser(data.session))
   }, [])
 
+  // Fundador: e-mail na allowlist VITE_FOUNDER_EMAIL. Blindado — nunca perde acesso.
+  const isFounder = isFounderEmail(user?.email)
+
   // Admin: no modo local é a primeira conta criada; no Supabase é a
-  // allowlist VITE_ADMIN_EMAILS (ou is_admin em app_metadata).
-  const isAdmin = isLocalMode
+  // allowlist VITE_ADMIN_EMAILS (ou is_admin em app_metadata). O fundador é
+  // SEMPRE admin, mesmo que não esteja em ADMIN_EMAILS ou perca o is_admin.
+  const isAdmin = isFounder || (isLocalMode
     ? !!user?.email && localStorage.getItem(LOCAL_ADMIN_KEY) === user.email
-    : !!user?.email && (ADMIN_EMAILS.includes(user.email.toLowerCase()) || !!user?.isAdmin)
+    : !!user?.email && (ADMIN_EMAILS.includes(user.email.toLowerCase()) || !!user?.isAdmin))
+
+  // Usuário exposto: o fundador tem plano MASTER forçado (todas as funcionalidades),
+  // independente do que o app_metadata.plan disser.
+  const exposedUser = useMemo(() => {
+    if (!user) return null
+    return { ...user, isFounder, plan: isFounder ? 'MASTER' : user.plan }
+  }, [user, isFounder])
 
   const value = useMemo(
     () => ({
-      user,
+      user: exposedUser,
       loading,
+      isFounder,
       signIn,
       signUp,
       signInWithGoogle,
@@ -185,7 +208,7 @@ export function AuthProvider({ children }) {
       isLocalMode,
       isAdmin,
     }),
-    [user, loading, signIn, signUp, signInWithGoogle, resetPassword, signOut, linkGoogle, unlinkIdentity, updateEmail, updatePassword, getAccessToken, refreshUser, isAdmin],
+    [exposedUser, isFounder, loading, signIn, signUp, signInWithGoogle, resetPassword, signOut, linkGoogle, unlinkIdentity, updateEmail, updatePassword, getAccessToken, refreshUser, isAdmin],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
