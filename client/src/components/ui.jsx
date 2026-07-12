@@ -97,7 +97,7 @@ export function Drawer({ open, onClose, title, children, actions }) {
   )
 }
 
-export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmLabel = 'Excluir' }) {
+export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmLabel = 'Excluir', danger = true }) {
   return (
     <Modal open={open} onClose={onClose} title={title}>
       <p className="text-sm text-slate-400">{message}</p>
@@ -106,7 +106,7 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
           Cancelar
         </button>
         <button
-          className={btnDanger}
+          className={danger ? btnDanger : btnPrimary}
           onClick={() => {
             onConfirm()
             onClose()

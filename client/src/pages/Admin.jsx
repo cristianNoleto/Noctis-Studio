@@ -759,6 +759,8 @@ function AutoCrawlTab() {
         open={confirm !== null}
         onClose={() => setConfirm(null)}
         onConfirm={applyToggle}
+        danger={confirm === 'off'}
+        confirmLabel={confirm === 'off' ? 'Desligar' : 'Ligar busca'}
         title={confirm === 'off' ? 'Desligar busca automática' : 'Ligar busca automática'}
         message={
           confirm === 'off'
