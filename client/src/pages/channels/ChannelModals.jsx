@@ -4,25 +4,22 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities'
 import { Trash2, Plus, Copy, Star, GripVertical, ExternalLink, X, Loader2, Save } from 'lucide-react'
 import { useDb } from '../../lib/db'
+import { useI18n } from '../../i18n'
 import { api, apiErrorMessage } from '../../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, formatCompact } from '../../components/ui'
 import { Field } from './ChannelsList'
 
-const LANGUAGES = [
-  ['pt', 'Português'],
-  ['en', 'Inglês'],
-  ['es', 'Espanhol'],
-  ['de', 'Alemão'],
-  ['fr', 'Francês'],
-  ['it', 'Italiano'],
-  ['ja', 'Japonês'],
-]
+const LANG_CODES = ['pt', 'en', 'es', 'de', 'fr', 'it', 'ja']
+
+// Chaves de permissão de compartilhamento (labels traduzidos via i18n).
+const PERMISSION_KEYS = ['permissionEditConfig', 'permissionEditPrompts', 'permissionDeleteVideos', 'permissionEditReferences']
 
 // ---------------------------------------------------------------------------
 // Editar Canal
 // ---------------------------------------------------------------------------
 export function EditChannelModal({ open, onClose, channel }) {
   const db = useDb()
+  const { t } = useI18n()
   const [form, setForm] = useState({})
 
   useEffect(() => {
@@ -65,28 +62,28 @@ export function EditChannelModal({ open, onClose, channel }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Editar Canal">
-      <p className="-mt-3 mb-5 text-xs text-slate-500">Atualize as informações do canal</p>
+    <Modal open={open} onClose={onClose} title={t('channels.modals.editTitle')}>
+      <p className="-mt-3 mb-5 text-xs text-slate-500">{t('channels.modals.editSub')}</p>
       <form onSubmit={save} className="space-y-4">
-        <Field label="NOME DO CANAL">
+        <Field label={t('channels.modals.name')}>
           <input className={inputCls} required value={form.name || ''} onChange={(e) => set('name', e.target.value)} />
         </Field>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="IDIOMA">
+          <Field label={t('channels.modals.language')}>
             <select className={inputCls} value={form.language} onChange={(e) => set('language', e.target.value)}>
-              {LANGUAGES.map(([c, l]) => (
+              {LANG_CODES.map((c) => (
                 <option key={c} value={c}>
-                  {l}
+                  {t(`common.langFull.${c}`)}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="E-MAIL">
+          <Field label={t('channels.modals.email')}>
             <input className={inputCls} type="email" value={form.contactEmail || ''} onChange={(e) => set('contactEmail', e.target.value)} />
           </Field>
         </div>
 
-        <Field label="HORÁRIO DE POSTAGEM">
+        <Field label={t('channels.modals.postTime')}>
           <div className="flex flex-wrap gap-2">
             {(form.postTimes || []).map((time, i) => (
               <div key={i} className="relative">
@@ -96,7 +93,7 @@ export function EditChannelModal({ open, onClose, channel }) {
                     type="button"
                     onClick={() => set('postTimes', form.postTimes.filter((_, idx) => idx !== i))}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-red-400"
-                    title="Remover horário"
+                    title={t('channels.modals.removeTime')}
                   >
                     <X size={13} />
                   </button>
@@ -106,7 +103,7 @@ export function EditChannelModal({ open, onClose, channel }) {
             <button
               type="button"
               onClick={() => set('postTimes', [...form.postTimes, '12:00'])}
-              title="Adicionar horário"
+              title={t('channels.modals.addTime')}
               className="flex h-10 w-14 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-slate-400 transition-colors hover:border-cyan-500/50 hover:text-cyan-400"
             >
               <Plus size={15} />
@@ -115,25 +112,25 @@ export function EditChannelModal({ open, onClose, channel }) {
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="FREQUÊNCIA DE POSTAGEM">
-            <input className={inputCls} placeholder="1x por semana" value={form.frequency || ''} onChange={(e) => set('frequency', e.target.value)} />
+          <Field label={t('channels.modals.frequency')}>
+            <input className={inputCls} placeholder={t('channels.modals.frequencyPlaceholder')} value={form.frequency || ''} onChange={(e) => set('frequency', e.target.value)} />
           </Field>
-          <Field label="VÍDEOS JÁ POSTADOS">
+          <Field label={t('channels.modals.postedBaseline')}>
             <input className={inputCls} type="number" min="0" value={form.postedBaseline ?? 0} onChange={(e) => set('postedBaseline', e.target.value)} />
           </Field>
         </div>
 
-        <Field label="ANOTAÇÕES">
+        <Field label={t('channels.modals.notes')}>
           <textarea className={`${inputCls} min-h-20 resize-y`} value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} />
         </Field>
 
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className={btnGhost} onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button type="submit" className={`${btnPrimary} flex items-center gap-2`}>
             <Save size={14} />
-            Atualizar Canal
+            {t('channels.modals.update')}
           </button>
         </div>
       </form>
@@ -146,6 +143,7 @@ export function EditChannelModal({ open, onClose, channel }) {
 // ---------------------------------------------------------------------------
 export function CustomButtonsModal({ open, onClose, channelId }) {
   const db = useDb()
+  const { t } = useI18n()
   const [slots, setSlots] = useState([])
 
   useEffect(() => {
@@ -172,17 +170,15 @@ export function CustomButtonsModal({ open, onClose, channelId }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Configurar Botões Personalizados" wide>
-      <p className="mb-4 text-sm text-slate-500">
-        Atalhos exibidos no topo do canal (ex.: YouTube Studio, Canva, AI Studio). Cada botão abre a URL em nova aba.
-      </p>
+    <Modal open={open} onClose={onClose} title={t('channels.modals.buttonsTitle')} wide>
+      <p className="mb-4 text-sm text-slate-500">{t('channels.modals.buttonsDesc')}</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {slots.map((slot, i) => (
           <div key={slot.position} className="rounded-lg border border-slate-800 p-3">
-            <p className="mb-2 text-[10px] font-bold tracking-wider text-slate-600">BOTÃO {slot.position}</p>
+            <p className="mb-2 text-[10px] font-bold tracking-wider text-slate-600">{t('channels.modals.buttonN', { n: slot.position })}</p>
             <input
               className={`${inputCls} mb-2`}
-              placeholder="Nome do botão"
+              placeholder={t('channels.modals.buttonName')}
               value={slot.label}
               onChange={(e) => setSlot(i, 'label', e.target.value)}
             />
@@ -192,10 +188,10 @@ export function CustomButtonsModal({ open, onClose, channelId }) {
       </div>
       <div className="mt-5 flex justify-end gap-2">
         <button className={btnGhost} onClick={onClose}>
-          Cancelar
+          {t('common.cancel')}
         </button>
         <button className={btnPrimary} onClick={save}>
-          Salvar Botões
+          {t('channels.modals.saveButtons')}
         </button>
       </div>
     </Modal>
@@ -205,15 +201,9 @@ export function CustomButtonsModal({ open, onClose, channelId }) {
 // ---------------------------------------------------------------------------
 // Compartilhar canal (permissões granulares)
 // ---------------------------------------------------------------------------
-const PERMISSIONS = [
-  ['permissionEditConfig', 'Editar configurações do canal'],
-  ['permissionEditPrompts', 'Editar prompts'],
-  ['permissionDeleteVideos', 'Excluir vídeos'],
-  ['permissionEditReferences', 'Editar referências'],
-]
-
 export function ShareChannelModal({ open, onClose, channelId }) {
   const db = useDb()
+  const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [perms, setPerms] = useState({})
   const members = db.all('channelMembers').filter((m) => m.channelId === channelId)
@@ -227,14 +217,14 @@ export function ShareChannelModal({ open, onClose, channelId }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Compartilhar Canal" wide>
+    <Modal open={open} onClose={onClose} title={t('channels.modals.shareTitle')} wide>
       <form onSubmit={invite} className="rounded-lg border border-slate-800 p-4">
-        <Field label="E-MAIL DO CONVIDADO">
+        <Field label={t('channels.modals.guestEmail')}>
           <input className={inputCls} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="editor@email.com" />
         </Field>
-        <p className="mb-1.5 mt-4 text-xs font-semibold tracking-wide text-slate-400">PERMISSÕES</p>
+        <p className="mb-1.5 mt-4 text-xs font-semibold tracking-wide text-slate-400">{t('channels.modals.permissions')}</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {PERMISSIONS.map(([key, label]) => (
+          {PERMISSION_KEYS.map((key) => (
             <label key={key} className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
               <input
                 type="checkbox"
@@ -242,24 +232,22 @@ export function ShareChannelModal({ open, onClose, channelId }) {
                 onChange={(e) => setPerms((p) => ({ ...p, [key]: e.target.checked }))}
                 className="h-4 w-4 rounded border-slate-700 bg-slate-900 accent-cyan-500"
               />
-              {label}
+              {t(`channels.modals.perms.${key}`)}
             </label>
           ))}
         </div>
-        <p className="mt-3 text-[11px] text-slate-600">
-          As permissões são aplicadas também no servidor em toda ação sensível — nunca apenas na interface.
-        </p>
+        <p className="mt-3 text-[11px] text-slate-600">{t('channels.modals.serverNote')}</p>
         <div className="mt-4 flex justify-end">
           <button type="submit" className={btnPrimary}>
-            Convidar
+            {t('channels.modals.invite')}
           </button>
         </div>
       </form>
 
       <div className="mt-5">
-        <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400">MEMBROS ATIVOS</p>
+        <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400">{t('channels.modals.activeMembers')}</p>
         {members.length === 0 ? (
-          <p className="text-sm text-slate-600">Só você tem acesso a este canal.</p>
+          <p className="text-sm text-slate-600">{t('channels.modals.onlyYou')}</p>
         ) : (
           <ul className="space-y-2">
             {members.map((m) => (
@@ -270,11 +258,11 @@ export function ShareChannelModal({ open, onClose, channelId }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-slate-200">{m.email}</p>
                   <p className="text-[11px] text-slate-500">
-                    {PERMISSIONS.filter(([k]) => m[k]).map(([, l]) => l).join(' · ') || 'Somente visualização'}
+                    {PERMISSION_KEYS.filter((k) => m[k]).map((k) => t(`channels.modals.perms.${k}`)).join(' · ') || t('channels.modals.viewOnly')}
                   </p>
                 </div>
-                <span className="rounded bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold text-cyan-400">EDITOR</span>
-                <button onClick={() => db.remove('channelMembers', m.id)} title="Remover acesso" className="text-slate-600 hover:text-red-400">
+                <span className="rounded bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold text-cyan-400">{t('channels.modals.editor')}</span>
+                <button onClick={() => db.remove('channelMembers', m.id)} title={t('channels.modals.removeAccess')} className="text-slate-600 hover:text-red-400">
                   <Trash2 size={15} />
                 </button>
               </li>
@@ -291,6 +279,7 @@ export function ShareChannelModal({ open, onClose, channelId }) {
 // ---------------------------------------------------------------------------
 export function ChannelPromptsModal({ open, onClose, channelId }) {
   const db = useDb()
+  const { t } = useI18n()
   const prompts = db.all('prompts').filter((p) => p.channelId === channelId)
   const [copied, setCopied] = useState(null)
 
@@ -301,11 +290,9 @@ export function ChannelPromptsModal({ open, onClose, channelId }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Prompts do Canal" wide>
+    <Modal open={open} onClose={onClose} title={t('channels.modals.promptsTitle')} wide>
       {prompts.length === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-500">
-          Nenhum prompt vinculado a este canal ainda. Crie na página <b>Prompts</b> selecionando este canal no campo de vínculo.
-        </p>
+        <p className="py-6 text-center text-sm text-slate-500">{t('channels.modals.promptsEmpty')}</p>
       ) : (
         <ul className="space-y-2">
           {prompts.map((p) => (
@@ -315,7 +302,7 @@ export function ChannelPromptsModal({ open, onClose, channelId }) {
                 <p className="font-medium text-slate-200">{p.name}</p>
                 <button onClick={() => copy(p)} className={`ml-auto flex items-center gap-1.5 text-xs ${copied === p.id ? 'text-green-400' : 'text-slate-500 hover:text-cyan-400'}`}>
                   <Copy size={13} />
-                  {copied === p.id ? 'Copiado!' : 'Copiar'}
+                  {copied === p.id ? t('channels.modals.copied') : t('channels.modals.copy')}
                 </button>
               </div>
               <p className="mt-1.5 line-clamp-2 text-xs text-slate-500">{p.content}</p>
@@ -333,6 +320,7 @@ export function ChannelPromptsModal({ open, onClose, channelId }) {
 // ---------------------------------------------------------------------------
 export function ChannelReferencesModal({ open, onClose, channelId }) {
   const db = useDb()
+  const { t } = useI18n()
   const channel = db.get('channels', channelId)
   const refs = db
     .all('referenceChannels')
@@ -383,12 +371,12 @@ export function ChannelReferencesModal({ open, onClose, channelId }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Canais de Referência">
+    <Modal open={open} onClose={onClose} title={t('channels.modals.refsTitle')}>
       <p className="-mt-4 text-xs text-cyan-400">{channel?.name}</p>
-      <p className="mb-4 mt-1 text-xs text-slate-500">Adicione e organize canais do YouTube como referência. Arraste para reordenar.</p>
+      <p className="mb-4 mt-1 text-xs text-slate-500">{t('channels.modals.refsSub')}</p>
 
-      <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400">Canais adicionados ({refs.length}):</p>
-      {refs.length === 0 && <p className="rounded-lg border border-dashed border-slate-800 py-5 text-center text-xs text-slate-600">Nenhum canal de referência ainda.</p>}
+      <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400">{t('channels.modals.refsAdded', { n: refs.length })}</p>
+      {refs.length === 0 && <p className="rounded-lg border border-dashed border-slate-800 py-5 text-center text-xs text-slate-600">{t('channels.modals.refsEmpty')}</p>}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={refs.map((r) => r.id)} strategy={verticalListSortingStrategy}>
           <ul className="space-y-2">
@@ -403,15 +391,15 @@ export function ChannelReferencesModal({ open, onClose, channelId }) {
       <div className="mt-4 rounded-lg border border-slate-800 p-3.5">
         <p className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-red-400">
           <Plus size={13} />
-          Adicionar novo canal
+          {t('channels.modals.addNew')}
         </p>
         <form onSubmit={add} className="space-y-2">
-          <input className={inputCls} placeholder="Nome do canal (ex: MKBHD)" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className={inputCls} placeholder={t('channels.modals.refNamePlaceholder')} value={name} onChange={(e) => setName(e.target.value)} />
           <div className="flex gap-2">
             <input className={`${inputCls} font-mono text-xs`} required placeholder="https://youtube.com/@..." value={url} onChange={(e) => setUrl(e.target.value)} />
             <button type="submit" className={`${btnGhost} flex shrink-0 items-center gap-1.5 text-xs`} disabled={adding || !url.trim()}>
               {adding ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-              Adicionar
+              {t('channels.modals.add')}
             </button>
           </div>
         </form>
@@ -420,7 +408,7 @@ export function ChannelReferencesModal({ open, onClose, channelId }) {
 
       <div className="mt-5 flex justify-end">
         <button className={btnGhost} onClick={onClose}>
-          Fechar
+          {t('channels.modals.close')}
         </button>
       </div>
     </Modal>
@@ -428,6 +416,7 @@ export function ChannelReferencesModal({ open, onClose, channelId }) {
 }
 
 function SortableReferenceRow({ reference: r, onRemove }) {
+  const { t } = useI18n()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
   const url = r.youtubeUrl.startsWith('http') ? r.youtubeUrl : `https://youtube.com/${r.youtubeUrl}`
@@ -438,7 +427,7 @@ function SortableReferenceRow({ reference: r, onRemove }) {
       style={style}
       className={`flex items-center gap-2.5 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-2.5 ${isDragging ? 'z-10 opacity-90 shadow-2xl' : ''}`}
     >
-      <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title="Arrastar para reordenar">
+      <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title={t('channels.modals.dragReorder')}>
         <GripVertical size={15} />
       </button>
       {r.cachedStats?.avatar ? (
@@ -452,10 +441,10 @@ function SortableReferenceRow({ reference: r, onRemove }) {
         <p className="truncate text-sm font-semibold text-slate-100">{r.cachedStats?.title || r.youtubeUrl}</p>
         <p className="truncate text-[10px] text-slate-500">{r.youtubeUrl}</p>
       </div>
-      <a href={url} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300" title="Abrir no YouTube">
+      <a href={url} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300" title={t('channels.modals.openYoutube')}>
         <ExternalLink size={14} />
       </a>
-      <button onClick={onRemove} title="Remover" className="text-red-400/70 hover:text-red-400">
+      <button onClick={onRemove} title={t('channels.modals.remove')} className="text-red-400/70 hover:text-red-400">
         <X size={15} />
       </button>
     </li>

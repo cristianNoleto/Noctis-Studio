@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Save, FileDown, Captions, Check } from 'lucide-react'
 import { useDb } from '../../lib/db'
+import { useI18n } from '../../i18n'
 import { Drawer, btnGhost, btnPrimary } from '../../components/ui'
 import { countWords, countParagraphs, narrationSeconds, formatDuration, generateSrt, downloadFile } from '../../lib/text'
 
@@ -8,6 +9,7 @@ const AUTOSAVE_DEBOUNCE_MS = 2000
 
 export default function ScriptDrawer({ video, onClose }) {
   const db = useDb()
+  const { t } = useI18n()
   const existing = db.all('scripts').find((s) => s.videoId === video.id)
   const [content, setContent] = useState(existing?.content || '')
   const [savedAt, setSavedAt] = useState(existing ? Date.now() : null)
@@ -52,20 +54,20 @@ export default function ScriptDrawer({ video, onClose }) {
     <Drawer
       open
       onClose={onClose}
-      title={`Roteiro — ${video.title}`}
+      title={t('script.title', { title: video.title })}
       actions={
         <>
           <button className={`${btnGhost} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => downloadFile(`${slug}.srt`, generateSrt(content))} disabled={!content.trim()}>
             <Captions size={13} />
-            Gerar SRT
+            {t('script.generateSrt')}
           </button>
           <button className={`${btnGhost} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => downloadFile(`${slug}.txt`, content)} disabled={!content.trim()}>
             <FileDown size={13} />
-            TXT
+            {t('script.txt')}
           </button>
           <button className={`${btnPrimary} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => persist(content)}>
             <Save size={13} />
-            Salvar Roteiro
+            {t('script.save')}
           </button>
         </>
       }
@@ -73,17 +75,17 @@ export default function ScriptDrawer({ video, onClose }) {
       <div className="flex h-full flex-col">
         {/* Contadores + tempo de narração */}
         <div className="grid grid-cols-3 gap-3 border-b border-slate-800 px-6 py-4 sm:grid-cols-6">
-          <Counter label="Caracteres" value={stats.chars.toLocaleString('pt-BR')} />
-          <Counter label="Palavras" value={stats.words.toLocaleString('pt-BR')} />
-          <Counter label="Parágrafos" value={stats.paragraphs} />
-          <Counter label="Normal (150 WPM)" value={formatDuration(narrationSeconds(content, 'normal'))} accent />
-          <Counter label="Lento/Pausado (+15%)" value={formatDuration(narrationSeconds(content, 'slow'))} />
-          <Counter label="Rápido/Dinâmico (−15%)" value={formatDuration(narrationSeconds(content, 'fast'))} />
+          <Counter label={t('script.chars')} value={stats.chars.toLocaleString('pt-BR')} />
+          <Counter label={t('script.words')} value={stats.words.toLocaleString('pt-BR')} />
+          <Counter label={t('script.paragraphs')} value={stats.paragraphs} />
+          <Counter label={t('script.normal')} value={formatDuration(narrationSeconds(content, 'normal'))} accent />
+          <Counter label={t('script.slow')} value={formatDuration(narrationSeconds(content, 'slow'))} />
+          <Counter label={t('script.fast')} value={formatDuration(narrationSeconds(content, 'fast'))} />
         </div>
 
         <textarea
           className="min-h-0 flex-1 resize-none bg-slate-950 p-6 font-mono text-sm leading-relaxed text-slate-200 placeholder:text-slate-700 focus:outline-none"
-          placeholder="Escreva ou cole o roteiro aqui... O tempo de narração é calculado automaticamente pela contagem de palavras (150 WPM ±15%)."
+          placeholder={t('script.placeholder')}
           value={content}
           onChange={(e) => handleChange(e.target.value)}
         />
@@ -91,17 +93,17 @@ export default function ScriptDrawer({ video, onClose }) {
         <div className="flex items-center justify-between border-t border-slate-800 px-6 py-2.5 text-[11px] text-slate-500">
           <span>
             {dirty ? (
-              'Alterações não salvas — autosave em instantes...'
+              t('script.unsaved')
             ) : savedAt ? (
               <span className="flex items-center gap-1 text-green-400">
                 <Check size={12} />
-                Roteiro salvo automaticamente
+                {t('script.saved')}
               </span>
             ) : (
-              'Comece a digitar para ativar o autosave.'
+              t('script.startTyping')
             )}
           </span>
-          <span>O SRT gerado usa o tempo de leitura estimado — ajuste fino no editor de vídeo.</span>
+          <span>{t('script.srtHint')}</span>
         </div>
       </div>
     </Drawer>
