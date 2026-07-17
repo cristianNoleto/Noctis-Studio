@@ -29,8 +29,19 @@ import {
   Rocket,
 } from 'lucide-react'
 import { useDb } from '../lib/db'
+import { useI18n } from '../i18n'
 import { api, apiErrorMessage } from '../lib/api'
 import { inputCls, btnPrimary, btnGhost, EmptyState, formatCompact } from '../components/ui'
+
+// Nome do idioma na língua da interface (evita traduzir 50 nomes à mão)
+function langLabel(code, uiLang) {
+  try {
+    const n = new Intl.DisplayNames([uiLang], { type: 'language' }).of(code)
+    return n ? n.charAt(0).toUpperCase() + n.slice(1) : code
+  } catch {
+    return code
+  }
+}
 import { PrivacyScope, PageEye, Masked, RestrictedThumb, useRestricted } from '../components/privacy'
 
 // Consulta padrão usada para pré-carregar a página na primeira visita.
@@ -197,57 +208,16 @@ const SORT_OPTIONS = [
 
 // 50 idiomas mais usados no YouTube (print 2) — código ISO p/ relevanceLanguage
 // + país da bandeira (flagcdn).
+// [código ISO p/ relevanceLanguage, país da bandeira]. O nome é resolvido
+// na língua da interface via langLabel() (Intl.DisplayNames).
 const LANGUAGES = [
-  ['en', 'Inglês', 'us'],
-  ['pt', 'Português', 'br'],
-  ['es', 'Espanhol', 'es'],
-  ['de', 'Alemão', 'de'],
-  ['pl', 'Polonês', 'pl'],
-  ['ru', 'Russo', 'ru'],
-  ['fr', 'Francês', 'fr'],
-  ['it', 'Italiano', 'it'],
-  ['ja', 'Japonês', 'jp'],
-  ['ko', 'Coreano', 'kr'],
-  ['zh', 'Chinês', 'cn'],
-  ['hi', 'Hindi', 'in'],
-  ['ar', 'Árabe', 'sa'],
-  ['tr', 'Turco', 'tr'],
-  ['nl', 'Holandês', 'nl'],
-  ['sv', 'Sueco', 'se'],
-  ['no', 'Norueguês', 'no'],
-  ['da', 'Dinamarquês', 'dk'],
-  ['fi', 'Finlandês', 'fi'],
-  ['el', 'Grego', 'gr'],
-  ['cs', 'Tcheco', 'cz'],
-  ['hu', 'Húngaro', 'hu'],
-  ['ro', 'Romeno', 'ro'],
-  ['uk', 'Ucraniano', 'ua'],
-  ['bg', 'Búlgaro', 'bg'],
-  ['sr', 'Sérvio', 'rs'],
-  ['hr', 'Croata', 'hr'],
-  ['sk', 'Eslovaco', 'sk'],
-  ['sl', 'Esloveno', 'si'],
-  ['th', 'Tailandês', 'th'],
-  ['vi', 'Vietnamita', 'vn'],
-  ['id', 'Indonésio', 'id'],
-  ['ms', 'Malaio', 'my'],
-  ['tl', 'Filipino', 'ph'],
-  ['he', 'Hebraico', 'il'],
-  ['fa', 'Persa', 'ir'],
-  ['ur', 'Urdu', 'pk'],
-  ['bn', 'Bengali', 'bd'],
-  ['ta', 'Tâmil', 'in'],
-  ['te', 'Telugo', 'in'],
-  ['mr', 'Marata', 'in'],
-  ['pa', 'Punjabi', 'in'],
-  ['sw', 'Suaíli', 'ke'],
-  ['af', 'Africâner', 'za'],
-  ['et', 'Estoniano', 'ee'],
-  ['lv', 'Letão', 'lv'],
-  ['lt', 'Lituano', 'lt'],
-  ['is', 'Islandês', 'is'],
-  ['ca', 'Catalão', 'es'],
-  ['nb', 'Norueguês (Bokmål)', 'no'],
+  ['en', 'us'], ['pt', 'br'], ['es', 'es'], ['de', 'de'], ['pl', 'pl'], ['ru', 'ru'], ['fr', 'fr'], ['it', 'it'],
+  ['ja', 'jp'], ['ko', 'kr'], ['zh', 'cn'], ['hi', 'in'], ['ar', 'sa'], ['tr', 'tr'], ['nl', 'nl'], ['sv', 'se'],
+  ['no', 'no'], ['da', 'dk'], ['fi', 'fi'], ['el', 'gr'], ['cs', 'cz'], ['hu', 'hu'], ['ro', 'ro'], ['uk', 'ua'],
+  ['bg', 'bg'], ['sr', 'rs'], ['hr', 'hr'], ['sk', 'sk'], ['sl', 'si'], ['th', 'th'], ['vi', 'vn'], ['id', 'id'],
+  ['ms', 'my'], ['tl', 'ph'], ['he', 'il'], ['fa', 'ir'], ['ur', 'pk'], ['bn', 'bd'], ['ta', 'in'], ['te', 'in'],
+  ['mr', 'in'], ['pa', 'in'], ['sw', 'ke'], ['af', 'za'], ['et', 'ee'], ['lv', 'lv'], ['lt', 'lt'], ['is', 'is'],
+  ['ca', 'es'], ['nb', 'no'],
 ]
 
 // Categorias fixas do original (print 4) — agrupadas pelas categorias de vídeo
@@ -271,24 +241,6 @@ const BASE_CATEGORIES = [
   'Saúde',
   'Notícias',
 ]
-
-// Idioma do card: segue a bandeira selecionada (Português → PT, qualquer outro → EN).
-const CARD_I18N = {
-  pt: {
-    subs: 'INSCRITOS', views: 'VIEWS', videos: 'VÍDEOS', faceless: 'FACELESS',
-    posting: 'postando', last: 'último há', vidMo: 'vid/mês', viewsMo: 'views/mês',
-    added: 'Adicionado há', updated: 'atualizado há', updatedNow: 'atualizado agora', noCat: 'Sem categoria',
-    facelessTip: 'Probabilidade do canal ser faceless. Quanto maior o score, maior a confiança de que o canal não mostra rosto.',
-    monetTip: 'Elegível à monetização (estimativa): +1.000 inscritos e +100 mil views totais, os mínimos do YouTube Partner Program. O YouTube não expõe o status real de monetização por API, então isto é uma estimativa, não uma confirmação.',
-  },
-  en: {
-    subs: 'SUBS', views: 'VIEWS', videos: 'VIDEOS', faceless: 'FACELESS',
-    posting: 'posting', last: 'last', vidMo: 'vid/mo', viewsMo: 'views/mo',
-    added: 'Added', updated: 'updated', updatedNow: 'updated now', noCat: 'No category',
-    facelessTip: 'Likelihood the channel is faceless. The higher the score, the higher the confidence the channel does not show a face.',
-    monetTip: 'Monetization-eligible (estimate): 1,000+ subscribers and 100k+ total views, the YouTube Partner Program minimums. YouTube does not expose real monetization status via API, so this is an estimate, not a confirmation.',
-  },
-}
 
 const ADV_DEFAULT = { monetization: 'any', subsMin: '', subsMax: '', viewsMin: '', viewsMax: '', addedIn: 'any' }
 const ADDED_IN = [
@@ -318,7 +270,7 @@ function timeAgo(ts) {
   if (min < 60) return `${Math.max(1, min)}min`
   const h = Math.round(min / 60)
   if (h < 48) return `${h}h`
-  return `${Math.round(h / 24)} dias`
+  return `${Math.round(h / 24)}d`
 }
 
 // Fecha dropdown ao clicar fora
@@ -382,6 +334,7 @@ function FilterDropdown({ label, value, options, onChange, renderOption, width =
 
 export default function NicheFinder() {
   const db = useDb()
+  const { t, lang } = useI18n()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('exploding') // padrão: "Explodindo Agora"
@@ -577,7 +530,6 @@ export default function NicheFinder() {
   )
 
   const advActive = JSON.stringify(adv) !== JSON.stringify(ADV_DEFAULT)
-  const t = CARD_I18N[language && language !== 'pt' ? 'en' : 'pt'] // idioma do card segue a bandeira
 
   return (
     <PrivacyScope page="niche-finder">
@@ -593,11 +545,11 @@ export default function NicheFinder() {
               <h1 className="text-2xl font-bold text-slate-100">Niche Finder</h1>
               {stats.total > 0 && (
                 <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300">
-                  {formatCompact(stats.total)} canais{stats.thisWeek > 0 ? ` · +${formatCompact(stats.thisWeek)} esta semana` : ''}
+                  {t('niche.count', { n: formatCompact(stats.total) })}{stats.thisWeek > 0 ? t('niche.thisWeek', { n: formatCompact(stats.thisWeek) }) : ''}
                 </span>
               )}
             </div>
-            <p className="text-sm text-slate-500">Descubra nichos em crescimento no YouTube</p>
+            <p className="text-sm text-slate-500">{t('niche.subtitle')}</p>
           </div>
         </div>
         <PageEye />
@@ -606,7 +558,7 @@ export default function NicheFinder() {
       {/* Abas de tendência */}
       <div className="flex items-center gap-2">
         <div className="flex flex-1 gap-1.5 overflow-x-auto pb-1">
-          {TREND_TABS.map(({ key, label, Icon, desc }) => {
+          {TREND_TABS.map(({ key, Icon }) => {
             const active = tab === key
             // Contagem: aba ativa mostra o total real do servidor; favoritos contam local.
             const count = showFavorites
@@ -627,11 +579,11 @@ export default function NicheFinder() {
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                title={desc}
+                title={t(`niche.tabs.${key}.desc`)}
                 className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium transition-colors ${cls}`}
               >
                 <Icon size={13} className={hot ? 'fill-red-500/30' : ''} />
-                {label}
+                {t(`niche.tabs.${key}.label`)}
                 {count != null && (
                   <span
                     className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -649,7 +601,7 @@ export default function NicheFinder() {
 
       {/* Descrição da aba + Favoritos + botão de Filtros avançados */}
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">{activeTab.desc}</p>
+        <p className="text-xs text-slate-500">{t(`niche.tabs.${tab}.desc`)}</p>
         <div className="flex gap-2">
           <button
             onClick={() => setShowFavorites((v) => !v)}
@@ -658,7 +610,7 @@ export default function NicheFinder() {
             }`}
           >
             <Heart size={14} className={showFavorites ? 'fill-red-400' : ''} />
-            Favoritos
+            {t('niche.favorites')}
             <span className="rounded-full bg-slate-800 px-1.5 text-[10px]">{favorites.length}</span>
           </button>
           <button
@@ -666,7 +618,7 @@ export default function NicheFinder() {
             className={`relative flex items-center justify-center rounded-lg border px-3 transition-colors ${
               advActive ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
             }`}
-            title="Filtros avançados"
+            title={t('niche.advFilters')}
           >
             <SlidersHorizontal size={14} />
             {advActive && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-cyan-400" />}
@@ -680,7 +632,7 @@ export default function NicheFinder() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             className={`${inputCls} !h-9 !pl-9`}
-            placeholder="Buscar por nome, nicho, idioma... (Enter busca no YouTube)"
+            placeholder={t('niche.searchPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && query.trim() && fetchChannels(query.trim())}
@@ -688,11 +640,11 @@ export default function NicheFinder() {
         </div>
 
         <FilterDropdown
-          label="Idioma"
+          label={t('niche.language')}
           value={language}
           onChange={setLanguage}
           width="w-56"
-          options={[['', 'Todos os idiomas', null], ...LANGUAGES]}
+          options={[['', t('niche.allLanguages'), null], ...LANGUAGES.map(([code, flag]) => [code, langLabel(code, lang), flag])]}
           renderOption={([, name, flag], compact) => (
             <span className="flex min-w-0 items-center gap-2">
               {flag && <img src={`https://flagcdn.com/w40/${flag}.png`} alt="" className="h-3.5 w-5 shrink-0 rounded-[2px] object-cover" loading="lazy" />}
@@ -701,10 +653,10 @@ export default function NicheFinder() {
           )}
         />
 
-        <FilterDropdown label="Inscritos" value={subRange} onChange={setSubRange} options={SUB_RANGES.map(([v, l]) => [v, v ? l : 'Todos'])} width="w-40" />
+        <FilterDropdown label={t('niche.subs')} value={subRange} onChange={setSubRange} options={SUB_RANGES.map(([v, l]) => [v, v ? (l === 'Até 1K' ? t('niche.subUpTo') : l) : t('niche.subAll')])} width="w-40" />
 
         <FilterDropdown
-          label="Views"
+          label={t('niche.views')}
           value={viewRange}
           onChange={(v) => {
             if (v === 'custom') {
@@ -712,24 +664,24 @@ export default function NicheFinder() {
               setFiltersOpen(true) // Personalizado → De/Até no modal de filtros
             } else setViewRange(v)
           }}
-          options={VIEW_RANGES}
+          options={VIEW_RANGES.map(([v, l]) => [v, v === '' ? t('niche.viewAll') : v === 'custom' ? t('niche.custom') : l])}
           width="w-44"
         />
 
-        <FilterDropdown label="Categoria" value={category} onChange={setCategory} options={[['', 'Todas'], ...categories.map((c) => [c, c])]} width="w-56" />
+        <FilterDropdown label={t('niche.category')} value={category} onChange={setCategory} options={[['', t('niche.allCategories')], ...categories.map((c) => [c, c])]} width="w-56" />
 
         <button
           onClick={() => setMonetizedOnly((v) => !v)}
           className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
             monetizedOnly ? 'border-green-500/60 bg-green-500/10 text-green-400' : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
           }`}
-          title="Mostrar somente canais monetizados"
+          title={t('niche.monetizedTitle')}
         >
           <DollarSign size={13} className={monetizedOnly ? 'text-green-400' : 'text-slate-500'} />
-          Monetizados
+          {t('niche.monetized')}
         </button>
 
-        <FilterDropdown label="Ordenar" value={order} onChange={setOrder} options={SORT_OPTIONS} width="w-44" />
+        <FilterDropdown label={t('niche.sortLabel')} value={order} onChange={setOrder} options={SORT_OPTIONS.map(([v]) => [v, t(`niche.sorts.${v}`)])} width="w-44" />
       </div>
 
       {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
@@ -737,19 +689,15 @@ export default function NicheFinder() {
       {loading && (
         <div className="flex flex-col items-center py-16">
           <Loader2 size={28} className="animate-spin text-cyan-400" />
-          <p className="mt-3 text-sm text-slate-500">Buscando canais e calculando métricas...</p>
+          <p className="mt-3 text-sm text-slate-500">{t('niche.loading')}</p>
         </div>
       )}
 
       {!loading && results.length === 0 && !error && (
         <EmptyState
           icon={Compass}
-          title={hasKeys ? 'Base ainda vazia' : 'Configure suas chaves da YouTube API'}
-          description={
-            hasKeys
-              ? "Digite um tema na busca e pressione Enter — os canais encontrados entram na base GLOBAL (compartilhada). Quanto mais você pesquisar, mais rica ela fica para todos."
-              : 'Adicione até 5 chaves em Perfil → APIs. A base de canais é global e cresce a cada busca.'
-          }
+          title={hasKeys ? t('niche.emptyTitle') : t('niche.noKeysTitle')}
+          description={hasKeys ? t('niche.emptyDesc') : t('niche.noKeysDesc')}
         />
       )}
 
@@ -763,7 +711,6 @@ export default function NicheFinder() {
               onToggleFavorite={() => toggleFavorite(c)}
               onOpenDoubling={() => navigate(`/dobra-de-nicho?channel=${c.id}`)}
               cacheTs={null}
-              t={t}
             />
           ))}
         </div>
@@ -773,13 +720,13 @@ export default function NicheFinder() {
           expandindo sob demanda em mini-cards (como no original). */}
       {tab === 'bycategory' && (
         <div>
-          <p className="mb-3 text-xs text-slate-500">Canais agrupados por nicho</p>
+          <p className="mb-3 text-xs text-slate-500">{t('niche.byNiche')}</p>
           {catLoading && catStats.length === 0 ? (
             <div className="flex justify-center py-10">
               <Loader2 size={20} className="animate-spin text-cyan-400" />
             </div>
           ) : catStats.length === 0 ? (
-            <EmptyState icon={FolderOpen} title="Base ainda sem categorias" description="Faça buscas no Niche Finder para popular a base global — as categorias aparecem aqui." />
+            <EmptyState icon={FolderOpen} title={t('niche.catEmptyTitle')} description={t('niche.catEmptyDesc')} />
           ) : (
             <div className="space-y-2">
               {catStats.map(({ category: cat, count, views }) => {
@@ -804,7 +751,7 @@ export default function NicheFinder() {
                             <Loader2 size={18} className="animate-spin text-cyan-400" />
                           </div>
                         ) : list.length === 0 ? (
-                          <p className="py-4 text-center text-xs text-slate-600">Nenhum canal nesta categoria.</p>
+                          <p className="py-4 text-center text-xs text-slate-600">{t('niche.noChannelInCat')}</p>
                         ) : (
                           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                             {list.map((c) => (
@@ -823,7 +770,7 @@ export default function NicheFinder() {
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-xs font-semibold text-slate-100">{c.title}</p>
                                   <p className="text-[10px] text-slate-500">
-                                    {formatCompact(c.subscribers)} inscritos · {formatCompact(c.views)} views
+                                    {formatCompact(c.subscribers)} {t('niche.subscribersWord')} · {formatCompact(c.views)} {t('niche.viewsWord')}
                                   </p>
                                 </div>
                               </a>
@@ -841,7 +788,7 @@ export default function NicheFinder() {
       )}
 
       {!loading && tab !== 'bycategory' && results.length > 0 && filtered.length === 0 && (
-        <EmptyState icon={TrendingUp} title="Nenhum canal com esses filtros" description="Troque a aba de tendência ou limpe os filtros." />
+        <EmptyState icon={TrendingUp} title={t('niche.noFilterTitle')} description={t('niche.noFilterDesc')} />
       )}
 
       {/* Mostrar mais — pagina a base global do servidor */}
@@ -853,12 +800,12 @@ export default function NicheFinder() {
             className="flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-6 py-2.5 text-sm font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
           >
             {loadingMore ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-            {loadingMore ? 'Carregando mais canais...' : 'Mostrar mais'}
+            {loadingMore ? t('niche.loadingMore') : t('niche.showMore')}
           </button>
         </div>
       )}
       {!loading && !showFavorites && tab !== 'bycategory' && results.length > 0 && !hasMore && (
-        <p className="pb-4 text-center text-xs text-slate-600">Fim da base para esta categoria.</p>
+        <p className="pb-4 text-center text-xs text-slate-600">{t('niche.endOfBase')}</p>
       )}
 
       <AdvancedFiltersModal
@@ -883,6 +830,7 @@ export default function NicheFinder() {
 // ---------------------------------------------------------------------------
 function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
   const db = useDb()
+  const { t } = useI18n()
   const [draft, setDraft] = useState(adv)
   const saved = db.getSetting('nicheSavedFilters', [])
 
@@ -918,19 +866,19 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-          <h2 className="text-sm font-bold text-slate-100">Filtros avançados</h2>
+          <h2 className="text-sm font-bold text-slate-100">{t('niche.adv.title')}</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-900 hover:text-slate-300">
             <X size={16} />
           </button>
         </div>
 
         <div className="space-y-3 overflow-y-auto p-4">
-          <Section title="SEUS FILTROS SALVOS">
-            <p className="mb-2.5 text-xs text-slate-500">Salve combinações de filtros para acesso rápido</p>
+          <Section title={t('niche.adv.savedTitle')}>
+            <p className="mb-2.5 text-xs text-slate-500">{t('niche.adv.savedDesc')}</p>
             <div className="flex flex-wrap items-center gap-2">
               <button onClick={saveCurrent} className={`${btnGhost} flex items-center gap-1.5 !px-3 !py-1.5 !text-xs`}>
                 <Save size={12} />
-                Salvar atual
+                {t('niche.adv.saveCurrent')}
               </button>
               {saved.map((s) => (
                 <span key={s.id} className="flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900 py-1 pl-3 pr-1.5 text-xs text-slate-300">
@@ -940,7 +888,7 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
                   <button
                     onClick={() => db.setSetting('nicheSavedFilters', saved.filter((f) => f.id !== s.id))}
                     className="text-slate-600 hover:text-red-400"
-                    title="Excluir filtro salvo"
+                    title={t('niche.adv.deleteSaved')}
                   >
                     <Trash2 size={11} />
                   </button>
@@ -949,13 +897,13 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
             </div>
           </Section>
 
-          <Section title="STATUS">
-            <p className="mb-2 text-xs font-semibold text-slate-300">Monetização</p>
+          <Section title={t('niche.adv.statusTitle')}>
+            <p className="mb-2 text-xs font-semibold text-slate-300">{t('niche.adv.monetization')}</p>
             <div className="flex gap-2">
               {[
-                ['any', 'Qualquer'],
-                ['yes', 'Sim'],
-                ['no', 'Não'],
+                ['any', t('niche.adv.any')],
+                ['yes', t('niche.adv.yes')],
+                ['no', t('niche.adv.no')],
               ].map(([v, l]) => (
                 <button key={v} onClick={() => set('monetization', v)} className={chip(draft.monetization === v)}>
                   {l}
@@ -964,37 +912,37 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
             </div>
           </Section>
 
-          <Section title="INSCRITOS">
+          <Section title={t('niche.adv.subsTitle')}>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-[11px] text-slate-500">De</label>
+                <label className="mb-1 block text-[11px] text-slate-500">{t('niche.adv.from')}</label>
                 <input className={inputCls} type="number" min="0" placeholder="—" value={draft.subsMin} onChange={(e) => set('subsMin', e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] text-slate-500">Até</label>
+                <label className="mb-1 block text-[11px] text-slate-500">{t('niche.adv.to')}</label>
                 <input className={inputCls} type="number" min="0" placeholder="—" value={draft.subsMax} onChange={(e) => set('subsMax', e.target.value)} />
               </div>
             </div>
           </Section>
 
-          <Section title="VIEWS">
+          <Section title={t('niche.adv.viewsTitle')}>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-[11px] text-slate-500">De</label>
+                <label className="mb-1 block text-[11px] text-slate-500">{t('niche.adv.from')}</label>
                 <input className={inputCls} type="number" min="0" placeholder="—" value={draft.viewsMin} onChange={(e) => set('viewsMin', e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] text-slate-500">Até</label>
+                <label className="mb-1 block text-[11px] text-slate-500">{t('niche.adv.to')}</label>
                 <input className={inputCls} type="number" min="0" placeholder="—" value={draft.viewsMax} onChange={(e) => set('viewsMax', e.target.value)} />
               </div>
             </div>
           </Section>
 
-          <Section title="ADICIONADO EM">
+          <Section title={t('niche.adv.addedInTitle')}>
             <div className="flex flex-wrap gap-2">
-              {ADDED_IN.map(([v, l]) => (
+              {ADDED_IN.map(([v]) => (
                 <button key={v} onClick={() => set('addedIn', v)} className={chip(draft.addedIn === v)}>
-                  {l}
+                  {t(`niche.adv.addedIn.${v === '' ? 'any' : v}`)}
                 </button>
               ))}
             </div>
@@ -1003,11 +951,11 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
 
         <div className="flex items-center justify-between border-t border-slate-800 px-5 py-3.5">
           <button onClick={() => setDraft(ADV_DEFAULT)} className={`${btnGhost} !px-4 !py-2 !text-xs`}>
-            Limpar tudo
+            {t('niche.adv.clearAll')}
           </button>
-          <span className="text-xs text-slate-500">{count} canais correspondem</span>
+          <span className="text-xs text-slate-500">{t('niche.adv.matchCount', { n: count })}</span>
           <button onClick={() => onApply(draft)} className={`${btnPrimary} !px-4 !py-2 !text-xs`}>
-            Aplicar filtros
+            {t('niche.adv.apply')}
           </button>
         </div>
       </div>
@@ -1015,9 +963,10 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
   )
 }
 
-function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling, cacheTs, t = CARD_I18N.pt }) {
+function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling, cacheTs }) {
+  const { t } = useI18n()
   // Selo de tendência real do canal — ignora 'all' e o catch-all 'bycategory'
-  const badge = TREND_TABS.filter((t) => t.key !== 'all' && t.key !== 'bycategory' && t.key !== 'outlier').find((t) => t.test(c))
+  const badge = TREND_TABS.filter((tb) => tb.key !== 'all' && tb.key !== 'bycategory' && tb.key !== 'outlier').find((tb) => tb.test(c))
   const monetized = isMonetized(c)
   // Modo restrito: nome/números/thumbs NÃO entram no DOM — impossível "desborrar"
   const restricted = useRestricted()
@@ -1056,30 +1005,30 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
               {restricted ? (
                 <span className="block max-w-full truncate text-sm font-bold text-slate-100"><Masked mask="•••••••">{c.title}</Masked></span>
               ) : (
-                <a href={channelUrl} target="_blank" rel="noopener noreferrer" className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title="Abrir canal no YouTube">
+                <a href={channelUrl} target="_blank" rel="noopener noreferrer" className="block max-w-full truncate text-sm font-bold text-slate-100 hover:text-cyan-300" title={t('niche.card.openChannel')}>
                   {c.title}
                 </a>
               )}
               {/* $ verde: elegível à monetização (estimativa, não confirmação) */}
-              {monetized && <DollarSign size={14} className="shrink-0 cursor-help text-green-400" title={t.monetTip} />}
+              {monetized && <DollarSign size={14} className="shrink-0 cursor-help text-green-400" title={t('niche.card.monetTip')} />}
             </div>
             {/* Categoria/tópicos do canal, legível (como no original: "Música · Covers") */}
             <p className="truncate text-[11px] font-medium text-slate-400">
-              {(c.topics || []).length > 0 ? c.topics.slice(0, 2).join(' · ') : t.noCat}
+              {(c.topics || []).length > 0 ? c.topics.slice(0, 2).join(' · ') : t('niche.card.noCat')}
             </p>
             {badge && (
-              <span className="mt-1 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{badge.label}</span>
+              <span className="mt-1 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{t(`niche.tabs.${badge.key}.label`)}</span>
             )}
           </div>
           {/* Ações: copiar link · analisar na Dobra · favoritar */}
           <div className="flex shrink-0 items-center gap-1.5">
-            <button onClick={copyLink} title={copied ? 'Link copiado!' : 'Copiar link do canal'} className={copied ? 'text-green-400' : 'text-slate-600 hover:text-cyan-300'}>
+            <button onClick={copyLink} title={copied ? t('niche.card.linkCopied') : t('niche.card.copyLink')} className={copied ? 'text-green-400' : 'text-slate-600 hover:text-cyan-300'}>
               {copied ? <Check size={15} /> : <Link2 size={15} />}
             </button>
-            <button onClick={onOpenDoubling} title="Analisar na Dobra de Nicho" className="text-slate-600 hover:text-cyan-300">
+            <button onClick={onOpenDoubling} title={t('niche.card.analyzeDoubling')} className="text-slate-600 hover:text-cyan-300">
               <GitBranch size={15} />
             </button>
-            <button onClick={onToggleFavorite} title={isFavorite ? 'Remover dos favoritos' : 'Favoritar'}>
+            <button onClick={onToggleFavorite} title={isFavorite ? t('niche.card.removeFavorite') : t('niche.card.favorite')}>
               <Heart size={15} className={isFavorite ? 'fill-red-400 text-red-400' : 'text-slate-600 hover:text-red-400'} />
             </button>
           </div>
@@ -1090,7 +1039,7 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
           <div className="mt-3 grid grid-cols-3 gap-1.5">
             {c.recentVideos.map((v) =>
               restricted ? (
-                <div key={v.id} className="flex aspect-video w-full select-none items-center justify-center rounded-md bg-slate-800/80 text-base font-bold text-slate-500" title="Conteúdo restrito">
+                <div key={v.id} className="flex aspect-video w-full select-none items-center justify-center rounded-md bg-slate-800/80 text-base font-bold text-slate-500" title={t('niche.card.restrictedContent')}>
                   ?
                 </div>
               ) : (
@@ -1105,14 +1054,14 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
 
         {/* Stats: Inscritos / Views / Vídeos / Faceless (como no original) */}
         <div className="mt-3 grid grid-cols-4 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
-          <CardStat value={<Masked mask="••">{formatCompact(c.subscribers)}</Masked>} label={t.subs} />
-          <CardStat value={<Masked mask="••">{formatCompact(c.views)}</Masked>} label={t.views} />
-          <CardStat value={<Masked mask="••">{c.videoCount ?? '—'}</Masked>} label={t.videos} />
+          <CardStat value={<Masked mask="••">{formatCompact(c.subscribers)}</Masked>} label={t('niche.card.subs')} />
+          <CardStat value={<Masked mask="••">{formatCompact(c.views)}</Masked>} label={t('niche.card.views')} />
+          <CardStat value={<Masked mask="••">{c.videoCount ?? '—'}</Masked>} label={t('niche.card.videos')} />
           <CardStat
             value={<Masked mask="••">{`${facelessScore(c)}%`}</Masked>}
-            label={t.faceless}
+            label={t('niche.card.faceless')}
             facelessValue={facelessScore(c)}
-            title={t.facelessTip}
+            title={t('niche.card.facelessTip')}
           />
         </div>
 
@@ -1120,15 +1069,15 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
         <div className="mt-3 space-y-1 border-t border-slate-800 pt-2.5 text-[10px] text-slate-500">
           <p className="flex items-center gap-1.5">
             <Calendar size={10} />
-            {`${ageLabel(c)} ${t.posting}`}
-            {c.lastUploadDaysAgo != null && ` · ${t.last} ${c.lastUploadDaysAgo}d`}
-            {c.vidsPerMonth != null && ` · ${c.vidsPerMonth} ${t.vidMo}`}
-            {c.viewsPerMonth != null && ` · ${formatCompact(c.viewsPerMonth)} ${t.viewsMo}`}
+            {`${ageLabel(c)} ${t('niche.card.posting')}`}
+            {c.lastUploadDaysAgo != null && ` · ${t('niche.card.last')} ${c.lastUploadDaysAgo}d`}
+            {c.vidsPerMonth != null && ` · ${c.vidsPerMonth} ${t('niche.card.vidMo')}`}
+            {c.viewsPerMonth != null && ` · ${formatCompact(c.viewsPerMonth)} ${t('niche.card.viewsMo')}`}
           </p>
           <p className="flex items-center gap-1.5">
             <Clock size={10} />
-            {c.addedAt ? `${t.added} ${timeAgo(c.addedAt)} · ` : ''}
-            {cacheTs ? `${t.updated} ${timeAgo(cacheTs)}` : t.updatedNow}
+            {c.addedAt ? `${t('niche.card.added')} ${timeAgo(c.addedAt)} · ` : ''}
+            {cacheTs ? `${t('niche.card.updated')} ${timeAgo(cacheTs)}` : t('niche.card.updatedNow')}
           </p>
         </div>
       </div>
