@@ -801,4 +801,61 @@ export default {
     videoLabel: 'video',
     download: 'Download',
   },
+  support: {
+    title: 'Community & Support',
+    subtitle: 'Creator to creator — ask questions and swap strategy with the community.',
+    whatsappTitle: 'WhatsApp Group',
+    whatsappDesc: 'Quick alerts and daily community networking.',
+    discordTitle: 'Discord Server',
+    discordDesc: 'Real-time chat, niche channels and team support.',
+    directTitle: 'Direct support',
+    directDesc: 'Account issues, API keys or platform bugs.',
+    sendEmail: 'Send email',
+  },
+  help: {
+    title: 'Help Center',
+    subtitle: 'The main explanations about each area of Noctis Studio.',
+    sections: {
+      channels: {
+        title: 'Channel Management',
+        body: 'Create a channel manually or paste the YouTube URL/@handle to import name, photo and stats. When you import an active channel, all published videos are added automatically with thumb, title, date, link and the "Scheduled/Published" tag. Inside the channel you track each video’s 6 production steps (Title → Script → Audio → Thumbnail → Rendered → Published), write scripts with calculated narration time (150 words/min ±15%) and export SRT/TXT. The channel ⋮ menu has: Edit, Create Shortcuts (with site favicon), Share, Unlink YouTube, Archive and Delete.',
+      },
+      apiKeys: {
+        title: 'API Keys (Profile → APIs)',
+        body: 'The system is BYOK: the keys are yours and stay only on your device. YouTube Data API v3 (up to 5 keys — when one hits the daily quota, the system switches to the next by itself; the quota resets at midnight Pacific time). AI: Gemini (aistudio.google.com/apikey) with automatic fallback across the free models, and Groq (console.groq.com/keys) as a free alternative. AssemblyAI for transcription and Pexels/Pixabay for the media bank.',
+      },
+      nicheFinder: {
+        title: 'Niche Finder',
+        body: 'Searches channels live on YouTube (50 per page, "Show more" button until the listing ends) and calculates real metrics: average views of the latest videos, engagement, posting cadence. The trend tabs (Exploding Now, Rising Fast...) are classifications computed on those numbers. Monthly growth requires 30 days of tracking — that’s why some fields show "Collecting data".',
+      },
+      viral: {
+        title: 'Viral Videos',
+        body: 'Keyword search with filters for period, minimum duration (in seconds) and minimum views. VPH = views ÷ hours since publishing. The engagement circle is video views ÷ channel subscribers — the higher it is, the more disproportionate (viral) the reach. Save videos in the "Saved Videos" tab or send the channel straight to Niche Doubling.',
+      },
+      doubling: {
+        title: 'Niche Doubling',
+        body: 'Paste a seed channel URL: the system collects the top-performing videos and the AI builds the opportunity graph — winning pattern, Sea of Ideas (with the most counterintuitive TWIST), Doubling into other niches and Market Adaptation. The scores are AI estimates, not guarantees. Analyses are saved and can be exported as TXT/PDF.',
+      },
+      ideas: {
+        title: 'Idea Board, Prompts and References',
+        body: 'The Board has custom columns with Note cards (double-click to edit) and Checklists, organized by Spaces. The Prompts library organizes by channel/category with tags and favorites. References groups benchmark channels by niche, linked to one of your channels or Global.',
+      },
+      tools: {
+        title: 'Transcription and Text Tools',
+        body: 'Drag an MP3/WAV/MP4 to transcribe (AssemblyAI key) and get time blocks with TXT/SRT export. In Text Tools: editor with readability, SRT generator from reading time and a script splitter for CapCut (never cuts a word in half).',
+      },
+      privacy: {
+        title: 'Restricted mode, theme and notifications',
+        body: 'The eye at the top enables restricted mode across the whole site: names, numbers and thumbnails are replaced by "•••" and "?" directly in the page code (it’s not blur — you can’t reveal it via DevTools). Each sensitive page also has its own eye in the top-right corner to restrict only that page. Ideal for screen recording. The moon toggles between dark and light theme; the bell shows the news; the flag switches the language (PT/EN/ES).',
+      },
+      removed: {
+        title: 'Removed Channels',
+        body: 'A curated base of channels that went down — useful for studying strike patterns. YouTube does not expose this information via API, so the base grows with cases registered manually (the "Register case" button).',
+      },
+      admin: {
+        title: 'Administration (admin only)',
+        body: 'The first account created on the installation is the administrator. In the avatar menu → Administration, the admin publishes Platform News (dashboard + bell), manages members and plans, edits the Academy tutorials and curates the Removed Channels. MASTER users do not have access to this area.',
+      },
+    },
+  },
 }

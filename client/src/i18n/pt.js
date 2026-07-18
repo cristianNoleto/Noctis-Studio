@@ -801,4 +801,61 @@ export default {
     videoLabel: 'vídeo',
     download: 'Baixar',
   },
+  support: {
+    title: 'Comunidade & Suporte',
+    subtitle: 'De creator para creator — tire dúvidas e troque estratégia com a comunidade.',
+    whatsappTitle: 'Grupo do WhatsApp',
+    whatsappDesc: 'Avisos rápidos e networking diário da comunidade.',
+    discordTitle: 'Servidor no Discord',
+    discordDesc: 'Chat em tempo real, canais por nicho e suporte da equipe.',
+    directTitle: 'Suporte direto',
+    directDesc: 'Problemas com conta, chaves de API ou bugs da plataforma.',
+    sendEmail: 'Enviar e-mail',
+  },
+  help: {
+    title: 'Central de Ajuda',
+    subtitle: 'As principais explicações sobre cada área do Noctis Studio.',
+    sections: {
+      channels: {
+        title: 'Gestão de Canais',
+        body: 'Crie um canal manualmente ou cole a URL/@handle do YouTube para importar nome, foto e estatísticas. Ao importar um canal ativo, todos os vídeos já publicados entram automaticamente com thumb, título, data, link e a tag "Agendado/Publicado". Dentro do canal você acompanha as 6 etapas de produção de cada vídeo (Título → Roteiro → Áudio → Thumbnail → Renderizado → Publicado), escreve roteiros com tempo de narração calculado (150 palavras/min ±15%) e exporta SRT/TXT. O menu ⋮ do canal tem: Editar, Criar Atalhos (com favicon do site), Compartilhar, Desvincular YouTube, Arquivar e Excluir.',
+      },
+      apiKeys: {
+        title: 'Chaves de API (Perfil → APIs)',
+        body: 'O sistema é BYOK: as chaves são suas e ficam só no seu dispositivo. YouTube Data API v3 (até 5 chaves — quando uma estoura a cota diária, o sistema troca sozinho para a próxima; a cota reseta à meia-noite no horário do Pacífico). IA: Gemini (aistudio.google.com/apikey) com fallback automático entre os modelos gratuitos, e Groq (console.groq.com/keys) como alternativa grátis. AssemblyAI para transcrição e Pexels/Pixabay para o banco de mídia.',
+      },
+      nicheFinder: {
+        title: 'Niche Finder',
+        body: 'Busca canais ao vivo no YouTube (50 por página, botão "Mostrar mais" até acabar a listagem) e calcula métricas reais: views médias dos últimos vídeos, engajamento, cadência de postagem. As abas de tendência (Explodindo Agora, Subindo Rápido...) são classificações calculadas sobre esses números. Crescimento mensal exige 30 dias de acompanhamento — por isso alguns campos mostram "Coletando dados".',
+      },
+      viral: {
+        title: 'Vídeos Virais',
+        body: 'Busca por palavra-chave com filtros de período, duração mínima (em segundos) e views mínimas. VPH = views ÷ horas desde a publicação. O círculo de engajamento é views do vídeo ÷ inscritos do canal — quanto maior, mais desproporcional (viral) é o alcance. Salve vídeos na aba "Vídeos Salvos" ou mande o canal direto para a Dobra de Nicho.',
+      },
+      doubling: {
+        title: 'Dobra de Nicho',
+        body: 'Cole a URL de um canal semente: o sistema coleta os vídeos de maior desempenho e a IA monta o grafo de oportunidades — padrão vencedor, Mar de Ideias (com a VIRADA mais contraintuitiva), Dobra para outros nichos e Adaptação de Mercado. Os scores são estimativas de IA, não garantias. As análises ficam salvas e podem ser exportadas em TXT/PDF.',
+      },
+      ideas: {
+        title: 'Quadro de Ideias, Prompts e Referências',
+        body: 'O Quadro tem colunas personalizadas com cards de Nota (duplo clique edita) e Checklist, organizados por Espaços. A biblioteca de Prompts organiza por canal/categoria com tags e favoritos. Referências agrupa canais benchmark por nicho, vinculados a um canal seu ou Globais.',
+      },
+      tools: {
+        title: 'Transcrição e Ferramentas de Texto',
+        body: 'Arraste um MP3/WAV/MP4 para transcrever (chave AssemblyAI) e receba blocos por tempo com exportação TXT/SRT. Em Ferramentas de Texto: editor com legibilidade, gerador de SRT pelo tempo de leitura e divisor de roteiro para CapCut (nunca corta palavra no meio).',
+      },
+      privacy: {
+        title: 'Modo restrito, tema e notificações',
+        body: 'O olho no topo ativa o modo restrito no site inteiro: nomes, números e thumbnails são substituídos por "•••" e "?" direto no código da página (não é blur — não dá para revelar pelo DevTools). Cada página sensível também tem um olho próprio no canto superior direito para restringir só ela. Ideal para gravar a tela. A lua alterna entre tema escuro e claro; o sino mostra as novidades; a bandeira troca o idioma (PT/EN/ES).',
+      },
+      removed: {
+        title: 'Canais Removidos',
+        body: 'Base curada de canais que caíram — serve para estudar padrões de strike. O YouTube não expõe essa informação por API, então a base cresce com os casos registrados manualmente (botão "Registrar caso").',
+      },
+      admin: {
+        title: 'Administração (só para o admin)',
+        body: 'A primeira conta criada na instalação é a administradora. No menu do avatar → Administração, o admin publica Novidades da Plataforma (dashboard + sino), gerencia membros e planos, edita os tutoriais da Academia e faz a curadoria dos Canais Removidos. Usuários MASTER não têm acesso a essa área.',
+      },
+    },
+  },
 }

@@ -1,15 +1,17 @@
 import { MessageCircle, ExternalLink, LifeBuoy, Mail } from 'lucide-react'
+import { useI18n } from '../i18n'
 
 const WHATSAPP_COMMUNITY_URL = import.meta.env.VITE_WHATSAPP_COMMUNITY_URL || ''
 const DISCORD_URL = import.meta.env.VITE_DISCORD_URL || ''
 const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || ''
 
 export default function Support() {
+  const { t } = useI18n()
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">Comunidade & Suporte</h1>
-        <p className="mt-1 text-sm text-slate-500">De creator para creator — tire dúvidas e troque estratégia com a comunidade.</p>
+        <h1 className="text-2xl font-bold text-slate-100">{t('support.title')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('support.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -17,8 +19,8 @@ export default function Support() {
           href={WHATSAPP_COMMUNITY_URL}
           icon={<MessageCircle size={22} className="text-green-400" />}
           cls="border-green-500/30 hover:bg-green-500/5"
-          title="Grupo do WhatsApp"
-          desc="Avisos rápidos e networking diário da comunidade."
+          title={t('support.whatsappTitle')}
+          desc={t('support.whatsappDesc')}
         />
         <SupportCard
           href={DISCORD_URL}
@@ -28,8 +30,8 @@ export default function Support() {
             </svg>
           }
           cls="border-indigo-500/30 hover:bg-indigo-500/5"
-          title="Servidor no Discord"
-          desc="Chat em tempo real, canais por nicho e suporte da equipe."
+          title={t('support.discordTitle')}
+          desc={t('support.discordDesc')}
         />
       </div>
 
@@ -39,13 +41,13 @@ export default function Support() {
             <LifeBuoy size={20} />
           </div>
           <div>
-            <p className="font-semibold text-slate-100">Suporte direto</p>
-            <p className="text-xs text-slate-500">Problemas com conta, chaves de API ou bugs da plataforma.</p>
+            <p className="font-semibold text-slate-100">{t('support.directTitle')}</p>
+            <p className="text-xs text-slate-500">{t('support.directDesc')}</p>
           </div>
           {SUPPORT_EMAIL ? (
             <a href={`mailto:${SUPPORT_EMAIL}`} className="ml-auto flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-600">
               <Mail size={15} />
-              Enviar e-mail
+              {t('support.sendEmail')}
             </a>
           ) : (
             <span className="ml-auto rounded bg-slate-800 px-2 py-1 text-[10px] font-bold text-slate-500">CONFIGURE VITE_SUPPORT_EMAIL</span>
