@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { GraduationCap, PlayCircle, X, FileDown } from 'lucide-react'
 import { useDb } from '../lib/db'
+import { useI18n } from '../i18n'
 
 export default function Academy() {
   const db = useDb()
+  const { t } = useI18n()
   const [playing, setPlaying] = useState(null)
   // Conteúdo gerenciado pelo admin em /admin → Academia
   const CONTENT = [...db.all('academyContent')].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
@@ -11,8 +13,8 @@ export default function Academy() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">Academia & Tutoriais</h1>
-        <p className="mt-1 text-sm text-slate-500">Aprenda a extrair o máximo de cada ferramenta da plataforma.</p>
+        <h1 className="text-2xl font-bold text-slate-100">{t('academy.title')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('academy.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -48,13 +50,13 @@ export default function Academy() {
                 <iframe src={playing.embedUrl} title={playing.title} className="h-full w-full" allowFullScreen />
               ) : (
                 <p className="px-8 text-center text-sm text-slate-600">
-                  O vídeo deste tutorial será publicado em breve — os conteúdos da Academia são gerenciados pelo painel admin.
+                  {t('academy.comingSoon')}
                 </p>
               )}
             </div>
             {playing.materials?.length > 0 && (
               <div className="space-y-2 px-5 py-4">
-                <p className="text-xs font-semibold tracking-wide text-slate-400">MATERIAIS DE APOIO</p>
+                <p className="text-xs font-semibold tracking-wide text-slate-400">{t('academy.materials')}</p>
                 {playing.materials.map((m, i) => (
                   <a key={i} href={m.url} className="flex items-center gap-2 text-sm text-cyan-400 hover:underline">
                     <FileDown size={14} />

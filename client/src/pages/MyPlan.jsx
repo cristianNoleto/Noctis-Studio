@@ -2,79 +2,19 @@ import { useState } from 'react'
 import { Crown, Check, X, ChevronDown, MessageCircle, Sparkles } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
+import { useI18n } from '../i18n'
 
 // Página "Meu Plano" — layout do original (uso diário, plano atual, pricing
 // Mensal/Trimestral com features e FAQ), com a marca Noctis.
-const FEATURES = [
-  'Gestão de Canais',
-  'Similar Channels',
-  'Niche Finder',
-  'Vídeos Virais',
-  'Acesso à API',
-  'Acesso à comunidade',
-]
+// Chaves das features (rótulos traduzidos em myPlan.features.*)
+const FEATURE_KEYS = ['channels', 'similar', 'niche', 'viral', 'api', 'community']
 
-// [nome, preço mensal, preço trimestral (por mês), destaque, resumo, créditos, descrição]
+// [nome de marca, preço mensal, trimestral (por mês), key i18n, quantas features, popular]
 const PLANS = [
-  {
-    name: 'Noctis Free',
-    monthly: 0,
-    quarterly: 0,
-    summary: '5 gerações de IA no total',
-    credits: '1 canal · ferramentas de texto',
-    desc: 'Para testar a plataforma: relatórios de SEO, Dobra de Nicho e títulos por IA em até 5 gerações (não renovam), com 1 canal no pipeline.',
-    sub: 'Sem cartão de crédito',
-    features: 2,
-  },
-  {
-    name: 'Noctis Basic',
-    monthly: 49.99,
-    quarterly: 39.99,
-    summary: '15 gerações de IA/dia',
-    credits: '3 canais',
-    desc: 'Relatórios de SEO/CTR, Dobra de Nicho e títulos por IA com 15 gerações por dia, renovando todos os dias, e até 3 canais no pipeline.',
-    features: 4,
-  },
-  {
-    name: 'Noctis Lite',
-    monthly: 79.99,
-    quarterly: 63.99,
-    summary: '25 gerações de IA/dia',
-    credits: '10 canais',
-    desc: 'Tudo do Basic com 25 gerações de IA por dia, até 10 canais no pipeline e acesso completo às ferramentas de tendências.',
-    features: 5,
-  },
-  {
-    name: 'Noctis Pro',
-    monthly: 109.99,
-    quarterly: 87.99,
-    summary: '50 gerações de IA/dia',
-    credits: 'Canais ilimitados',
-    desc: 'Para operações grandes: 50 gerações de IA por dia, canais ilimitados, acesso à API e à comunidade. Renovam todos os dias.',
-    popular: true,
-    features: 6,
-  },
-]
-
-const FAQ = [
-  [
-    'Quando posso cancelar minha assinatura?',
-    'Quando quiser. Sua assinatura permanece ativa até a data de renovação e não há multa de cancelamento.',
-  ],
-  [
-    'Como funcionam as gerações de IA?',
-    'Cada relatório de SEO/CTR, análise de Dobra de Nicho ou lote de títulos conta como 1 geração. Cada plano tem um limite de gerações por dia, que renova todos os dias e não acumula. No plano Free são 5 gerações no total para testar, que não renovam.',
-  ],
-  ['Sou cobrado por cada geração?', 'Não — o plano é uma mensalidade fixa. As gerações consomem apenas o limite diário incluso.'],
-  [
-    'O que está incluído e como funciona o acesso à comunidade?',
-    'Todos os planos pagos incluem as ferramentas de gestão, pesquisa (Niche Finder, Vídeos Virais, Dobra de Nicho) e a comunidade no WhatsApp/Discord.',
-  ],
-  ['Quais formas de pagamento vocês aceitam?', 'Cartão de crédito e Pix.'],
-  ['Tem alguma taxa além do valor do plano?', 'Não. O valor do plano é o único custo — sem taxa de adesão ou cobrança extra.'],
-  ['O que acontece quando eu cancelo?', 'Você mantém o acesso até o fim do período já pago; depois a conta volta ao plano Free.'],
-  ['Posso mudar para um plano menor (downgrade)?', 'Sim, a qualquer momento — o novo valor passa a valer na próxima renovação.'],
-  ['As atualizações estão inclusas?', 'Sim. Toda atualização da plataforma entra automaticamente para todos os assinantes.'],
+  { name: 'Noctis Free', monthly: 0, quarterly: 0, key: 'free', features: 2, noCard: true },
+  { name: 'Noctis Basic', monthly: 49.99, quarterly: 39.99, key: 'basic', features: 4 },
+  { name: 'Noctis Lite', monthly: 79.99, quarterly: 63.99, key: 'lite', features: 5 },
+  { name: 'Noctis Pro', monthly: 109.99, quarterly: 87.99, key: 'pro', features: 6, popular: true },
 ]
 
 function price(n) {
@@ -84,6 +24,7 @@ function price(n) {
 export default function MyPlan() {
   const { user, isAdmin } = useAuth()
   const db = useDb()
+  const { t } = useI18n()
   const [cycle, setCycle] = useState('monthly')
   const [openFaq, setOpenFaq] = useState(null)
 
@@ -96,14 +37,15 @@ export default function MyPlan() {
   const LIMIT = 40
   const pct = Math.min(100, Math.round((usedToday / LIMIT) * 100))
 
-  const planName = isAdmin ? 'FUNDADOR' : user?.plan || 'FREE'
+  const isFounder = isAdmin
+  const planName = isFounder ? t('myPlan.founder') : user?.plan || 'FREE'
   const renewal = new Date(Date.now() + 30 * 86_400_000).toLocaleDateString('pt-BR')
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">Meu Plano</h1>
-        <p className="mt-1 text-sm text-slate-500">Gerencie sua assinatura</p>
+        <h1 className="text-2xl font-bold text-slate-100">{t('myPlan.title')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('myPlan.subtitle')}</p>
       </div>
 
       {/* Uso de áudios + Plano atual */}
@@ -112,27 +54,27 @@ export default function MyPlan() {
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-2 text-sm font-semibold text-slate-200">
               <Sparkles size={15} className="text-cyan-400" />
-              Uso de IA
+              {t('myPlan.aiUsage')}
             </p>
             <span className="text-xs font-semibold text-slate-300">
-              {usedToday} de {LIMIT} hoje
+              {t('myPlan.usedOfToday', { used: usedToday, limit: LIMIT })}
             </span>
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
             <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500" style={{ width: `${pct}%` }} />
           </div>
           <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Relatórios SEO · Dobra de Nicho · Títulos · Transcrições</span>
-            <span>Renova todos os dias</span>
+            <span>{t('myPlan.usageSources')}</span>
+            <span>{t('myPlan.renewsDaily')}</span>
           </div>
         </div>
 
         <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-slate-200">Plano atual</p>
+            <p className="text-sm font-semibold text-slate-200">{t('myPlan.currentPlan')}</p>
             <span className="flex items-center gap-1.5 rounded-full bg-green-500/10 px-2.5 py-1 text-[11px] font-bold text-green-400">
               <span className="online-dot h-1.5 w-1.5 rounded-full bg-green-400" />
-              Ativo
+              {t('myPlan.active')}
             </span>
           </div>
           <div className="mt-3 flex items-center gap-3">
@@ -140,19 +82,19 @@ export default function MyPlan() {
               <Crown size={20} />
             </div>
             <div>
-              <p className="text-lg font-extrabold text-slate-100">{planName === 'FUNDADOR' ? '👑 FUNDADOR' : planName}</p>
-              <p className="text-xs text-slate-500">Próxima cobrança: {planName === 'FUNDADOR' ? '—' : renewal}</p>
+              <p className="text-lg font-extrabold text-slate-100">{planName}</p>
+              <p className="text-xs text-slate-500">{t('myPlan.nextBilling')} {isFounder ? '—' : renewal}</p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <button className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-red-500/40 hover:text-red-400">
-              Cancelar plano
+              {t('myPlan.cancelPlan')}
             </button>
             <button className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-slate-700">
-              Falar com o suporte
+              {t('myPlan.contactSupport')}
             </button>
           </div>
-          <p className="mt-3 text-[11px] text-slate-600">Cancele quando quiser: sua assinatura permanece ativa até a data de renovação.</p>
+          <p className="mt-3 text-[11px] text-slate-600">{t('myPlan.cancelNote')}</p>
         </div>
       </div>
 
@@ -163,7 +105,7 @@ export default function MyPlan() {
             onClick={() => setCycle('monthly')}
             className={`rounded-full px-4 py-1.5 transition-colors ${cycle === 'monthly' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200'}`}
           >
-            Mensal
+            {t('myPlan.monthly')}
           </button>
           <button
             onClick={() => setCycle('quarterly')}
@@ -171,9 +113,9 @@ export default function MyPlan() {
               cycle === 'quarterly' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Trimestral
+            {t('myPlan.quarterly')}
             <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${cycle === 'quarterly' ? 'bg-white/20 text-white' : 'bg-green-500/15 text-green-400'}`}>
-              Economize
+              {t('myPlan.save')}
             </span>
           </button>
         </div>
@@ -193,24 +135,24 @@ export default function MyPlan() {
             >
               {p.popular && (
                 <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-cyan-500 px-3 py-0.5 text-[10px] font-bold text-white">
-                  Most Popular
+                  {t('myPlan.mostPopular')}
                 </span>
               )}
               <p className="font-bold text-slate-100">{p.name}</p>
               {value === 0 ? (
-                <p className="mt-1.5 text-2xl font-extrabold text-slate-100">Grátis</p>
+                <p className="mt-1.5 text-2xl font-extrabold text-slate-100">{t('myPlan.free')}</p>
               ) : (
                 <p className="mt-1.5 text-slate-100">
-                  <span className="align-top text-sm font-semibold text-slate-400">R$ </span>
+                  <span className="align-top text-sm font-semibold text-slate-400">{t('myPlan.currency')}</span>
                   <span className="text-2xl font-extrabold">{price(value)}</span>
-                  <span className="text-xs text-slate-500">/mês</span>
+                  <span className="text-xs text-slate-500">{t('myPlan.perMonth')}</span>
                 </p>
               )}
-              <p className="text-[10px] text-slate-600">{p.sub || (cycle === 'monthly' ? 'cobrado mensalmente' : 'cobrado a cada 3 meses')}</p>
+              <p className="text-[10px] text-slate-600">{p.noCard ? t('myPlan.noCard') : cycle === 'monthly' ? t('myPlan.billedMonthly') : t('myPlan.billedQuarterly')}</p>
 
-              <p className="mt-3 text-xs font-semibold text-cyan-300">{p.summary}</p>
-              <p className="mt-1 text-[11px] font-semibold text-slate-300">{p.credits}</p>
-              <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">{p.desc}</p>
+              <p className="mt-3 text-xs font-semibold text-cyan-300">{t(`myPlan.plans.${p.key}.summary`)}</p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-300">{t(`myPlan.plans.${p.key}.credits`)}</p>
+              <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">{t(`myPlan.plans.${p.key}.desc`)}</p>
 
               <button
                 disabled
@@ -218,16 +160,16 @@ export default function MyPlan() {
                   current ? 'bg-cyan-500/15 text-cyan-300' : 'cursor-not-allowed border border-slate-800 bg-slate-900 text-slate-600'
                 }`}
               >
-                {current ? 'Plano atual' : 'Indisponível'}
+                {current ? t('myPlan.currentPlanBtn') : t('myPlan.unavailable')}
               </button>
 
               <ul className="mt-4 space-y-1.5 border-t border-slate-800 pt-3.5">
-                {FEATURES.map((f, i) => {
+                {FEATURE_KEYS.map((fk, i) => {
                   const has = i < p.features
                   return (
-                    <li key={f} className={`flex items-center gap-1.5 text-xs ${has ? 'text-slate-300' : 'text-slate-600'}`}>
+                    <li key={fk} className={`flex items-center gap-1.5 text-xs ${has ? 'text-slate-300' : 'text-slate-600'}`}>
                       {has ? <Check size={12} className="shrink-0 text-cyan-400" /> : <X size={12} className="shrink-0 text-slate-700" />}
-                      {f}
+                      {t(`myPlan.features.${fk}`)}
                     </li>
                   )
                 })}
@@ -239,9 +181,9 @@ export default function MyPlan() {
 
       {/* FAQ */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-        <h2 className="mb-3 font-semibold text-slate-100">Perguntas Frequentes</h2>
+        <h2 className="mb-3 font-semibold text-slate-100">{t('myPlan.faqTitle')}</h2>
         <div className="divide-y divide-slate-800">
-          {FAQ.map(([q, a], i) => (
+          {t('myPlan.faq').map(({ q, a }, i) => (
             <div key={q}>
               <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="flex w-full items-center justify-between gap-3 py-3 text-left">
                 <span className="text-sm font-medium text-slate-200">{q}</span>
@@ -255,10 +197,10 @@ export default function MyPlan() {
 
       {/* Precisa de ajuda? */}
       <div className="flex items-center justify-between rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-5 py-4">
-        <p className="text-sm font-semibold text-slate-200">Precisa de ajuda?</p>
+        <p className="text-sm font-semibold text-slate-200">{t('myPlan.needHelp')}</p>
         <a href="/suporte" className="flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-cyan-600">
           <MessageCircle size={13} />
-          Falar com Suporte
+          {t('myPlan.talkToSupport')}
         </a>
       </div>
     </div>
