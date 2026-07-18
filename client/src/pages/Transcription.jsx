@@ -1,16 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { UploadCloud, Loader2, Mic, Copy, FileDown, Captions, Trash2, CheckCircle2, AlertTriangle, Save } from 'lucide-react'
 import { useDb } from '../lib/db'
+import { useI18n } from '../i18n'
 import { api, apiErrorMessage } from '../lib/api'
 import { btnGhost, btnPrimary } from '../components/ui'
 import { downloadFile, generateSrt } from '../lib/text'
-
-const STATUS_LABEL = {
-  preparing: 'Preparando áudio',
-  transcribing: 'Transcrevendo',
-  done: 'Pronto',
-  error: 'Erro',
-}
 
 const SEVEN_DAYS = 7 * 24 * 3600 * 1000
 
@@ -105,6 +99,7 @@ function srtByWord(words, n, formato) {
 
 export default function Transcription() {
   const db = useDb()
+  const { t } = useI18n()
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -170,8 +165,8 @@ export default function Transcription() {
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">Transcrição</h1>
-        <p className="mt-1 text-sm text-slate-500">Transforme áudio em legendas SRT e texto</p>
+        <h1 className="text-2xl font-bold text-slate-100">{t('transcription.title')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('transcription.subtitle')}</p>
       </div>
 
       {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
@@ -182,7 +177,7 @@ export default function Transcription() {
           {/* Áudio de origem */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-200">Áudio de origem</p>
+              <p className="text-sm font-semibold text-slate-200">{t('transcription.sourceAudio')}</p>
               <span className="text-[10px] font-medium tracking-wide text-slate-600">MP3, WAV, M4A, OGG, WEBM, FLAC</span>
             </div>
             <div
@@ -204,13 +199,13 @@ export default function Transcription() {
               {uploading ? (
                 <>
                   <Loader2 size={28} className="animate-spin text-cyan-400" />
-                  <p className="mt-3 text-sm text-slate-400">Enviando arquivo...</p>
+                  <p className="mt-3 text-sm text-slate-400">{t('transcription.uploading')}</p>
                 </>
               ) : (
                 <>
                   <UploadCloud size={28} className="text-cyan-400" />
-                  <p className="mt-3 text-sm font-medium text-slate-200">Clique ou arraste o áudio aqui</p>
-                  <p className="mt-1 text-xs text-slate-500">Até 1 hora de áudio. Acima de 2 MB, envie em MP3.</p>
+                  <p className="mt-3 text-sm font-medium text-slate-200">{t('transcription.clickOrDrag')}</p>
+                  <p className="mt-1 text-xs text-slate-500">{t('transcription.uploadHint')}</p>
                 </>
               )}
               <input
@@ -226,21 +221,21 @@ export default function Transcription() {
           {/* Legenda (SRT) — 3 formatos, como no original */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
             <div className="mb-1 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-200">Legenda (SRT)</p>
+              <p className="text-sm font-semibold text-slate-200">{t('transcription.subtitleSection')}</p>
               <button onClick={saveDefault} className="flex items-center gap-1.5 text-[11px] font-medium text-cyan-400 hover:text-cyan-300">
                 <Save size={11} />
-                {savedMsg ? 'Salvo!' : 'Salvar como padrão'}
+                {savedMsg ? t('transcription.saved') : t('transcription.saveDefault')}
               </button>
             </div>
-            <p className="mb-3 text-xs text-slate-500">Geramos 3 formatos de legenda. Ajuste cada um conforme seu editor:</p>
+            <p className="mb-3 text-xs text-slate-500">{t('transcription.formatsDesc')}</p>
 
             <div className="space-y-2.5">
               {/* Por tempo (VEO · SYNC) */}
               <FormatRow
                 emoji="⏱"
-                title="Por tempo"
+                title={t('transcription.byTimeTitle')}
                 badge="VEO · SYNC"
-                desc="Uso exclusivo para SINCRONIZAÇÃO: divide a narração em blocos de X segundos. Você cria os prompts por bloco e depois sincroniza com os vídeos (VEO/Shorts)."
+                desc={t('transcription.byTimeDesc')}
                 control={
                   <div className="flex items-center gap-2">
                     <input
@@ -267,9 +262,9 @@ export default function Transcription() {
               {/* Legenda */}
               <FormatRow
                 emoji="¶"
-                title="Legenda"
-                badge={`máx. ${cfg.legendaMax}`}
-                desc="Quebra no ritmo da fala, respeitando pausas. Leitura confortável."
+                title={t('transcription.legendaTitle')}
+                badge={t('transcription.legendaMax', { n: cfg.legendaMax })}
+                desc={t('transcription.legendaDesc')}
                 control={
                   <input
                     type="number"
@@ -284,9 +279,9 @@ export default function Transcription() {
               {/* Por palavra */}
               <FormatRow
                 emoji="#"
-                title="Por palavra"
+                title={t('transcription.byWordTitle')}
                 badge={String(cfg.porPalavra)}
-                desc="Toda linha com a MESMA quantidade de palavras. Visual uniforme."
+                desc={t('transcription.byWordDesc')}
                 control={
                   <input
                     type="number"
@@ -302,7 +297,7 @@ export default function Transcription() {
 
             {/* Formato de caixa: Aa / AA / aa */}
             <div className="mt-3 flex items-center gap-2 border-t border-slate-800 pt-3">
-              <span className="text-xs font-semibold text-slate-400">Formato</span>
+              <span className="text-xs font-semibold text-slate-400">{t('transcription.format')}</span>
               {['Aa', 'AA', 'aa'].map((f) => (
                 <button
                   key={f}
@@ -319,7 +314,7 @@ export default function Transcription() {
 
           <button onClick={() => fileRef.current?.click()} disabled={uploading} className={`${btnPrimary} flex w-full items-center justify-center gap-2 disabled:opacity-60`}>
             {uploading ? <Loader2 size={15} className="animate-spin" /> : <Mic size={15} />}
-            Transcrever
+            {t('transcription.transcribe')}
           </button>
         </div>
 
@@ -328,14 +323,14 @@ export default function Transcription() {
           {/* Resultados */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-200">Resultados</p>
-              <span className="text-[10px] text-slate-600">Disponíveis por 7 dias</span>
+              <p className="text-sm font-semibold text-slate-200">{t('transcription.results')}</p>
+              <span className="text-[10px] text-slate-600">{t('transcription.availableDays')}</span>
             </div>
             {!latestDone ? (
               <div className="rounded-xl border border-dashed border-slate-800 px-5 py-12 text-center">
                 <Captions size={24} className="mx-auto text-slate-600" />
-                <p className="mt-3 text-sm font-medium text-slate-300">Pronto para transcrever</p>
-                <p className="mt-1 text-xs text-slate-500">Envie um áudio e clique em Transcrever.</p>
+                <p className="mt-3 text-sm font-medium text-slate-300">{t('transcription.readyTitle')}</p>
+                <p className="mt-1 text-xs text-slate-500">{t('transcription.readyDesc')}</p>
               </div>
             ) : (
               <ResultPanel job={latestDone} cfg={cfg} />
@@ -345,11 +340,11 @@ export default function Transcription() {
           {/* Últimas transcrições */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-200">Últimas transcrições</p>
-              <span className="text-[10px] text-slate-600">Disponíveis por 7 dias</span>
+              <p className="text-sm font-semibold text-slate-200">{t('transcription.lastTranscriptions')}</p>
+              <span className="text-[10px] text-slate-600">{t('transcription.availableDays')}</span>
             </div>
             {jobs.length === 0 ? (
-              <p className="py-6 text-center text-xs text-slate-500">Nenhuma transcrição nas últimas 24 horas.</p>
+              <p className="py-6 text-center text-xs text-slate-500">{t('transcription.noneRecent')}</p>
             ) : (
               <div className="space-y-2">
                 {jobs.map((job) => (
@@ -380,6 +375,7 @@ function FormatRow({ emoji, title, badge, desc, control }) {
 
 // Painel do resultado mais recente: baixa os 3 SRTs + TXT
 function ResultPanel({ job, cfg }) {
+  const { t } = useI18n()
   const [copied, setCopied] = useState(false)
   const words = job.words || []
   const base = job.fileName.replace(/\.[a-z0-9]+$/i, '')
@@ -408,23 +404,21 @@ function ResultPanel({ job, cfg }) {
       <p className="truncate text-xs font-semibold text-slate-300">{job.fileName}</p>
       {isEmpty && (
         <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-300">
-          ⚠️ A transcrição concluiu, mas voltou <b>vazia</b> (sem texto reconhecido). Causas comuns: áudio sem fala clara, muito curto,
-          ou idioma não detectado. Exclua esta transcrição, reenvie o áudio em <b>MP3 com fala nítida</b> e tente de novo. Se persistir com
-          um áudio bom, confira sua chave da AssemblyAI em Perfil → APIs (o plano gratuito exige a chave ativada).
+          {t('transcription.emptyWarning')}
         </p>
       )}
       <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-3">
-        <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-400">{applyCase(job.text || '', cfg.formato) || '(vazio)'}</p>
+        <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-400">{applyCase(job.text || '', cfg.formato) || t('transcription.empty')}</p>
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <button onClick={() => dl('tempo')} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 !text-[11px]`}>
-          ⏱ SRT por tempo
+          {t('transcription.srtByTime')}
         </button>
         <button onClick={() => dl('legenda')} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 !text-[11px]`}>
-          ¶ SRT legenda
+          {t('transcription.srtLegenda')}
         </button>
         <button onClick={() => dl('palavra')} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 !text-[11px]`}>
-          # SRT por palavra
+          {t('transcription.srtByWord')}
         </button>
         <button onClick={() => downloadFile(`${base}.txt`, job.text || '')} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 !text-[11px]`}>
           <FileDown size={11} />
@@ -432,11 +426,11 @@ function ResultPanel({ job, cfg }) {
         </button>
         <button onClick={copyAll} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 !text-[11px]`}>
           <Copy size={11} />
-          {copied ? 'Copiado!' : 'Copiar'}
+          {copied ? t('transcription.copied') : t('transcription.copy')}
         </button>
       </div>
       {!words.length && (
-        <p className="mt-2 text-[10px] text-amber-400/80">Transcrição antiga sem timestamps por palavra — os formatos usam tempo estimado.</p>
+        <p className="mt-2 text-[10px] text-amber-400/80">{t('transcription.oldNoTimestamps')}</p>
       )}
     </div>
   )
@@ -444,6 +438,7 @@ function ResultPanel({ job, cfg }) {
 
 function JobRow({ job }) {
   const db = useDb()
+  const { t } = useI18n()
   const running = ['preparing', 'transcribing'].includes(job.status)
   return (
     <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2.5">
@@ -457,13 +452,13 @@ function JobRow({ job }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium text-slate-200">{job.fileName}</p>
         <p className="text-[10px] text-slate-500">
-          {STATUS_LABEL[job.status] || job.status}
+          {t(`transcription.status.${job.status}`)}
           {job.errorMessage ? ` — ${job.errorMessage}` : ''}
           {' · '}
           {new Date(job.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
-      <button onClick={() => db.remove('transcriptions', job.id)} className="shrink-0 text-slate-600 hover:text-red-400" title="Excluir">
+      <button onClick={() => db.remove('transcriptions', job.id)} className="shrink-0 text-slate-600 hover:text-red-400" title={t('transcription.delete')}>
         <Trash2 size={14} />
       </button>
     </div>
