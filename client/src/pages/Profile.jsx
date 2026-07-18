@@ -7,28 +7,30 @@ import { inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
 import { downloadFile } from '../lib/text'
 import { pushUserSettings } from '../lib/userSettings'
 import { Field } from './channels/ChannelsList'
+import { useI18n } from '../i18n'
 
 // Abas do original: Perfil | Segurança | APIs | Preferências | Avançado
 const TABS = [
-  ['profile', 'Perfil', User],
-  ['security', 'Segurança', Shield],
-  ['apis', 'APIs', KeyRound],
-  ['prefs', 'Preferências', SlidersHorizontal],
-  ['advanced', 'Avançado', Wrench],
+  ['profile', User],
+  ['security', Shield],
+  ['apis', KeyRound],
+  ['prefs', SlidersHorizontal],
+  ['advanced', Wrench],
 ]
 
 export default function Profile() {
+  const { t } = useI18n()
   const [tab, setTab] = useState('profile')
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">Configurações</h1>
-        <p className="mt-1 text-sm text-slate-500">Gerencie seu perfil, segurança e preferências</p>
+        <h1 className="text-2xl font-bold text-slate-100">{t('profile.title')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('profile.subtitle')}</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {TABS.map(([key, label, Icon]) => (
+        {TABS.map(([key, Icon]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -37,7 +39,7 @@ export default function Profile() {
             }`}
           >
             <Icon size={15} />
-            {label}
+            {t(`profile.tabs.${key}`)}
           </button>
         ))}
       </div>
@@ -62,11 +64,12 @@ function Card({ title, subtitle, children }) {
 }
 
 function SavedFlash({ show }) {
+  const { t } = useI18n()
   if (!show) return null
   return (
     <span className="flex items-center gap-1 text-xs text-green-400">
       <Check size={13} />
-      Salvo
+      {t('profile.saved')}
     </span>
   )
 }
@@ -75,6 +78,7 @@ function SavedFlash({ show }) {
 function ProfileTab() {
   const { user, isAdmin } = useAuth()
   const db = useDb()
+  const { t } = useI18n()
   const [name, setName] = useState(db.getSetting('displayName', user?.name || ''))
   const [saved, setSaved] = useState(false)
   const avatarDataUrl = db.getSetting('avatarDataUrl')
@@ -105,7 +109,7 @@ function ProfileTab() {
   }
 
   return (
-    <Card title="Perfil">
+    <Card title={t('profile.prof.cardTitle')}>
       <form onSubmit={save} className="space-y-4">
         {/* Avatar com ícone de câmera, como no original */}
         <div className="flex flex-col items-center gap-2 pb-2 text-center">
@@ -124,32 +128,32 @@ function ProfileTab() {
           </label>
           {isAdmin && (
             <span className="rounded border border-amber-500/40 bg-gradient-to-r from-amber-500/20 to-red-500/10 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
-              👑 FUNDADOR
+              {t('profile.prof.founder')}
             </span>
           )}
-          <p className="text-xs text-slate-500">Clique no ícone da câmera para adicionar sua foto</p>
+          <p className="text-xs text-slate-500">{t('profile.prof.photoHint')}</p>
           <p className="text-[10px] text-slate-600">
-            Formatos: JPG, PNG, WebP • Tamanho máximo: 10MB
+            {t('profile.prof.formats')}
             <br />
-            (Será comprimida automaticamente para ~300KB)
+            {t('profile.prof.compressNote')}
           </p>
           {avatarDataUrl && (
             <button type="button" onClick={() => db.setSetting('avatarDataUrl', null)} className="text-[11px] text-red-400 hover:underline">
-              Remover foto
+              {t('profile.prof.removePhoto')}
             </button>
           )}
         </div>
-        <Field label="NOME">
+        <Field label={t('profile.prof.name')}>
           <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="EMAIL">
+        <Field label={t('profile.prof.email')}>
           <input className={`${inputCls} opacity-60`} value={user?.email || ''} disabled />
-          <p className="mt-1 text-[10px] text-slate-600">O email não pode ser alterado</p>
+          <p className="mt-1 text-[10px] text-slate-600">{t('profile.prof.emailLocked')}</p>
         </Field>
         <div className="flex items-center justify-end gap-3">
           <SavedFlash show={saved} />
           <button type="submit" className={btnPrimary}>
-            Salvar Alterações
+            {t('profile.prof.save')}
           </button>
         </div>
       </form>
@@ -170,6 +174,7 @@ function GoogleIcon({ size = 18 }) {
 }
 
 function SecurityTab() {
+  const { t } = useI18n()
   const { user, isLocalMode, updatePassword, updateEmail, linkGoogle, unlinkIdentity, refreshUser } = useAuth()
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -186,19 +191,19 @@ function SecurityTab() {
   async function changePassword(e) {
     e.preventDefault()
     if (isLocalMode) {
-      setPwMsg({ ok: false, text: 'Modo local: a troca de senha real funciona no site publicado (Supabase).' })
+      setPwMsg({ ok: false, text: t('profile.sec.localPw') })
       return
     }
-    if (next.length < 6) return setPwMsg({ ok: false, text: 'A nova senha precisa de pelo menos 6 caracteres.' })
-    if (next !== confirm) return setPwMsg({ ok: false, text: 'As senhas não coincidem.' })
+    if (next.length < 6) return setPwMsg({ ok: false, text: t('profile.sec.pwMin') })
+    if (next !== confirm) return setPwMsg({ ok: false, text: t('profile.sec.pwMismatch') })
     setBusy(true)
     try {
       await updatePassword(next)
-      setPwMsg({ ok: true, text: 'Senha atualizada com sucesso.' })
+      setPwMsg({ ok: true, text: t('profile.sec.pwOk') })
       setNext('')
       setConfirm('')
     } catch (err) {
-      setPwMsg({ ok: false, text: err?.message || 'Não foi possível atualizar a senha.' })
+      setPwMsg({ ok: false, text: err?.message || t('profile.sec.pwFail') })
     } finally {
       setBusy(false)
     }
@@ -207,16 +212,16 @@ function SecurityTab() {
   async function changeEmail(e) {
     e.preventDefault()
     if (isLocalMode) {
-      setEmailMsg({ ok: false, text: 'Modo local: a troca de e-mail funciona no site publicado (Supabase).' })
+      setEmailMsg({ ok: false, text: t('profile.sec.localEmail') })
       return
     }
     setBusy(true)
     try {
       await updateEmail(newEmail.trim())
-      setEmailMsg({ ok: true, text: 'Enviamos links de confirmação — confira a caixa de entrada do e-mail atual E do novo para concluir a troca.' })
+      setEmailMsg({ ok: true, text: t('profile.sec.emailOk') })
       setNewEmail('')
     } catch (err) {
-      setEmailMsg({ ok: false, text: err?.message || 'Não foi possível iniciar a troca de e-mail.' })
+      setEmailMsg({ ok: false, text: err?.message || t('profile.sec.emailFail') })
     } finally {
       setBusy(false)
     }
@@ -224,7 +229,7 @@ function SecurityTab() {
 
   async function handleLinkGoogle() {
     if (isLocalMode) {
-      setLinkMsg({ ok: false, text: 'Modo local: a vinculação com o Google funciona no site publicado (Supabase).' })
+      setLinkMsg({ ok: false, text: t('profile.sec.localLink') })
       return
     }
     setBusy(true)
@@ -234,8 +239,8 @@ function SecurityTab() {
       setLinkMsg({
         ok: false,
         text: err?.message?.includes('Manual linking')
-          ? 'Ative "Manual linking" no painel do Supabase (Authentication) para permitir a vinculação.'
-          : err?.message || 'Não foi possível vincular agora.',
+          ? t('profile.sec.linkManual')
+          : err?.message || t('profile.sec.linkFail'),
       })
       setBusy(false)
     }
@@ -247,9 +252,9 @@ function SecurityTab() {
     try {
       await unlinkIdentity(googleIdentity.raw)
       await refreshUser()
-      setLinkMsg({ ok: true, text: 'Conta Google desvinculada.' })
+      setLinkMsg({ ok: true, text: t('profile.sec.unlinkOk') })
     } catch (err) {
-      setLinkMsg({ ok: false, text: err?.message || 'Não foi possível desvincular.' })
+      setLinkMsg({ ok: false, text: err?.message || t('profile.sec.unlinkFail') })
     } finally {
       setBusy(false)
     }
@@ -261,33 +266,33 @@ function SecurityTab() {
     <div className="space-y-4">
       {/* Contas conectadas: e-mail principal + Google (pode ter e-mail diferente) */}
       <Card
-        title="Contas Conectadas"
-        subtitle="Você pode entrar com e-mail/senha e também com o Google — mesmo que os e-mails sejam diferentes, é a MESMA conta. O e-mail principal (que recebe os avisos) continua sendo o cadastrado."
+        title={t('profile.sec.connectedTitle')}
+        subtitle={t('profile.sec.connectedSub')}
       >
         <div className="space-y-2.5">
           <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">@</span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-slate-200">E-mail principal</p>
+              <p className="text-sm font-medium text-slate-200">{t('profile.sec.mainEmail')}</p>
               <p className="truncate text-xs text-slate-500">{user?.email}</p>
             </div>
             <span className="shrink-0 rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-bold text-green-400">
-              {isLocalMode || emailIdentity || !identities.length ? 'ATIVO' : 'VIA GOOGLE'}
+              {isLocalMode || emailIdentity || !identities.length ? t('profile.sec.active') : t('profile.sec.viaGoogle')}
             </span>
           </div>
 
           <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-3">
             <GoogleIcon />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-slate-200">Conta Google</p>
-              <p className="truncate text-xs text-slate-500">{googleIdentity ? googleIdentity.email || 'vinculada' : 'Entre também com um clique, sem senha'}</p>
+              <p className="text-sm font-medium text-slate-200">{t('profile.sec.googleAccount')}</p>
+              <p className="truncate text-xs text-slate-500">{googleIdentity ? googleIdentity.email || t('profile.sec.googleLinkedFallback') : t('profile.sec.googleHint')}</p>
             </div>
             {googleIdentity ? (
               <div className="flex shrink-0 items-center gap-2">
-                <span className="rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-bold text-green-400">VINCULADA</span>
+                <span className="rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-bold text-green-400">{t('profile.sec.linked')}</span>
                 {identities.length > 1 && (
                   <button onClick={handleUnlinkGoogle} disabled={busy} className="text-xs text-red-400 hover:underline disabled:opacity-50">
-                    Desvincular
+                    {t('profile.sec.unlink')}
                   </button>
                 )}
               </div>
@@ -297,7 +302,7 @@ function SecurityTab() {
                 disabled={busy}
                 className="shrink-0 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:opacity-50"
               >
-                Vincular Google
+                {t('profile.sec.linkGoogle')}
               </button>
             )}
           </div>
@@ -306,33 +311,33 @@ function SecurityTab() {
       </Card>
 
       {/* Trocar e-mail principal */}
-      <Card title="Alterar e-mail principal" subtitle="O e-mail principal é o que recebe os avisos da plataforma. A troca exige confirmação nos dois e-mails.">
+      <Card title={t('profile.sec.changeEmailTitle')} subtitle={t('profile.sec.changeEmailSub')}>
         <form onSubmit={changeEmail} className="space-y-3">
-          <Field label="NOVO E-MAIL">
-            <input className={inputCls} type="email" required placeholder="novo@email.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+          <Field label={t('profile.sec.newEmail')}>
+            <input className={inputCls} type="email" required placeholder={t('profile.sec.newEmailPlaceholder')} value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
           </Field>
           <Msg msg={emailMsg} />
           <div className="flex justify-end">
             <button type="submit" disabled={busy} className={`${btnPrimary} disabled:opacity-50`}>
-              Alterar e-mail
+              {t('profile.sec.changeEmailBtn')}
             </button>
           </div>
         </form>
       </Card>
 
       {/* Alterar senha */}
-      <Card title="Alterar Senha">
+      <Card title={t('profile.sec.changePwTitle')}>
         <form onSubmit={changePassword} className="space-y-4">
-          <Field label="NOVA SENHA">
+          <Field label={t('profile.sec.newPw')}>
             <input className={inputCls} type="password" minLength={6} required value={next} onChange={(e) => setNext(e.target.value)} />
           </Field>
-          <Field label="CONFIRMAR NOVA SENHA">
+          <Field label={t('profile.sec.confirmPw')}>
             <input className={inputCls} type="password" minLength={6} required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
           </Field>
           <Msg msg={pwMsg} />
           <div className="flex justify-end">
             <button type="submit" disabled={busy} className={`${btnPrimary} disabled:opacity-50`}>
-              Atualizar senha
+              {t('profile.sec.updatePwBtn')}
             </button>
           </div>
         </form>
@@ -346,6 +351,7 @@ function SecurityTab() {
 
 // Card de 2FA — app autenticador (TOTP, nativo do Supabase, grátis).
 function TwoFactorCard({ isLocalMode }) {
+  const { t } = useI18n()
   const { mfa } = useAuth()
   const [factors, setFactors] = useState([])
   const [enrolling, setEnrolling] = useState(null) // { id, qr, secret }
@@ -375,7 +381,7 @@ function TwoFactorCard({ isLocalMode }) {
       setEnrolling({ id: d.id, qr: d.totp.qr_code, secret: d.totp.secret })
       setCode('')
     } catch (e) {
-      setMsg({ ok: false, text: e?.message || 'Não foi possível iniciar o 2FA.' })
+      setMsg({ ok: false, text: e?.message || t('profile.twofa.startFail') })
     } finally {
       setBusy(false)
     }
@@ -388,10 +394,10 @@ function TwoFactorCard({ isLocalMode }) {
     try {
       await mfa.activate(enrolling.id, code.trim())
       setEnrolling(null)
-      setMsg({ ok: true, text: '2FA ativado com sucesso.' })
+      setMsg({ ok: true, text: t('profile.twofa.activatedOk') })
       await load()
     } catch {
-      setMsg({ ok: false, text: 'Código inválido. Confira o app e tente de novo.' })
+      setMsg({ ok: false, text: t('profile.twofa.invalidCode') })
     } finally {
       setBusy(false)
     }
@@ -402,10 +408,10 @@ function TwoFactorCard({ isLocalMode }) {
     setMsg(null)
     try {
       await mfa.disable(active.id)
-      setMsg({ ok: true, text: '2FA desativado.' })
+      setMsg({ ok: true, text: t('profile.twofa.disabledOk') })
       await load()
     } catch (e) {
-      setMsg({ ok: false, text: e?.message || 'Falha ao desativar.' })
+      setMsg({ ok: false, text: e?.message || t('profile.twofa.disableFail') })
     } finally {
       setBusy(false)
     }
@@ -414,27 +420,27 @@ function TwoFactorCard({ isLocalMode }) {
   const Msg = ({ msg }) => (msg ? <p className={`text-xs ${msg.ok ? 'text-green-400' : 'text-amber-400'}`}>{msg.text}</p> : null)
 
   return (
-    <Card title="Verificação em duas etapas (2FA)" subtitle="Proteja o login com um app autenticador (Google Authenticator, Authy, etc.). Além da senha, será pedido um código de 6 dígitos.">
+    <Card title={t('profile.twofa.title')} subtitle={t('profile.twofa.sub')}>
       {isLocalMode ? (
-        <p className="text-xs text-amber-400">Modo local: o 2FA funciona no site publicado (Supabase).</p>
+        <p className="text-xs text-amber-400">{t('profile.twofa.local')}</p>
       ) : active ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/5 px-3 py-2.5">
             <ShieldCheck size={16} className="text-green-400" />
-            <p className="flex-1 text-sm text-green-300">2FA ativo — seu login está protegido.</p>
+            <p className="flex-1 text-sm text-green-300">{t('profile.twofa.activeMsg')}</p>
           </div>
           <Msg msg={msg} />
           <button onClick={() => setConfirmOff(true)} disabled={busy} className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50">
-            Desativar 2FA
+            {t('profile.twofa.disableBtn')}
           </button>
         </div>
       ) : enrolling ? (
         <form onSubmit={confirmEnroll} className="space-y-3">
-          <p className="text-xs text-slate-400">1. Escaneie o QR code no seu app autenticador (ou use o código manual). 2. Digite o código de 6 dígitos que aparecer.</p>
+          <p className="text-xs text-slate-400">{t('profile.twofa.enrollSteps')}</p>
           <div className="flex flex-wrap items-center gap-4">
             <img src={enrolling.qr} alt="QR code 2FA" className="h-40 w-40 rounded-lg border border-slate-800 bg-white p-1" />
             <div className="text-xs text-slate-500">
-              <p className="mb-1 font-semibold text-slate-400">Código manual:</p>
+              <p className="mb-1 font-semibold text-slate-400">{t('profile.twofa.manualCode')}</p>
               <code className="break-all rounded bg-slate-950 px-2 py-1 text-[11px] text-cyan-300">{enrolling.secret}</code>
             </div>
           </div>
@@ -451,10 +457,10 @@ function TwoFactorCard({ isLocalMode }) {
           <Msg msg={msg} />
           <div className="flex gap-2">
             <button type="submit" disabled={busy || code.length < 6} className={`${btnPrimary} disabled:opacity-50`}>
-              Ativar 2FA
+              {t('profile.twofa.activateBtn')}
             </button>
             <button type="button" onClick={() => { setEnrolling(null); setMsg(null) }} className={btnGhost}>
-              Cancelar
+              {t('profile.twofa.cancel')}
             </button>
           </div>
         </form>
@@ -463,7 +469,7 @@ function TwoFactorCard({ isLocalMode }) {
           <Msg msg={msg} />
           <button onClick={startEnroll} disabled={busy} className={`${btnPrimary} flex items-center gap-2 disabled:opacity-50`}>
             {busy ? <Loader2 size={15} className="animate-spin" /> : <Shield size={15} />}
-            Ativar 2FA (app autenticador)
+            {t('profile.twofa.startBtn')}
           </button>
         </div>
       )}
@@ -471,9 +477,9 @@ function TwoFactorCard({ isLocalMode }) {
         open={confirmOff}
         onClose={() => setConfirmOff(false)}
         onConfirm={disable}
-        title="Desativar 2FA"
-        message="Sua conta ficará protegida apenas pela senha. Você pode reativar quando quiser."
-        confirmLabel="Desativar"
+        title={t('profile.twofa.confirmTitle')}
+        message={t('profile.twofa.confirmMsg')}
+        confirmLabel={t('profile.twofa.confirmLabel')}
       />
     </Card>
   )
@@ -481,7 +487,8 @@ function TwoFactorCard({ isLocalMode }) {
 
 // Botão de teste reutilizável — persiste as chaves atuais e roda a validação.
 // Se o resultado trouxer `details` (ex.: cada chave do YouTube), mostra um a um.
-function TestButton({ label = 'Testar', persist, run }) {
+function TestButton({ label, persist, run }) {
+  const { t } = useI18n()
   const [state, setState] = useState('idle') // idle | loading | ok | fail
   const [msg, setMsg] = useState('')
   const [details, setDetails] = useState(null)
@@ -495,14 +502,14 @@ function TestButton({ label = 'Testar', persist, run }) {
       setDetails(Array.isArray(r?.details) ? r.details : null)
       if (r?.ok) {
         setState('ok')
-        setMsg(r.message || 'OK')
+        setMsg(r.message || t('profile.apis.ok'))
       } else {
         setState('fail')
-        setMsg(r?.message || 'Falhou')
+        setMsg(r?.message || t('profile.apis.failed'))
       }
     } catch (e) {
       setState('fail')
-      setMsg(e?.message || 'Falhou')
+      setMsg(e?.message || t('profile.apis.failed'))
     }
   }
   return (
@@ -552,6 +559,7 @@ function TestButton({ label = 'Testar', persist, run }) {
 
 // ---------------------------------------------------------------------------
 function ApisTab() {
+  const { t } = useI18n()
   const db = useDb()
   const [ytKeys, setYtKeys] = useState(() => {
     const saved = db.getSetting('ytKeys', [])
@@ -619,41 +627,39 @@ function ApisTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-4 py-3">
-        <p className="text-xs text-slate-400">
-          Suas chaves ficam salvas <b>somente neste dispositivo</b> e são enviadas ao servidor apenas no momento de cada chamada (BYOK).
-        </p>
-        <button onClick={() => setShow((v) => !v)} className="ml-3 shrink-0 text-slate-400 hover:text-slate-200" title={show ? 'Ocultar chaves' : 'Mostrar chaves'}>
+        <p className="text-xs text-slate-400" dangerouslySetInnerHTML={{ __html: t('profile.apis.byokNote') }} />
+        <button onClick={() => setShow((v) => !v)} className="ml-3 shrink-0 text-slate-400 hover:text-slate-200" title={show ? t('profile.apis.hideKeys') : t('profile.apis.showKeys')}>
           {show ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
 
       <Card
-        title="YouTube Data API — Rotação de Cota"
-        subtitle="Configure até 5 chaves. Quando uma atinge a cota diária (erro 403), o sistema troca automaticamente para a próxima, sem interromper suas buscas. A cota reseta à meia-noite (horário do Pacífico)."
+        title={t('profile.apis.ytTitle')}
+        subtitle={t('profile.apis.ytSub')}
       >
         <div className="space-y-3">
           {ytKeys.map((key, i) => (
             <div key={i} className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-xs font-semibold text-slate-500">CHAVE {i + 1}</span>
+              <span className="w-24 shrink-0 text-xs font-semibold text-slate-500">{t('profile.apis.key')} {i + 1}</span>
               {keyInput(key, (e) => setYtKeys((ks) => ks.map((k, idx) => (idx === i ? e.target.value : k))), 'AIza...')}
             </div>
           ))}
         </div>
         <p className="mt-3 text-[11px] text-slate-600">
-          Crie chaves no Google Cloud Console → YouTube Data API v3. Mesmo com 5 chaves a cota é finita — as buscas são cacheadas no servidor pra economizar.
+          {t('profile.apis.ytFooter')}
         </p>
         <div className="mt-3">
-          <TestButton label="Testar YouTube" persist={persist} run={() => api.youtube.test()} />
+          <TestButton label={t('profile.apis.testYoutube')} persist={persist} run={() => api.youtube.test()} />
         </div>
       </Card>
 
-      <Card title="Inteligência Artificial — SEO/CTR e Dobra de Nicho" subtitle="Escolha o provedor. As duas opções têm plano gratuito — as chaves são suas (BYOK).">
+      <Card title={t('profile.apis.aiTitle')} subtitle={t('profile.apis.aiSub')}>
         <div className="space-y-4">
-          <Field label="PROVEDOR PRINCIPAL">
+          <Field label={t('profile.apis.mainProvider')}>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {[
-                ['gemini', 'Gemini (Google)', 'aistudio.google.com/apikey — recomendado'],
-                ['groq', 'Groq (Llama 3.3 70B)', 'console.groq.com/keys — alternativa gratuita'],
+                ['gemini', t('profile.apis.geminiName'), t('profile.apis.geminiHint')],
+                ['groq', t('profile.apis.groqName'), t('profile.apis.groqHint')],
               ].map(([value, name, hint]) => (
                 <button
                   key={value}
@@ -670,13 +676,9 @@ function ApisTab() {
             </div>
           </Field>
 
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2.5 text-[11px] leading-relaxed text-amber-300/80">
-            ⚠️ <b>Modo Automático:</b> o sistema descobre quais modelos a sua chave pode usar e escolhe o <b>mais barato disponível</b>
-            sozinho — se o Google aposentar um modelo (comum em contas novas), ele se adapta sem você mexer em nada. Se estourar a cota de um
-            modelo, ele tenta o próximo e, por último, o Groq (se configurado).
-          </div>
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2.5 text-[11px] leading-relaxed text-amber-300/80" dangerouslySetInnerHTML={{ __html: t('profile.apis.autoNote') }} />
 
-          <Field label="MODELO GEMINI">
+          <Field label={t('profile.apis.geminiModel')}>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -685,7 +687,7 @@ function ApisTab() {
                   geminiModel === 'auto' ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
                 }`}
               >
-                ⚡ Automático (mais barato)
+                {t('profile.apis.autoModel')}
               </button>
               {geminiModels.map((m) => (
                 <button
@@ -700,43 +702,41 @@ function ApisTab() {
                 </button>
               ))}
               <button type="button" onClick={loadModels} className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-400 hover:border-slate-700">
-                ↻ Recarregar
+                {t('profile.apis.reload')}
               </button>
             </div>
             {geminiModels.length === 0 && (
-              <p className="mt-2 text-[11px] text-slate-500">
-                Salve a chave e clique em <b>Recarregar</b> para listar os modelos. No modo <b>Automático</b> nem precisa escolher — o sistema decide.
-              </p>
+              <p className="mt-2 text-[11px] text-slate-500" dangerouslySetInnerHTML={{ __html: t('profile.apis.modelsHint') }} />
             )}
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="CHAVE DA API GEMINI (aistudio.google.com/apikey)">{keyInput(geminiKey, (e) => setGeminiKey(e.target.value), 'AIza...')}</Field>
-            <Field label="CHAVE DA API GROQ (console.groq.com/keys)">{keyInput(groqKey, (e) => setGroqKey(e.target.value), 'gsk_...')}</Field>
+            <Field label={t('profile.apis.geminiKey')}>{keyInput(geminiKey, (e) => setGeminiKey(e.target.value), 'AIza...')}</Field>
+            <Field label={t('profile.apis.groqKey')}>{keyInput(groqKey, (e) => setGroqKey(e.target.value), 'gsk_...')}</Field>
           </div>
-          <TestButton label="Testar IA" persist={persist} run={() => api.ai.test()} />
+          <TestButton label={t('profile.apis.testAi')} persist={persist} run={() => api.ai.test()} />
         </div>
       </Card>
 
-      <Card title="Outras integrações (BYOK)">
+      <Card title={t('profile.apis.othersTitle')}>
         <div className="space-y-4">
           <div>
-            <Field label="ASSEMBLYAI (transcrição de áudio)">{keyInput(assemblyKey, (e) => setAssemblyKey(e.target.value), 'Chave da AssemblyAI')}</Field>
+            <Field label={t('profile.apis.assemblyLabel')}>{keyInput(assemblyKey, (e) => setAssemblyKey(e.target.value), t('profile.apis.assemblyPlaceholder'))}</Field>
             <div className="mt-2">
-              <TestButton label="Testar AssemblyAI" persist={persist} run={() => api.transcription.test()} />
+              <TestButton label={t('profile.apis.testAssembly')} persist={persist} run={() => api.transcription.test()} />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="PEXELS (banco de mídia)">{keyInput(pexelsKey, (e) => setPexelsKey(e.target.value), 'Chave do Pexels')}</Field>
-            <Field label="PIXABAY (banco de mídia)">{keyInput(pixabayKey, (e) => setPixabayKey(e.target.value), 'Chave do Pixabay')}</Field>
+            <Field label={t('profile.apis.pexelsLabel')}>{keyInput(pexelsKey, (e) => setPexelsKey(e.target.value), t('profile.apis.pexelsPlaceholder'))}</Field>
+            <Field label={t('profile.apis.pixabayLabel')}>{keyInput(pixabayKey, (e) => setPixabayKey(e.target.value), t('profile.apis.pixabayPlaceholder'))}</Field>
           </div>
-          <TestButton label="Testar mídia (Pexels/Pixabay)" persist={persist} run={() => api.media.test()} />
+          <TestButton label={t('profile.apis.testMedia')} persist={persist} run={() => api.media.test()} />
         </div>
       </Card>
 
       <div className="flex items-center justify-end gap-3">
         <SavedFlash show={saved} />
         <button className={btnPrimary} onClick={save}>
-          Salvar chaves
+          {t('profile.apis.saveKeys')}
         </button>
       </div>
     </div>
@@ -745,6 +745,7 @@ function ApisTab() {
 
 // ---------------------------------------------------------------------------
 function PrefsTab() {
+  const { t } = useI18n()
   const db = useDb()
   const [theme, setThemeState] = useState(document.documentElement.dataset.theme || 'dark')
   const [emailNotif, setEmailNotif] = useState(db.getSetting('emailNotifications', true))
@@ -764,33 +765,33 @@ function PrefsTab() {
   }
 
   return (
-    <Card title="Preferências">
+    <Card title={t('profile.prefs.title')}>
       <div className="space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-200">Tema</p>
-            <p className="text-xs text-slate-500">Vale para toda a interface — também dá para alternar pela lua/sol no topo.</p>
+            <p className="text-sm font-medium text-slate-200">{t('profile.prefs.theme')}</p>
+            <p className="text-xs text-slate-500">{t('profile.prefs.themeHint')}</p>
           </div>
           <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-900 p-1 text-xs">
             <button onClick={() => setTheme('dark')} className={`rounded px-3 py-1.5 ${theme === 'dark' ? 'bg-cyan-500 text-white' : 'text-slate-400'}`}>
-              Escuro
+              {t('profile.prefs.dark')}
             </button>
             <button onClick={() => setTheme('light')} className={`rounded px-3 py-1.5 ${theme === 'light' ? 'bg-cyan-500 text-white' : 'text-slate-400'}`}>
-              Claro
+              {t('profile.prefs.light')}
             </button>
           </div>
         </div>
         <label className="flex cursor-pointer items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-200">Notificações por e-mail</p>
-            <p className="text-xs text-slate-500">Novidades da plataforma e alertas dos seus canais.</p>
+            <p className="text-sm font-medium text-slate-200">{t('profile.prefs.emailNotif')}</p>
+            <p className="text-xs text-slate-500">{t('profile.prefs.emailNotifHint')}</p>
           </div>
           <input type="checkbox" checked={emailNotif} onChange={(e) => setEmailNotif(e.target.checked)} className="h-5 w-5 rounded accent-cyan-500" />
         </label>
         <div className="flex items-center justify-end gap-3">
           <SavedFlash show={saved} />
           <button className={btnPrimary} onClick={save}>
-            Salvar
+            {t('profile.prefs.save')}
           </button>
         </div>
       </div>
@@ -801,19 +802,20 @@ function PrefsTab() {
 // ---------------------------------------------------------------------------
 // Aba Avançado: backup completo dos dados locais + zona de perigo
 function AdvancedTab() {
+  const { t } = useI18n()
   const db = useDb()
   const [importError, setImportError] = useState('')
   const [importOk, setImportOk] = useState(false)
   const [pendingImport, setPendingImport] = useState(null)
   const [wipeOpen, setWipeOpen] = useState(false)
 
-  const counts = {
-    canais: db.all('channels').length,
-    vídeos: db.all('videos').length,
-    prompts: db.all('prompts').length,
-    referências: db.all('referenceChannels').length,
-    análises: db.all('nicheAnalyses').length,
-  }
+  const counts = [
+    ['countChannels', db.all('channels').length],
+    ['countVideos', db.all('videos').length],
+    ['countPrompts', db.all('prompts').length],
+    ['countReferences', db.all('referenceChannels').length],
+    ['countAnalyses', db.all('nicheAnalyses').length],
+  ]
 
   function exportBackup() {
     const stamp = new Date().toISOString().slice(0, 10)
@@ -830,7 +832,7 @@ function AdvancedTab() {
         if (payload?.app !== 'noctis-studio' || !payload?.data) throw new Error('invalid')
         setPendingImport(payload) // confirma antes de sobrescrever
       } catch {
-        setImportError('Arquivo inválido — selecione um backup .json exportado pelo Noctis Studio.')
+        setImportError(t('profile.adv.invalidFile'))
       }
     }
     reader.readAsText(file)
@@ -842,7 +844,7 @@ function AdvancedTab() {
       setImportOk(true)
       setTimeout(() => setImportOk(false), 3000)
     } catch {
-      setImportError('Não foi possível importar este backup.')
+      setImportError(t('profile.adv.importFail'))
     } finally {
       setPendingImport(null)
     }
@@ -850,22 +852,22 @@ function AdvancedTab() {
 
   return (
     <div className="space-y-4">
-      <Card title="Backup dos dados" subtitle="Tudo que está salvo neste dispositivo (canais, vídeos, roteiros, prompts, referências, quadro, análises e configurações).">
+      <Card title={t('profile.adv.backupTitle')} subtitle={t('profile.adv.backupSub')}>
         <div className="mb-4 flex flex-wrap gap-2">
-          {Object.entries(counts).map(([label, n]) => (
-            <span key={label} className="rounded-full border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] text-slate-400">
-              <b className="text-slate-200">{n}</b> {label}
+          {counts.map(([key, n]) => (
+            <span key={key} className="rounded-full border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] text-slate-400">
+              <b className="text-slate-200">{n}</b> {t(`profile.adv.${key}`)}
             </span>
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={exportBackup} className={`${btnPrimary} flex items-center gap-2`}>
             <DownloadCloud size={15} />
-            Exportar backup (JSON)
+            {t('profile.adv.exportBtn')}
           </button>
           <label className={`${btnGhost} flex cursor-pointer items-center gap-2`}>
             <UploadCloud size={15} />
-            Importar backup
+            {t('profile.adv.importBtn')}
             <input type="file" accept=".json,application/json" className="hidden" onChange={(e) => { handleImportFile(e.target.files?.[0]); e.target.value = '' }} />
           </label>
         </div>
@@ -873,25 +875,25 @@ function AdvancedTab() {
         {importOk && (
           <p className="mt-3 flex items-center gap-1.5 text-xs text-green-400">
             <Check size={13} />
-            Backup importado com sucesso — os dados já estão no ar.
+            {t('profile.adv.importOk')}
           </p>
         )}
         <p className="mt-3 text-[11px] text-slate-600">
-          As chaves de API entram no backup. Guarde o arquivo em local seguro — quem tiver ele consegue usar suas chaves.
+          {t('profile.adv.keysNote')}
         </p>
       </Card>
 
-      <Card title="Zona de perigo">
+      <Card title={t('profile.adv.dangerTitle')}>
         <div className="flex items-center justify-between gap-4 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3">
           <div>
             <p className="flex items-center gap-2 text-sm font-semibold text-red-400">
               <AlertTriangle size={14} />
-              Apagar todos os dados locais
+              {t('profile.adv.wipeTitle')}
             </p>
-            <p className="mt-0.5 text-xs text-slate-500">Remove canais, vídeos, prompts e configurações deste dispositivo. Exporte um backup antes.</p>
+            <p className="mt-0.5 text-xs text-slate-500">{t('profile.adv.wipeSub')}</p>
           </div>
           <button onClick={() => setWipeOpen(true)} className="shrink-0 rounded-lg border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/10">
-            Apagar tudo
+            {t('profile.adv.wipeBtn')}
           </button>
         </div>
       </Card>
@@ -900,17 +902,17 @@ function AdvancedTab() {
         open={pendingImport !== null}
         onClose={() => setPendingImport(null)}
         onConfirm={confirmImport}
-        title="Importar backup"
-        message={`O backup de ${pendingImport?.exportedAt ? new Date(pendingImport.exportedAt).toLocaleString('pt-BR') : 'data desconhecida'} vai SUBSTITUIR todos os dados atuais deste dispositivo. Continuar?`}
-        confirmLabel="Substituir dados"
+        title={t('profile.adv.importConfirmTitle')}
+        message={t('profile.adv.importConfirmMsg', { date: pendingImport?.exportedAt ? new Date(pendingImport.exportedAt).toLocaleString('pt-BR') : t('profile.adv.unknownDate') })}
+        confirmLabel={t('profile.adv.replaceData')}
       />
       <ConfirmDialog
         open={wipeOpen}
         onClose={() => setWipeOpen(false)}
         onConfirm={() => db.wipeAll()}
-        title="Apagar todos os dados"
-        message="Isso remove TUDO que está salvo neste dispositivo e não pode ser desfeito. Tem certeza?"
-        confirmLabel="Apagar tudo"
+        title={t('profile.adv.wipeConfirmTitle')}
+        message={t('profile.adv.wipeConfirmMsg')}
+        confirmLabel={t('profile.adv.wipeBtn')}
       />
     </div>
   )
