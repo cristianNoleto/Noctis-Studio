@@ -32,15 +32,17 @@ const TAG_CLS = {
   ALERTA: 'bg-red-500/15 text-red-400', // canais monitorados explodindo/sumindo
 }
 
+const LOCALES = { pt: 'pt-BR', en: 'en-US', es: 'es-ES' }
+
 function formatToday(lang) {
-  const locale = lang === 'pt' ? 'pt-BR' : 'en-US'
+  const locale = LOCALES[lang] || 'pt-BR'
   const text = new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const { lang } = useI18n()
+  const { t, lang } = useI18n()
   const db = useDb()
 
   const channels = db.all('channels').filter((c) => !c.archived)
@@ -53,7 +55,7 @@ export default function Dashboard() {
       ...u,
       recent: i === 0,
       tagCls: TAG_CLS[u.tag] || TAG_CLS.NOVO,
-      date: new Date(u.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }),
+      date: new Date(u.createdAt).toLocaleDateString(LOCALES[lang] || 'pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }),
     }))
 
   const inProduction = videos.filter((v) => deriveStatus(v) === 'production').length
@@ -64,30 +66,30 @@ export default function Dashboard() {
 
   const metrics = [
     {
-      label: 'TOTAL CANAIS',
+      label: t('dashboard.metrics.totalChannels'),
       value: channels.length,
       Icon: Tv,
       color: 'text-cyan-400 bg-cyan-500/10',
-      sub: channels.length > 0 ? `▲ ${channels.length} ativo${channels.length > 1 ? 's' : ''}` : null,
+      sub: channels.length > 0 ? t(channels.length > 1 ? 'dashboard.metrics.activeChannelsMany' : 'dashboard.metrics.activeChannelsOne', { n: channels.length }) : null,
       subCls: 'bg-green-500/10 text-green-400',
     },
     {
-      label: 'EM PRODUÇÃO',
+      label: t('dashboard.metrics.inProduction'),
       value: inProduction,
       Icon: Clapperboard,
       color: 'text-amber-400 bg-amber-500/10',
-      sub: activeTranscriptions > 0 ? `${activeTranscriptions} transcrição em andamento` : inProduction === 0 ? '▲ Tudo em dia' : null,
+      sub: activeTranscriptions > 0 ? t('dashboard.metrics.transcriptionRunning', { n: activeTranscriptions }) : inProduction === 0 ? t('dashboard.metrics.allUpToDate') : null,
       subCls: 'bg-green-500/10 text-green-400',
     },
-    { label: 'PUBLICADOS', value: published, Icon: CheckCircle, color: 'text-green-400 bg-green-500/10' },
-    { label: 'AGENDADOS', value: scheduled, Icon: CalendarClock, color: 'text-sky-400 bg-sky-500/10' },
+    { label: t('dashboard.metrics.published'), value: published, Icon: CheckCircle, color: 'text-green-400 bg-green-500/10' },
+    { label: t('dashboard.metrics.scheduled'), value: scheduled, Icon: CalendarClock, color: 'text-sky-400 bg-sky-500/10' },
   ]
 
   const shortcuts = [
-    { to: '/niche-finder', label: 'Niche Finder', sub: 'Canais que estão bombando', Icon: Compass },
-    { to: '/videos-virais', label: 'Vídeos Virais', sub: 'Filtros avançados de busca', Icon: TrendingUp },
-    { to: '/dobra-de-nicho', label: 'Dobra de Nicho', sub: 'Grafo de oportunidades por IA', Icon: GitBranch },
-    { to: '/canais', label: 'Gestão de Canais', sub: 'Pipeline dos seus canais', Icon: Tv },
+    { to: '/niche-finder', label: t('dashboard.shortcuts.nicheFinder'), sub: t('dashboard.shortcuts.nicheFinderSub'), Icon: Compass },
+    { to: '/videos-virais', label: t('dashboard.shortcuts.viralVideos'), sub: t('dashboard.shortcuts.viralVideosSub'), Icon: TrendingUp },
+    { to: '/dobra-de-nicho', label: t('dashboard.shortcuts.doubling'), sub: t('dashboard.shortcuts.doublingSub'), Icon: GitBranch },
+    { to: '/canais', label: t('dashboard.shortcuts.channelManagement'), sub: t('dashboard.shortcuts.channelManagementSub'), Icon: Tv },
   ]
 
   return (
@@ -98,7 +100,7 @@ export default function Dashboard() {
         <div>
           <p className="text-sm text-slate-500">{formatToday(lang)}</p>
           <h1 className="mt-1 text-2xl font-bold text-slate-100">
-            Olá, <span className="bg-gradient-to-r from-cyan-400 to-cyan-300 bg-clip-text text-transparent">{user?.name}</span> 👋
+            {t('dashboard.hello')} <span className="bg-gradient-to-r from-cyan-400 to-cyan-300 bg-clip-text text-transparent">{user?.name}</span> 👋
           </h1>
         </div>
         <PageEye />
@@ -137,7 +139,7 @@ export default function Dashboard() {
             </div>
             {soon && (
               <span className="absolute right-3 top-3 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold text-slate-400">
-                EM BREVE
+                {t('dashboard.shortcuts.soon')}
               </span>
             )}
             <ArrowRight size={15} className="ml-auto shrink-0 text-slate-600 transition-transform group-hover:translate-x-1 group-hover:text-cyan-400" />
@@ -151,11 +153,11 @@ export default function Dashboard() {
           <div className="flex items-center justify-between border-b border-cyan-500/40 px-5 py-4">
             <h2 className="flex items-center gap-2 font-semibold text-slate-100">
               <Sparkles size={16} className="text-cyan-400" />
-              Novidades da Plataforma
+              {t('dashboard.news.title')}
             </h2>
             <span className="flex items-center gap-1.5 rounded-full bg-green-500/10 px-2.5 py-1 text-[11px] font-bold text-green-400">
               <span className="online-dot h-1.5 w-1.5 rounded-full bg-green-400" />
-              AO VIVO
+              {t('dashboard.news.live')}
             </span>
           </div>
           <div className="max-h-80 space-y-1 overflow-y-auto p-4">
@@ -168,7 +170,7 @@ export default function Dashboard() {
                   <p className="flex items-center gap-2 font-semibold text-slate-200">
                     {u.title}
                     {u.recent && (
-                      <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-cyan-300">RECENTE</span>
+                      <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-cyan-300">{t('dashboard.news.recent')}</span>
                     )}
                   </p>
                   <span className="shrink-0 text-xs text-slate-500">📅 {u.date}</span>
@@ -188,22 +190,22 @@ export default function Dashboard() {
             <div className="border-b border-cyan-500/40 px-5 py-4">
               <h2 className="flex items-center gap-2 font-semibold text-slate-100">
                 <Users size={16} className="text-cyan-400" />
-                Comunidade
+                {t('dashboard.community.title')}
               </h2>
-              <p className="mt-0.5 text-xs text-slate-500">De creator para creator</p>
+              <p className="mt-0.5 text-xs text-slate-500">{t('dashboard.community.subtitle')}</p>
             </div>
             <div className="space-y-3 p-4">
               <CommunityRow
                 href={WHATSAPP_COMMUNITY_URL}
-                title="WhatsApp"
-                sub="Grupo da comunidade"
+                title={t('dashboard.community.whatsapp')}
+                sub={t('dashboard.community.whatsappSub')}
                 cls="border-green-500/30 bg-green-500/5 hover:bg-green-500/10"
                 icon={<MessageCircle size={18} className="text-green-400" />}
               />
               <CommunityRow
                 href={DISCORD_URL}
-                title="Discord"
-                sub="Chat em tempo real"
+                title={t('dashboard.community.discord')}
+                sub={t('dashboard.community.discordSub')}
                 cls="border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10"
                 icon={
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-indigo-400" aria-hidden="true">
@@ -220,13 +222,13 @@ export default function Dashboard() {
       <div>
         <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-100">
           <Tv size={16} className="text-cyan-400" />
-          Resumo dos Canais
+          {t('dashboard.channelsTable.title')}
         </h2>
         {channels.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-800 p-10 text-center">
-            <p className="text-sm text-slate-500">Nenhum canal cadastrado ainda.</p>
+            <p className="text-sm text-slate-500">{t('dashboard.channelsTable.empty')}</p>
             <Link to="/canais" className="mt-3 inline-block rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-600">
-              Criar meu primeiro canal
+              {t('dashboard.channelsTable.createFirst')}
             </Link>
           </div>
         ) : (
@@ -245,15 +247,15 @@ export default function Dashboard() {
                       <p className="truncate font-semibold text-slate-100"><Masked mask="•••••••">{ch.name}</Masked></p>
                       {ch.ytStatsUpdatedAt && (
                         <p className="text-[11px] text-slate-500">
-                          Atualizado há {Math.max(1, Math.round((Date.now() - ch.ytStatsUpdatedAt) / 60000))}min
+                          {t('dashboard.channelsTable.updatedAgo', { n: Math.max(1, Math.round((Date.now() - ch.ytStatsUpdatedAt) / 60000)) })}
                         </p>
                       )}
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-3 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
-                    <Stat icon={Users} label="SUBS" value={formatCompact(ch.ytSubscribers)} sensitive />
-                    <Stat icon={Eye} label="VIEWS" value={formatCompact(ch.ytTotalViews)} sensitive />
-                    <Stat icon={Film} label="VÍDEOS" value={chVideos.length} sensitive />
+                    <Stat icon={Users} label={t('dashboard.channelsTable.statSubs')} value={formatCompact(ch.ytSubscribers)} sensitive />
+                    <Stat icon={Eye} label={t('dashboard.channelsTable.statViews')} value={formatCompact(ch.ytTotalViews)} sensitive />
+                    <Stat icon={Film} label={t('dashboard.channelsTable.statVideos')} value={chVideos.length} sensitive />
                   </div>
                 </Link>
               )
