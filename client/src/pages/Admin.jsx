@@ -6,6 +6,7 @@ import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog, formatCompact } from '../components/ui'
 import { Field } from './channels/ChannelsList'
+import { useI18n } from '../i18n'
 
 // -----------------------------------------------------------------------------
 // Área de Administração — permissões acima do usuário MASTER:
@@ -17,20 +18,21 @@ import { Field } from './channels/ChannelsList'
 // -----------------------------------------------------------------------------
 
 const TABS = [
-  ['news', 'Novidades', Sparkles],
-  ['members', 'Membros', Users],
-  ['academy', 'Academia', GraduationCap],
-  ['removed', 'Canais Removidos', ShieldAlert],
+  ['news', Sparkles],
+  ['members', Users],
+  ['academy', GraduationCap],
+  ['removed', ShieldAlert],
 ]
 
 export default function Admin() {
+  const { t } = useI18n()
   const { isAdmin, isFounder } = useAuth()
   const [tab, setTab] = useState('news')
 
   if (!isAdmin) return <Navigate to="/" replace />
 
   // A aba "Descoberta" (busca automática da base) é exclusiva do fundador.
-  const tabs = isFounder ? [...TABS, ['crawl', 'Descoberta', Radar]] : TABS
+  const tabs = isFounder ? [...TABS, ['crawl', Radar]] : TABS
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -39,13 +41,13 @@ export default function Admin() {
           <ShieldCheck size={22} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Administração</h1>
-          <p className="text-sm text-slate-500">Controles exclusivos do administrador — publicações, membros e curadoria da plataforma.</p>
+          <h1 className="text-2xl font-bold text-slate-100">{t('admin.title')}</h1>
+          <p className="text-sm text-slate-500">{t('admin.subtitle')}</p>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {tabs.map(([key, label, Icon]) => (
+        {tabs.map(([key, Icon]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -54,7 +56,7 @@ export default function Admin() {
             }`}
           >
             <Icon size={15} />
-            {label}
+            {t(`admin.tabs.${key}`)}
           </button>
         ))}
       </div>
@@ -75,6 +77,7 @@ export default function Admin() {
 const PLAN_OPTIONS = ['FREE', 'BASIC', 'LITE', 'PRO', 'MASTER']
 
 function SupabaseMembersTab() {
+  const { t } = useI18n()
   const { user } = useAuth()
   const [users, setUsers] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -116,11 +119,11 @@ function SupabaseMembersTab() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-500">
-          Todos os usuários da plataforma (Supabase Auth) — sem precisar entrar no painel do Supabase.
+          {t('admin.members.intro')}
         </p>
         <button onClick={load} disabled={loading} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 text-xs`}>
           {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-          Atualizar
+          {t('admin.refresh')}
         </button>
       </div>
 
@@ -143,25 +146,25 @@ function SupabaseMembersTab() {
             <div className="min-w-0 flex-1">
               <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-100">
                 {u.name || u.email}
-                {u.founder && <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-400">🛡️ FUNDADOR</span>}
-                {isMe && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">👑 VOCÊ</span>}
-                {u.banned && <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[9px] font-bold text-red-400">SUSPENSO</span>}
+                {u.founder && <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-400">{t('admin.members.founder')}</span>}
+                {isMe && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">{t('admin.members.you')}</span>}
+                {u.banned && <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[9px] font-bold text-red-400">{t('admin.members.suspended')}</span>}
                 {u.providers.map((p) => (
                   <span key={p} className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-400">
-                    {p === 'email' ? 'e-mail' : p}
+                    {p === 'email' ? t('admin.members.email') : p}
                   </span>
                 ))}
               </p>
               <p className="truncate text-xs text-slate-500">
-                {u.email} · criado {new Date(u.createdAt).toLocaleDateString('pt-BR')}
-                {u.lastSignInAt ? ` · último acesso ${new Date(u.lastSignInAt).toLocaleDateString('pt-BR')}` : ''}
+                {u.email} · {t('admin.members.createdAt', { date: new Date(u.createdAt).toLocaleDateString('pt-BR') })}
+                {u.lastSignInAt ? t('admin.members.lastSignIn', { date: new Date(u.lastSignInAt).toLocaleDateString('pt-BR') }) : ''}
               </p>
             </div>
             <select
               className={`${inputCls} !w-28 !py-1.5 text-xs`}
               value={u.plan}
               disabled={busy || u.founder}
-              title={u.founder ? 'Conta blindada do fundador — não pode ser alterada' : undefined}
+              title={u.founder ? t('admin.members.founderLocked') : undefined}
               onChange={(e) => act(u.id, () => api.admin.setPlan(u.id, e.target.value))}
             >
               {PLAN_OPTIONS.map((p) => (
@@ -175,15 +178,15 @@ function SupabaseMembersTab() {
                 <button
                   onClick={() => act(u.id, () => api.admin.setBan(u.id, !u.banned))}
                   disabled={busy}
-                  title={u.banned ? 'Reativar conta' : 'Suspender conta (não consegue mais logar)'}
+                  title={u.banned ? t('admin.members.reactivateTitle') : t('admin.members.suspendTitle')}
                   className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
                     u.banned ? 'border-green-500/40 text-green-400 hover:bg-green-500/10' : 'border-slate-800 text-slate-400 hover:border-amber-500/40 hover:text-amber-400'
                   }`}
                 >
                   {busy ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
-                  {u.banned ? 'Reativar' : 'Suspender'}
+                  {u.banned ? t('admin.members.reactivate') : t('admin.members.suspend')}
                 </button>
-                <button onClick={() => setRemoving(u)} disabled={busy} className="text-slate-500 hover:text-red-400" title="Excluir conta">
+                <button onClick={() => setRemoving(u)} disabled={busy} className="text-slate-500 hover:text-red-400" title={t('admin.members.deleteAccount')}>
                   <X size={15} />
                 </button>
               </>
@@ -192,14 +195,14 @@ function SupabaseMembersTab() {
         )
       })}
 
-      {users?.length === 0 && <p className="rounded-xl border border-dashed border-slate-800 p-8 text-center text-sm text-slate-600">Nenhum usuário ainda.</p>}
+      {users?.length === 0 && <p className="rounded-xl border border-dashed border-slate-800 p-8 text-center text-sm text-slate-600">{t('admin.members.empty')}</p>}
 
       <ConfirmDialog
         open={removing !== null}
         onClose={() => setRemoving(null)}
         onConfirm={() => act(removing.id, () => api.admin.removeUser(removing.id))}
-        title="Excluir conta"
-        message={`Excluir a conta ${removing?.email}? O login deixa de existir — essa ação não pode ser desfeita.`}
+        title={t('admin.members.deleteTitle')}
+        message={t('admin.members.deleteMsg', { email: removing?.email })}
       />
     </div>
   )
@@ -209,6 +212,7 @@ function SupabaseMembersTab() {
 // Novidades da Plataforma (aparecem no dashboard e nas notificações)
 // ---------------------------------------------------------------------------
 function NewsTab() {
+  const { t } = useI18n()
   const db = useDb()
   const [editing, setEditing] = useState(null) // null | 'new' | update
   const [deleting, setDeleting] = useState(null)
@@ -217,10 +221,10 @@ function NewsTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">O que você publicar aqui aparece em "Novidades da Plataforma" no dashboard e no sino de notificações.</p>
+        <p className="text-xs text-slate-500">{t('admin.news.intro')}</p>
         <button className={`${btnPrimary} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => setEditing('new')}>
           <Plus size={13} />
-          Publicar novidade
+          {t('admin.news.publish')}
         </button>
       </div>
 
@@ -234,10 +238,10 @@ function NewsTab() {
             <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{u.description}</p>
             <p className="mt-1 text-[10px] text-slate-600">{new Date(u.createdAt).toLocaleString('pt-BR')}</p>
           </div>
-          <button onClick={() => setEditing(u)} className="text-slate-500 hover:text-slate-200" title="Editar">
+          <button onClick={() => setEditing(u)} className="text-slate-500 hover:text-slate-200" title={t('admin.news.edit')}>
             <Pencil size={14} />
           </button>
-          <button onClick={() => setDeleting(u)} className="text-slate-500 hover:text-red-400" title="Excluir">
+          <button onClick={() => setDeleting(u)} className="text-slate-500 hover:text-red-400" title={t('admin.news.delete')}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -248,14 +252,15 @@ function NewsTab() {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={() => db.remove('platformUpdates', deleting.id)}
-        title="Excluir novidade"
-        message={`Excluir "${deleting?.title}" do feed e das notificações?`}
+        title={t('admin.news.deleteTitle')}
+        message={t('admin.news.deleteMsg', { title: deleting?.title })}
       />
     </div>
   )
 }
 
 function NewsModal({ open, onClose, update }) {
+  const { t } = useI18n()
   const db = useDb()
   const [form, setForm] = useState({})
   const [init, setInit] = useState(false)
@@ -273,27 +278,27 @@ function NewsModal({ open, onClose, update }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={update ? 'Editar novidade' : 'Publicar novidade'}>
+    <Modal open={open} onClose={onClose} title={update ? t('admin.news.modalEditTitle') : t('admin.news.modalNewTitle')}>
       <form onSubmit={save} className="space-y-4">
-        <Field label="TIPO">
+        <Field label={t('admin.news.type')}>
           <select className={inputCls} value={form.tag || 'NOVO'} onChange={(e) => setForm((f) => ({ ...f, tag: e.target.value }))}>
             <option value="NOVO">NOVO</option>
             <option value="MELHORIA">MELHORIA</option>
             <option value="ATUALIZAÇÃO">ATUALIZAÇÃO</option>
           </select>
         </Field>
-        <Field label="TÍTULO">
+        <Field label={t('admin.news.titleField')}>
           <input className={inputCls} required value={form.title || ''} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
         </Field>
-        <Field label="DESCRIÇÃO">
+        <Field label={t('admin.news.descField')}>
           <textarea className={`${inputCls} min-h-24 resize-y`} required value={form.description || ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
         </Field>
         <div className="flex justify-end gap-2">
           <button type="button" className={btnGhost} onClick={onClose}>
-            Cancelar
+            {t('admin.cancel')}
           </button>
           <button type="submit" className={btnPrimary}>
-            {update ? 'Salvar' : 'Publicar'}
+            {update ? t('admin.save') : t('admin.news.publishBtn')}
           </button>
         </div>
       </form>
@@ -312,6 +317,7 @@ function MembersTab() {
 }
 
 function LocalMembersTab() {
+  const { t } = useI18n()
   const { user } = useAuth()
   const [, force] = useState(0)
   const [transferTo, setTransferTo] = useState(null)
@@ -347,9 +353,9 @@ function LocalMembersTab() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-slate-500">
-        Contas registradas neste dispositivo (modo local). Com o Supabase ativo, esta aba passa a listar todos os usuários da plataforma.
+        {t('admin.members.localIntro')}
       </p>
-      {entries.length === 0 && <p className="rounded-xl border border-dashed border-slate-800 p-8 text-center text-sm text-slate-600">Nenhuma conta registrada.</p>}
+      {entries.length === 0 && <p className="rounded-xl border border-dashed border-slate-800 p-8 text-center text-sm text-slate-600">{t('admin.members.localEmpty')}</p>}
       {entries.map(([email, u]) => {
         const isThisAdmin = adminEmail === email
         return (
@@ -363,10 +369,10 @@ function LocalMembersTab() {
                 {isThisAdmin && (
                   <span className="flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">
                     <Crown size={9} />
-                    ADMIN
+                    {t('admin.members.admin')}
                   </span>
                 )}
-                {email === user?.email && <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-500">você</span>}
+                {email === user?.email && <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-500">{t('admin.members.youLower')}</span>}
               </p>
               <p className="truncate text-xs text-slate-500">{email}</p>
             </div>
@@ -378,9 +384,9 @@ function LocalMembersTab() {
             {!isThisAdmin && (
               <>
                 <button onClick={() => setTransferTo(email)} className={`${btnGhost} !px-2.5 !py-1.5 text-xs`}>
-                  Tornar admin
+                  {t('admin.members.makeAdmin')}
                 </button>
-                <button onClick={() => setRemoving(email)} className="text-slate-500 hover:text-red-400" title="Remover conta">
+                <button onClick={() => setRemoving(email)} className="text-slate-500 hover:text-red-400" title={t('admin.members.removeAccount')}>
                   <X size={15} />
                 </button>
               </>
@@ -393,16 +399,16 @@ function LocalMembersTab() {
         open={transferTo !== null}
         onClose={() => setTransferTo(null)}
         onConfirm={() => transferAdmin(transferTo)}
-        title="Transferir administração"
-        message={`Só existe um admin por instalação. Transferir para ${transferTo}? Você perde o acesso a esta área.`}
-        confirmLabel="Transferir"
+        title={t('admin.members.transferTitle')}
+        message={t('admin.members.transferMsg', { email: transferTo })}
+        confirmLabel={t('admin.members.transfer')}
       />
       <ConfirmDialog
         open={removing !== null}
         onClose={() => setRemoving(null)}
         onConfirm={() => removeUser(removing)}
-        title="Remover conta"
-        message={`Remover a conta ${removing}? Os dados locais dela permanecem no dispositivo, mas o login deixa de existir.`}
+        title={t('admin.members.removeTitle')}
+        message={t('admin.members.removeMsg', { email: removing })}
       />
     </div>
   )
@@ -412,6 +418,7 @@ function LocalMembersTab() {
 // Academia — tutoriais exibidos na página Academia & Tutoriais
 // ---------------------------------------------------------------------------
 function AcademyTab() {
+  const { t } = useI18n()
   const db = useDb()
   const [editing, setEditing] = useState(null)
   const [deleting, setDeleting] = useState(null)
@@ -420,10 +427,10 @@ function AcademyTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">Tutoriais exibidos na página Academia & Tutoriais. Use URLs de embed (YouTube: youtube.com/embed/ID).</p>
+        <p className="text-xs text-slate-500">{t('admin.academyTab.intro')}</p>
         <button className={`${btnPrimary} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => setEditing('new')}>
           <Plus size={13} />
-          Novo tutorial
+          {t('admin.academyTab.newTutorial')}
         </button>
       </div>
       {items.map((item) => (
@@ -435,13 +442,13 @@ function AcademyTab() {
             {item.embedUrl ? (
               <p className="mt-1 truncate text-[10px] text-cyan-400">{item.embedUrl}</p>
             ) : (
-              <p className="mt-1 text-[10px] text-slate-600">sem vídeo — aparece como "em breve"</p>
+              <p className="mt-1 text-[10px] text-slate-600">{t('admin.academyTab.noVideo')}</p>
             )}
           </div>
-          <button onClick={() => setEditing(item)} className="text-slate-500 hover:text-slate-200" title="Editar">
+          <button onClick={() => setEditing(item)} className="text-slate-500 hover:text-slate-200" title={t('admin.academyTab.edit')}>
             <Pencil size={14} />
           </button>
-          <button onClick={() => setDeleting(item)} className="text-slate-500 hover:text-red-400" title="Excluir">
+          <button onClick={() => setDeleting(item)} className="text-slate-500 hover:text-red-400" title={t('admin.academyTab.delete')}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -452,14 +459,15 @@ function AcademyTab() {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={() => db.remove('academyContent', deleting.id)}
-        title="Excluir tutorial"
-        message={`Excluir "${deleting?.title}" da Academia?`}
+        title={t('admin.academyTab.deleteTitle')}
+        message={t('admin.academyTab.deleteMsg', { title: deleting?.title })}
       />
     </div>
   )
 }
 
 function AcademyModal({ open, onClose, item, nextPosition }) {
+  const { t } = useI18n()
   const db = useDb()
   const [form, setForm] = useState({})
   const [init, setInit] = useState(false)
@@ -477,23 +485,23 @@ function AcademyModal({ open, onClose, item, nextPosition }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={item ? 'Editar tutorial' : 'Novo tutorial'}>
+    <Modal open={open} onClose={onClose} title={item ? t('admin.academyTab.modalEditTitle') : t('admin.academyTab.modalNewTitle')}>
       <form onSubmit={save} className="space-y-4">
-        <Field label="TÍTULO">
+        <Field label={t('admin.academyTab.titleField')}>
           <input className={inputCls} required value={form.title || ''} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
         </Field>
-        <Field label="DESCRIÇÃO">
+        <Field label={t('admin.academyTab.descField')}>
           <textarea className={`${inputCls} min-h-16 resize-y`} value={form.description || ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
         </Field>
-        <Field label="URL DO VÍDEO (EMBED)">
+        <Field label={t('admin.academyTab.embedField')}>
           <input className={inputCls} placeholder="https://www.youtube.com/embed/..." value={form.embedUrl || ''} onChange={(e) => setForm((f) => ({ ...f, embedUrl: e.target.value }))} />
         </Field>
         <div className="flex justify-end gap-2">
           <button type="button" className={btnGhost} onClick={onClose}>
-            Cancelar
+            {t('admin.cancel')}
           </button>
           <button type="submit" className={btnPrimary}>
-            Salvar
+            {t('admin.save')}
           </button>
         </div>
       </form>
@@ -505,6 +513,7 @@ function AcademyModal({ open, onClose, item, nextPosition }) {
 // Canais Removidos — curadoria da base pública
 // ---------------------------------------------------------------------------
 function RemovedTab() {
+  const { t } = useI18n()
   const db = useDb()
   const [deleting, setDeleting] = useState(null)
   const channels = [...db.all('removedChannels')].sort((a, b) => new Date(b.removedAt) - new Date(a.removedAt))
@@ -512,15 +521,15 @@ function RemovedTab() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-slate-500">
-        Base curada exibida em Tendências → Canais Removidos. Para registrar novos casos, use o botão "Registrar caso" na própria página — aqui você remove entradas incorretas.
+        {t('admin.removedTab.intro')}
       </p>
       {channels.map((c) => (
         <div key={c.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
           <ShieldAlert size={15} className="shrink-0 text-red-400" />
           <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-200">{c.name}</p>
           <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">{c.niche || 'Other'}</span>
-          <span className="text-xs text-slate-500">{formatCompact(c.subs)} inscritos</span>
-          <button onClick={() => setDeleting(c)} className="text-slate-500 hover:text-red-400" title="Remover da base">
+          <span className="text-xs text-slate-500">{formatCompact(c.subs)} {t('admin.removedTab.subscribers')}</span>
+          <button onClick={() => setDeleting(c)} className="text-slate-500 hover:text-red-400" title={t('admin.removedTab.removeTitle')}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -529,8 +538,8 @@ function RemovedTab() {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={() => db.remove('removedChannels', deleting.id)}
-        title="Remover da base"
-        message={`Remover "${deleting?.name}" da base de canais removidos?`}
+        title={t('admin.removedTab.removeTitle')}
+        message={t('admin.removedTab.removeMsg', { name: deleting?.name })}
       />
     </div>
   )
@@ -563,6 +572,7 @@ function crawlDaily(db) {
 }
 
 function AutoCrawlTab() {
+  const { t } = useI18n()
   const db = useDb()
   const [stats, setStats] = useState({ total: 0, thisWeek: 0 })
   const [running, setRunning] = useState(false)
@@ -608,7 +618,7 @@ function AutoCrawlTab() {
   async function loop() {
     while (runningRef.current) {
       if (usedRef.current >= capRef.current) {
-        pushLog({ kind: 'stop', msg: `Teto diário atingido (${capRef.current} buscas). Volta amanhã.` })
+        pushLog({ kind: 'stop', msg: t('admin.crawl.capReached', { cap: capRef.current }) })
         stopInternal()
         break
       }
@@ -621,7 +631,7 @@ function AutoCrawlTab() {
         if (n) await api.channels.upsert(results)
         setSessionAdded((s) => s + n)
         bumpDaily()
-        pushLog({ kind: 'ok', msg: `"${term}" — ${n} canais`, n })
+        pushLog({ kind: 'ok', msg: t('admin.crawl.logChannels', { term, n }), n })
         refreshStats()
       } catch (err) {
         const msg = apiErrorMessage(err)
@@ -661,9 +671,7 @@ function AutoCrawlTab() {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs leading-relaxed text-slate-500">
-        Enche a base global do Niche Finder automaticamente. A busca roda <strong className="text-slate-300">enquanto esta aba estiver aberta</strong> (pausa ao fechar/trocar de aba e retoma quando você voltar), usando <strong className="text-slate-300">suas chaves da YouTube API</strong>. Respeita um teto diário para não estourar a cota.
-      </p>
+      <p className="text-xs leading-relaxed text-slate-500" dangerouslySetInnerHTML={{ __html: t('admin.crawl.intro') }} />
 
       {/* Base global */}
       <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/40 p-4">
@@ -672,20 +680,18 @@ function AutoCrawlTab() {
             <Database size={19} />
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-100">{formatCompact(stats.total)} canais</p>
-            <p className="text-[11px] text-slate-500">na base global{stats.thisWeek > 0 ? ` · +${formatCompact(stats.thisWeek)} esta semana` : ''}</p>
+            <p className="text-lg font-bold text-slate-100">{formatCompact(stats.total)} {t('admin.crawl.channels')}</p>
+            <p className="text-[11px] text-slate-500">{t('admin.crawl.inGlobalBase')}{stats.thisWeek > 0 ? t('admin.crawl.thisWeek', { n: formatCompact(stats.thisWeek) }) : ''}</p>
           </div>
         </div>
         <button onClick={refreshStats} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 text-xs`}>
           <RefreshCw size={12} />
-          Atualizar
+          {t('admin.refresh')}
         </button>
       </div>
 
       {!hasKeys && (
-        <p className="rounded-lg bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-400">
-          Configure suas chaves da YouTube API em <strong>Perfil → APIs</strong> antes de ligar a busca automática.
-        </p>
+        <p className="rounded-lg bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-400" dangerouslySetInnerHTML={{ __html: t('admin.crawl.noKeys') }} />
       )}
       {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-xs leading-relaxed text-red-400">{error}</p>}
 
@@ -697,9 +703,9 @@ function AutoCrawlTab() {
               <Radar size={18} className={running ? 'animate-pulse' : ''} />
             </span>
             <div>
-              <p className="text-sm font-semibold text-slate-100">Busca automática {running ? 'LIGADA' : 'desligada'}</p>
+              <p className="text-sm font-semibold text-slate-100">{t('admin.crawl.statusLabel', { state: running ? t('admin.crawl.searchOn') : t('admin.crawl.searchOff') })}</p>
               <p className="text-[11px] text-slate-500">
-                {running ? (current ? `Pesquisando "${current}"…` : 'Iniciando…') : 'Pronta para ligar'}
+                {running ? (current ? t('admin.crawl.searching', { term: current }) : t('admin.crawl.starting')) : t('admin.crawl.readyToStart')}
               </p>
             </div>
           </div>
@@ -710,7 +716,7 @@ function AutoCrawlTab() {
               running ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-cyan-500 text-slate-950 hover:bg-cyan-400'
             }`}
           >
-            {running ? <><Pause size={15} /> Desligar</> : <><Play size={15} /> Ligar busca</>}
+            {running ? <><Pause size={15} /> {t('admin.crawl.turnOff')}</> : <><Play size={15} /> {t('admin.crawl.turnOn')}</>}
           </button>
         </div>
 
@@ -718,14 +724,14 @@ function AutoCrawlTab() {
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg bg-slate-900/60 px-2 py-2.5">
             <p className="text-base font-bold text-cyan-300">{sessionAdded}</p>
-            <p className="text-[10px] text-slate-500">canais nesta sessão</p>
+            <p className="text-[10px] text-slate-500">{t('admin.crawl.sessionChannels')}</p>
           </div>
           <div className="rounded-lg bg-slate-900/60 px-2 py-2.5">
             <p className="text-base font-bold text-slate-200">{usedToday}<span className="text-slate-600">/{cap}</span></p>
-            <p className="text-[10px] text-slate-500">buscas hoje</p>
+            <p className="text-[10px] text-slate-500">{t('admin.crawl.searchesToday')}</p>
           </div>
           <div className="rounded-lg bg-slate-900/60 px-2 py-2.5">
-            <label className="block text-[10px] text-slate-500">teto diário</label>
+            <label className="block text-[10px] text-slate-500">{t('admin.crawl.dailyCap')}</label>
             <input
               type="number"
               min="10"
@@ -742,7 +748,7 @@ function AutoCrawlTab() {
       {/* Log ao vivo */}
       {log.length > 0 && (
         <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-          <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Atividade recente</p>
+          <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('admin.crawl.recentActivity')}</p>
           <div className="max-h-64 space-y-1 overflow-y-auto">
             {log.map((e) => (
               <div key={e.id} className="flex items-center gap-2 rounded px-2 py-1 text-xs">
@@ -760,12 +766,12 @@ function AutoCrawlTab() {
         onClose={() => setConfirm(null)}
         onConfirm={applyToggle}
         danger={confirm === 'off'}
-        confirmLabel={confirm === 'off' ? 'Desligar' : 'Ligar busca'}
-        title={confirm === 'off' ? 'Desligar busca automática' : 'Ligar busca automática'}
+        confirmLabel={confirm === 'off' ? t('admin.crawl.turnOff') : t('admin.crawl.turnOn')}
+        title={confirm === 'off' ? t('admin.crawl.confirmOffTitle') : t('admin.crawl.confirmOnTitle')}
         message={
           confirm === 'off'
-            ? 'A busca para de rodar. Você pode religar quando quiser.'
-            : `Enquanto esta aba ficar aberta, o sistema vai pesquisar canais no YouTube e adicioná-los à base global — consumindo cota das suas chaves da YouTube API (até ${cap} buscas hoje, ~1 a cada 4,5s). Pode desligar a qualquer momento.`
+            ? t('admin.crawl.confirmOffMsg')
+            : t('admin.crawl.confirmOnMsg', { cap })
         }
       />
     </div>
