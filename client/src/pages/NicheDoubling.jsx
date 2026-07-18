@@ -21,6 +21,7 @@ import { api, apiErrorMessage } from '../lib/api'
 import { inputCls, btnPrimary, btnGhost, Drawer, formatCompact } from '../components/ui'
 import { PrivacyScope, PageEye, Masked, RestrictedThumb } from '../components/privacy'
 import { downloadFile } from '../lib/text'
+import { useI18n } from '../i18n'
 
 // Normaliza análises antigas (schema v1: dna/doubling em array) para o formato atual.
 function normalizeResult(result) {
@@ -47,15 +48,16 @@ function computeOutliers(topVideos = []) {
   }
 }
 
-function timeAgo(ts) {
+function timeAgo(ts, t) {
   const days = Math.floor((Date.now() - ts) / 86_400_000)
-  if (days < 1) return 'hoje'
-  if (days < 7) return `há ${days}d`
-  return `há ${Math.floor(days / 7)} sem`
+  if (days < 1) return t('doubling.today')
+  if (days < 7) return t('doubling.daysAgo', { n: days })
+  return t('doubling.weeksAgo', { n: Math.floor(days / 7) })
 }
 
 export default function NicheDoubling() {
   const db = useDb()
+  const { t } = useI18n()
   const [params] = useSearchParams()
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -78,7 +80,7 @@ export default function NicheDoubling() {
     setLoading(true)
     setError('')
     try {
-      setStage('Buscando canal semente...')
+      setStage(t('doubling.stageSeed'))
       const channel = await api.youtube.lookupChannel(input)
 
       const cached = db.all('nicheAnalyses').find((h) => h.sourceChannelId === channel.id)
@@ -88,10 +90,10 @@ export default function NicheDoubling() {
         return
       }
 
-      setStage('Coletando vídeos de maior desempenho...')
+      setStage(t('doubling.stageTop'))
       const { results: topVideos } = await api.youtube.topVideos(channel.id)
 
-      setStage('Gerando análise com IA (Gemini)...')
+      setStage(t('doubling.stageAi'))
       const result = await api.ai.nicheDoubling({ channel, topVideos })
 
       if (cached) db.remove('nicheAnalyses', cached.id)
@@ -287,7 +289,7 @@ export default function NicheDoubling() {
     return (
       <PrivacyScope page="dobra-de-nicho">
       <div className="mx-auto max-w-6xl space-y-5">
-        <PageHeader />
+        <PageHeader t={t} />
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -297,11 +299,11 @@ export default function NicheDoubling() {
         >
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input className={`${inputCls} !pl-9`} placeholder="URL ou @handle do canal semente" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input className={`${inputCls} !pl-9`} placeholder={t('doubling.placeholder')} value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
           <button type="submit" className={`${btnPrimary} flex shrink-0 items-center gap-2`} disabled={loading}>
             {loading ? <Loader2 size={15} className="animate-spin" /> : <GitBranch size={15} />}
-            Analisar
+            {t('doubling.analyze')}
           </button>
         </form>
 
@@ -316,7 +318,7 @@ export default function NicheDoubling() {
 
         {!loading && history.length > 0 && (
           <div>
-            <p className="mb-2 text-xs font-semibold tracking-wider text-slate-500">ANÁLISES SALVAS</p>
+            <p className="mb-2 text-xs font-semibold tracking-wider text-slate-500">{t('doubling.savedAnalyses')}</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {history.map((h) => (
                 <div key={h.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3.5 transition-colors hover:border-cyan-500/40">
@@ -325,11 +327,11 @@ export default function NicheDoubling() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-100"><Masked mask="•••••••">{h.channel?.title}</Masked></p>
                       <p className="text-[11px] text-slate-500">
-                        <Masked mask="••">{formatCompact(h.channel?.subscribers)}</Masked> inscritos · {timeAgo(h.createdAt)}
+                        <Masked mask="••">{formatCompact(h.channel?.subscribers)}</Masked> {t('doubling.subscribers')} · {timeAgo(h.createdAt, t)}
                       </p>
                     </div>
                   </button>
-                  <button onClick={() => db.remove('nicheAnalyses', h.id)} className="text-slate-600 hover:text-red-400" title="Excluir análise">
+                  <button onClick={() => db.remove('nicheAnalyses', h.id)} className="text-slate-600 hover:text-red-400" title={t('doubling.deleteAnalysis')}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -341,9 +343,9 @@ export default function NicheDoubling() {
         {!loading && !error && history.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
             <GitBranch size={30} className="mx-auto text-cyan-400" />
-            <p className="mt-4 font-semibold text-slate-200">Cole a URL de um canal que está bombando</p>
+            <p className="mt-4 font-semibold text-slate-200">{t('doubling.emptyTitle')}</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-              A IA disseca o padrão vencedor do canal e monta o grafo de oportunidades. Requer chaves do YouTube + Gemini em Perfil → APIs.
+              {t('doubling.emptyDesc')}
             </p>
           </div>
         )}
@@ -367,7 +369,7 @@ export default function NicheDoubling() {
   return (
     <PrivacyScope page="dobra-de-nicho">
     <div className="mx-auto max-w-7xl space-y-4">
-      <PageHeader />
+      <PageHeader t={t} />
 
       {/* Cabeçalho da análise */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
@@ -388,59 +390,59 @@ export default function NicheDoubling() {
               <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-400">
                 {(current.channel?.country || 'PT-BR').toUpperCase()}
               </span>
-              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${confidenceCls}`}>Confiança {confidence}</span>
+              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${confidenceCls}`}>{t('doubling.confidence')} {confidence}</span>
             </div>
             <p className="mt-1 text-xs">
-              <span className="font-semibold text-cyan-400">Nicho principal:</span>{' '}
+              <span className="font-semibold text-cyan-400">{t('doubling.mainNiche')}</span>{' '}
               <span className="text-slate-300">{r.mainNiche || '—'}</span>
             </p>
             {r.subNiche && (
               <p className="mt-0.5 text-xs">
-                <span className="font-semibold text-cyan-400">Subnicho:</span> <span className="text-slate-300">{r.subNiche}</span>
+                <span className="font-semibold text-cyan-400">{t('doubling.subNiche')}</span> <span className="text-slate-300">{r.subNiche}</span>
               </p>
             )}
             <p className="mt-0.5 max-w-3xl text-xs text-slate-500">
-              <span className="font-semibold text-slate-400">Público:</span> {r.audience || '—'}
+              <span className="font-semibold text-slate-400">{t('doubling.audience')}</span> {r.audience || '—'}
             </p>
             {r.territory && (
               <p className="mt-0.5 max-w-3xl text-xs text-slate-500">
-                <span className="font-semibold text-slate-400">Território:</span> {r.territory}
+                <span className="font-semibold text-slate-400">{t('doubling.territory')}</span> {r.territory}
               </p>
             )}
             <p className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-600">
-              🕒 Atualizado {timeAgo(current.createdAt)}
+              🕒 {t('doubling.updated')} {timeAgo(current.createdAt, t)}
               {isOldFormat && (
                 <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-medium text-amber-400">
-                  ⚠️ Formato antigo — clique em Reanalisar para a análise completa
+                  {t('doubling.oldFormat')}
                 </span>
               )}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            <HeaderBtn onClick={() => setCurrentId(null)} icon={<ArrowLeft size={13} />} label="Voltar" />
-            <HeaderBtn onClick={() => setCurrentId(null)} icon={<Plus size={13} />} label="Analisar outro canal" />
-            <HeaderBtn onClick={exportTxt} icon={<FileDown size={13} />} label="Baixar TXT" />
-            <HeaderBtn onClick={exportPdf} icon={<Printer size={13} />} label="Baixar PDF" />
-            <HeaderBtn onClick={() => setCurrentId(null)} icon={<History size={13} />} title="Histórico" />
-            <HeaderBtn onClick={() => analyze(current.sourceChannelId, { force: true })} icon={<RefreshCw size={13} />} label="Reanalisar" />
+            <HeaderBtn onClick={() => setCurrentId(null)} icon={<ArrowLeft size={13} />} label={t('doubling.back')} />
+            <HeaderBtn onClick={() => setCurrentId(null)} icon={<Plus size={13} />} label={t('doubling.analyzeOther')} />
+            <HeaderBtn onClick={exportTxt} icon={<FileDown size={13} />} label={t('doubling.downloadTxt')} />
+            <HeaderBtn onClick={exportPdf} icon={<Printer size={13} />} label={t('doubling.downloadPdf')} />
+            <HeaderBtn onClick={() => setCurrentId(null)} icon={<History size={13} />} title={t('doubling.history')} />
+            <HeaderBtn onClick={() => analyze(current.sourceChannelId, { force: true })} icon={<RefreshCw size={13} />} label={t('doubling.reanalyze')} />
           </div>
         </div>
 
         {/* Stats */}
         <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-800 pt-4 sm:grid-cols-6">
-          <HeaderStat value={<Masked mask="••">{formatCompact(current.channel?.subscribers)}</Masked>} label="INSCRITOS" />
-          <HeaderStat value={<Masked mask="••">{formatCompact(current.channel?.views)}</Masked>} label="VIEWS TOTAIS" />
-          <HeaderStat value={<Masked mask="••">{current.channel?.videoCount ?? '—'}</Masked>} label="PUBLICADOS" />
-          <HeaderStat value={current.topVideos?.length ?? '—'} label="ANALISADOS" />
-          <HeaderStat value={outliers.count} label="OUTLIERS" />
-          <HeaderStat value={outliers.biggest ? `${outliers.biggest}x` : '—'} label="MAIOR OUTLIER" />
+          <HeaderStat value={<Masked mask="••">{formatCompact(current.channel?.subscribers)}</Masked>} label={t('doubling.statSubs')} />
+          <HeaderStat value={<Masked mask="••">{formatCompact(current.channel?.views)}</Masked>} label={t('doubling.statViews')} />
+          <HeaderStat value={<Masked mask="••">{current.channel?.videoCount ?? '—'}</Masked>} label={t('doubling.statPublished')} />
+          <HeaderStat value={current.topVideos?.length ?? '—'} label={t('doubling.statAnalyzed')} />
+          <HeaderStat value={outliers.count} label={t('doubling.statOutliers')} />
+          <HeaderStat value={outliers.biggest ? `${outliers.biggest}x` : '—'} label={t('doubling.statBiggest')} />
         </div>
 
         {/* Padrão vencedor + DNA detalhado */}
         {r.winningPattern && (
           <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950 p-4">
-            <p className="text-[10px] font-bold tracking-wider text-cyan-400">PADRÃO VENCEDOR</p>
+            <p className="text-[10px] font-bold tracking-wider text-cyan-400">{t('doubling.winningPattern')}</p>
             <p className="mt-1.5 text-sm font-semibold text-slate-100">{r.winningPattern.description}</p>
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               {(r.winningPattern.tags || []).map((tag) => (
@@ -452,17 +454,17 @@ export default function NicheDoubling() {
 
             {(r.winningPattern.commonTraits?.length || r.winningPattern.triggers?.length || r.winningPattern.titleFormulas?.length || r.winningPattern.winningFunction) && (
               <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-800 pt-4 md:grid-cols-3">
-                <DnaList title="O que os vencedores têm em comum" items={r.winningPattern.commonTraits} dot="#22d3ee" />
-                <DnaList title="Gatilhos vencedores" items={r.winningPattern.triggers} dot="#f59e0b" />
-                <DnaList title="Fórmulas de título" items={r.winningPattern.titleFormulas} dot="#4ade80" mono />
+                <DnaList title={t('doubling.commonTraits')} items={r.winningPattern.commonTraits} dot="#22d3ee" />
+                <DnaList title={t('doubling.triggers')} items={r.winningPattern.triggers} dot="#f59e0b" />
+                <DnaList title={t('doubling.titleFormulas')} items={r.winningPattern.titleFormulas} dot="#4ade80" mono />
               </div>
             )}
 
             {r.winningPattern.winningFunction && (
               <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-800 pt-4 sm:grid-cols-3">
-                <DnaFn label="Promessa" value={r.winningPattern.winningFunction.promise} />
-                <DnaFn label="Emoção dominante" value={r.winningPattern.winningFunction.emotion} />
-                <DnaFn label="Fantasia de identidade" value={r.winningPattern.winningFunction.identity} />
+                <DnaFn label={t('doubling.promise')} value={r.winningPattern.winningFunction.promise} />
+                <DnaFn label={t('doubling.emotion')} value={r.winningPattern.winningFunction.emotion} />
+                <DnaFn label={t('doubling.identity')} value={r.winningPattern.winningFunction.identity} />
               </div>
             )}
           </div>
@@ -474,7 +476,7 @@ export default function NicheDoubling() {
         <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
           <button onClick={() => setApplyOpen((v) => !v)} className="flex w-full items-center gap-2 px-5 py-3.5 text-left text-sm font-semibold text-slate-200 hover:bg-slate-900/60">
             <Lightbulb size={15} className="text-amber-400" />
-            Como aplicar na prática
+            {t('doubling.howToApplyTitle')}
             <ChevronDown size={15} className={`ml-auto text-slate-500 transition-transform ${applyOpen ? 'rotate-180' : ''}`} />
           </button>
           {applyOpen && <p className="border-t border-slate-800 px-5 py-4 text-sm leading-relaxed text-slate-400">{r.howToApply}</p>}
@@ -482,13 +484,13 @@ export default function NicheDoubling() {
       )}
 
       {/* Grafo */}
-      <OpportunityGraph analysis={current} result={r} onSelect={setDetail} />
+      <OpportunityGraph analysis={current} result={r} onSelect={setDetail} t={t} />
 
       <p className="text-center text-[11px] text-slate-600">
-        ⚠️ Scores de sucesso e dificuldade são <b>estimativas geradas por IA</b> a partir de padrões — não métricas garantidas.
+        {t('doubling.scoresDisclaimer')}
       </p>
 
-      <DetailDrawer detail={detail} onClose={() => setDetail(null)} niche={r.mainNiche} pattern={r.winningPattern?.description} />
+      <DetailDrawer detail={detail} onClose={() => setDetail(null)} niche={r.mainNiche} pattern={r.winningPattern?.description} t={t} />
 
       {loading && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70">
@@ -502,7 +504,7 @@ export default function NicheDoubling() {
   )
 }
 
-function PageHeader() {
+function PageHeader({ t }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
@@ -510,8 +512,8 @@ function PageHeader() {
           <GitBranch size={22} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Dobra de Nicho</h1>
-          <p className="text-sm text-slate-500">O grafo de oportunidades do canal: subnichos, novas visões, dobras e adaptações a partir do que realmente performou.</p>
+          <h1 className="text-2xl font-bold text-slate-100">{t('doubling.title')}</h1>
+          <p className="text-sm text-slate-500">{t('doubling.subtitle')}</p>
         </div>
       </div>
       <PageEye />
@@ -572,7 +574,7 @@ const TEAL = '#2dd4bf'
 const GREEN = '#4ade80'
 const AMBER = '#f59e0b'
 
-function OpportunityGraph({ analysis, result: r, onSelect }) {
+function OpportunityGraph({ analysis, result: r, onSelect, t }) {
   const W = 1180
   const H = 640
 
@@ -588,12 +590,12 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
     r.ideas.slice(0, 3).forEach((item, i) => {
       list.push({
         id: `idea-${i}`,
-        kind: 'MAR DE IDEIAS',
+        kind: t('doubling.blockIdeas').toUpperCase(),
         color: TEAL,
-        badge: item.isTurnaround || (i === 0 && !r.ideas.some((x) => x.isTurnaround)) ? 'VIRADA' : null,
+        badge: item.isTurnaround || (i === 0 && !r.ideas.some((x) => x.isTurnaround)) ? t('doubling.badgeTurn') : null,
         pos: ideaPos[i] || ideaPos[0],
         item,
-        block: 'Mar de Ideias',
+        block: t('doubling.blockIdeas'),
         linkFrom: center,
       })
     })
@@ -601,11 +603,11 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
     if (r.market[0]) {
       list.push({
         id: 'market-0',
-        kind: 'ADAPTAÇÃO DE MERCADO',
+        kind: t('doubling.blockMarket').toUpperCase(),
         color: GREEN,
         pos: { x: 640, y: 170 },
         item: r.market[0],
-        block: 'Adaptação de Mercado',
+        block: t('doubling.blockMarket'),
         linkFrom: center,
       })
     }
@@ -614,12 +616,12 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
     if (r.doubling.items.length > 0) {
       list.push({
         id: 'dobra',
-        kind: 'DOBRA',
+        kind: t('doubling.blockDoubling').toUpperCase(),
         color: AMBER,
         pos: dobra,
         text: r.doubling.summary || r.doubling.items[0]?.title,
         item: r.doubling.items[0],
-        block: 'Dobra de Nicho',
+        block: t('doubling.blockDoubling'),
         linkFrom: center,
         big: true,
       })
@@ -631,14 +633,14 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
           color: AMBER,
           pos: { x: 1060, y: 120 + i * 135 },
           item,
-          block: 'Dobra de Nicho',
+          block: t('doubling.blockDoubling'),
           linkFrom: dobra,
         })
       })
     }
 
     return { list, center }
-  }, [r])
+  }, [r, t])
 
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/30">
@@ -680,7 +682,7 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
                 </div>
               }
             />
-            <p className="mt-1 text-[9px] font-bold tracking-wider text-cyan-400">CANAL</p>
+            <p className="mt-1 text-[9px] font-bold tracking-wider text-cyan-400">{t('doubling.graphCenterChannel')}</p>
             <p className="max-w-[100px] truncate px-1 text-center text-[11px] font-bold text-slate-100"><Masked mask="•••••">{analysis.channel?.title}</Masked></p>
           </div>
         </motion.div>
@@ -732,7 +734,7 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
         })}
       </div>
       <p className="border-t border-slate-800 px-4 py-2.5 text-center text-[11px] text-slate-600">
-        Clique em qualquer nó para ver o plano completo (como aplicar, o que preservar, títulos recomendados)
+        {t('doubling.graphHint')}
       </p>
     </div>
   )
@@ -741,7 +743,7 @@ function OpportunityGraph({ analysis, result: r, onSelect }) {
 // ---------------------------------------------------------------------------
 // Painel de detalhes rico (paridade com o relatório original): tema-alvo, como
 // aplicar, títulos prontos, o que preserva/muda, mapa de equivalência e alertas.
-function DetailDrawer({ detail, onClose, niche, pattern }) {
+function DetailDrawer({ detail, onClose, niche, pattern, t }) {
   const [extraTitles, setExtraTitles] = useState([])
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
@@ -810,10 +812,10 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
           <span className="rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: `${color}22`, color }}>
             {item.kind ? `${blockLabel} · ${item.kind}` : blockLabel}
           </span>
-          {confidence && <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${confidenceCls}`}>Confiança {confidence}</span>}
+          {confidence && <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${confidenceCls}`}>{t('doubling.confidence')} {confidence}</span>}
           <span className="flex items-center gap-1 rounded-full bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-200">
             <Star size={11} style={{ color }} />
-            Sucesso ~{item.successScore}%
+            {t('doubling.successScore', { n: item.successScore })}
           </span>
           {item.difficulty && <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${difficultyCls}`}>{item.difficulty}</span>}
         </div>
@@ -822,23 +824,23 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
 
         {item.marketHypothesis && (
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[12px] text-amber-300">
-            ⚠️ Hipótese de mercado: não temos dados do mercado estrangeiro. Trate como direção a testar, não como gap validado.
+            {t('doubling.marketHypothesis')}
           </p>
         )}
 
         {/* Nicho novo (blocos de Dobra) */}
         {(item.newNiche || item.subNicheNew || item.audienceNew) && (
           <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950 p-3.5 text-[13px]">
-            {item.newNiche && <p className="text-slate-300"><span className="text-[10px] font-bold uppercase text-cyan-400">Nicho novo: </span>{item.newNiche}</p>}
-            {item.subNicheNew && <p className="text-slate-300"><span className="text-[10px] font-bold uppercase text-cyan-400">Subnicho: </span>{item.subNicheNew}</p>}
-            {item.audienceNew && <p className="text-slate-300"><span className="text-[10px] font-bold uppercase text-cyan-400">Público-alvo: </span>{item.audienceNew}</p>}
+            {item.newNiche && <p className="text-slate-300"><span className="text-[10px] font-bold uppercase text-cyan-400">{t('doubling.newNiche')} </span>{item.newNiche}</p>}
+            {item.subNicheNew && <p className="text-slate-300"><span className="text-[10px] font-bold uppercase text-cyan-400">{t('doubling.subNicheNew')} </span>{item.subNicheNew}</p>}
+            {item.audienceNew && <p className="text-slate-300"><span className="text-[10px] font-bold uppercase text-cyan-400">{t('doubling.audienceNew')} </span>{item.audienceNew}</p>}
           </div>
         )}
 
         {/* Ideia de tema-alvo */}
         {item.targetTheme && (
           <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.06] p-3.5">
-            <SectionTitle c="#22d3ee">Ideia de tema-alvo</SectionTitle>
+            <SectionTitle c="#22d3ee">{t('doubling.targetTheme')}</SectionTitle>
             <p className="mt-1.5 text-sm leading-relaxed text-slate-200">{item.targetTheme}</p>
           </div>
         )}
@@ -848,7 +850,7 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
           <div className="flex gap-2.5 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.06] p-3.5">
             <Lightbulb size={16} className="mt-0.5 shrink-0 text-cyan-400" />
             <div>
-              <SectionTitle c="#22d3ee">Como aplicar na prática</SectionTitle>
+              <SectionTitle c="#22d3ee">{t('doubling.howToApplyTitle')}</SectionTitle>
               <p className="mt-1 text-sm leading-relaxed text-slate-200">{item.howToApply}</p>
             </div>
           </div>
@@ -856,20 +858,20 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
 
         {/* Títulos prontos */}
         <div className="space-y-2.5">
-          <SectionTitle>Títulos prontos</SectionTitle>
+          <SectionTitle>{t('doubling.readyTitles')}</SectionTitle>
           <ul className="space-y-2">
-            {allTitles.map((t, i) => (
+            {allTitles.map((ttl, i) => (
               <li key={i} className="group flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2.5 text-sm text-slate-200">
                 <span className="shrink-0 text-[10px] font-bold text-slate-600">{i + 1}</span>
-                <span className="min-w-0 flex-1">{t}</span>
+                <span className="min-w-0 flex-1">{ttl}</span>
                 <button
-                  onClick={() => copyTitle(t, i)}
-                  title="Copiar título"
+                  onClick={() => copyTitle(ttl, i)}
+                  title={t('doubling.copyTitle')}
                   className={`shrink-0 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100 ${
                     copiedIdx === i ? 'text-green-400 !opacity-100' : 'text-slate-500 hover:text-cyan-300'
                   }`}
                 >
-                  {copiedIdx === i ? 'Copiado!' : 'Copiar'}
+                  {copiedIdx === i ? t('doubling.copied') : t('doubling.copy')}
                 </button>
               </li>
             ))}
@@ -881,7 +883,7 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 py-2.5 text-xs font-semibold text-cyan-300 transition-colors hover:bg-cyan-500/20 disabled:opacity-60"
           >
             {generating ? <Loader2 size={13} className="animate-spin" /> : <Star size={13} />}
-            {generating ? 'Gerando títulos...' : 'Gerar mais 10 títulos com IA'}
+            {generating ? t('doubling.generating') : t('doubling.generateMore')}
           </button>
         </div>
 
@@ -890,13 +892,13 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {preserve.length > 0 && (
               <div className="space-y-2">
-                <SectionTitle c="#4ade80">O que preserva</SectionTitle>
+                <SectionTitle c="#4ade80">{t('doubling.whatPreserve')}</SectionTitle>
                 <Bullets items={preserve} dot="#4ade80" />
               </div>
             )}
             {change.length > 0 && (
               <div className="space-y-2">
-                <SectionTitle c="#f59e0b">O que muda</SectionTitle>
+                <SectionTitle c="#f59e0b">{t('doubling.whatChanges')}</SectionTitle>
                 <Bullets items={change} dot="#f59e0b" />
               </div>
             )}
@@ -904,7 +906,7 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
         )}
         {preserve.length === 0 && change.length === 0 && item.preserveVsChange && (
           <div className="space-y-2">
-            <SectionTitle>O que preservar / o que muda</SectionTitle>
+            <SectionTitle>{t('doubling.preserveVsChange')}</SectionTitle>
             <p className="text-sm leading-relaxed text-slate-300">{item.preserveVsChange}</p>
           </div>
         )}
@@ -912,7 +914,7 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
         {/* Mapa de equivalência */}
         {equivalence.length > 0 && (
           <div className="space-y-2.5">
-            <SectionTitle>Mapa de equivalência</SectionTitle>
+            <SectionTitle>{t('doubling.equivalenceMap')}</SectionTitle>
             {equivalence.map((e, i) => (
               <div key={i} className="rounded-lg border border-slate-800 bg-slate-950 p-3">
                 <p className="text-[12.5px] text-slate-500">{e.from}</p>
@@ -926,13 +928,13 @@ function DetailDrawer({ detail, onClose, niche, pattern }) {
         {/* Alertas de quebra */}
         {breakAlerts.length > 0 && (
           <div className="space-y-2">
-            <SectionTitle c="#f87171">Alertas de quebra</SectionTitle>
+            <SectionTitle c="#f87171">{t('doubling.breakAlerts')}</SectionTitle>
             <Bullets items={breakAlerts} dot="#f87171" />
           </div>
         )}
 
         <p className="border-t border-slate-800 pt-3 text-[11px] leading-relaxed text-slate-600">
-          Estimativas geradas por IA a partir do padrão do canal semente — valide antes de investir na produção.
+          {t('doubling.drawerDisclaimer')}
         </p>
       </div>
     </Drawer>
