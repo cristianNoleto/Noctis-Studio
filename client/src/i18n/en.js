@@ -2,8 +2,10 @@ export default {
   common: {
     cancel: 'Cancel',
     save: 'Save',
+    delete: 'Delete',
     close: 'Close',
     back: 'Back',
+    status: { planning: 'Planning', production: 'Production', finished: 'Finished', scheduled: 'Scheduled', published: 'Published' },
     loading: 'Loading...',
     comingSoon: 'Coming soon',
     comingSoonDesc: 'This feature is under development and will be released in an upcoming update.',

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useI18n } from '../i18n'
 
 export const inputCls =
   'w-full rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500'
@@ -15,6 +16,7 @@ export const btnDanger =
   'rounded-lg bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/20'
 
 export function Modal({ open, onClose, title, children, wide }) {
+  const { t } = useI18n()
   useEffect(() => {
     if (!open) return
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -42,7 +44,7 @@ export function Modal({ open, onClose, title, children, wide }) {
           >
             <div className="mb-5 flex items-start justify-between">
               <h3 className="text-lg font-semibold text-slate-100">{title}</h3>
-              <button onClick={onClose} aria-label="Fechar" className="text-slate-500 hover:text-slate-300">
+              <button onClick={onClose} aria-label={t('common.close')} className="text-slate-500 hover:text-slate-300">
                 <X size={18} />
               </button>
             </div>
@@ -55,6 +57,7 @@ export function Modal({ open, onClose, title, children, wide }) {
 }
 
 export function Drawer({ open, onClose, title, children, actions }) {
+  const { t } = useI18n()
   useEffect(() => {
     if (!open) return
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -84,7 +87,7 @@ export function Drawer({ open, onClose, title, children, actions }) {
               <h3 className="truncate text-base font-semibold text-slate-100">{title}</h3>
               <div className="flex items-center gap-2">
                 {actions}
-                <button onClick={onClose} aria-label="Fechar" className="ml-2 text-slate-500 hover:text-slate-300">
+                <button onClick={onClose} aria-label={t('common.close')} className="ml-2 text-slate-500 hover:text-slate-300">
                   <X size={18} />
                 </button>
               </div>
@@ -97,13 +100,14 @@ export function Drawer({ open, onClose, title, children, actions }) {
   )
 }
 
-export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmLabel = 'Excluir', danger = true }) {
+export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmLabel, danger = true }) {
+  const { t } = useI18n()
   return (
     <Modal open={open} onClose={onClose} title={title}>
       <p className="text-sm text-slate-400">{message}</p>
       <div className="mt-6 flex justify-end gap-2">
         <button className={btnGhost} onClick={onClose}>
-          Cancelar
+          {t('common.cancel')}
         </button>
         <button
           className={danger ? btnDanger : btnPrimary}
@@ -112,7 +116,7 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
             onClose()
           }}
         >
-          {confirmLabel}
+          {confirmLabel || t('common.delete')}
         </button>
       </div>
     </Modal>
@@ -165,15 +169,16 @@ export function EmptyState({ icon: Icon, title, description, action }) {
 }
 
 export function StatusBadge({ status }) {
+  const { t } = useI18n()
   const map = {
-    planning: { label: 'Planejamento', cls: 'bg-slate-700/40 text-slate-300' },
-    production: { label: 'Produção', cls: 'bg-amber-500/15 text-amber-400' },
-    finished: { label: 'Finalizado', cls: 'bg-cyan-500/15 text-cyan-400' },
-    scheduled: { label: 'Agendado', cls: 'bg-sky-500/15 text-sky-400' },
-    published: { label: 'Publicado', cls: 'bg-green-500/15 text-green-400' },
+    planning: { key: 'planning', cls: 'bg-slate-700/40 text-slate-300' },
+    production: { key: 'production', cls: 'bg-amber-500/15 text-amber-400' },
+    finished: { key: 'finished', cls: 'bg-cyan-500/15 text-cyan-400' },
+    scheduled: { key: 'scheduled', cls: 'bg-sky-500/15 text-sky-400' },
+    published: { key: 'published', cls: 'bg-green-500/15 text-green-400' },
   }
-  const { label, cls } = map[status] || map.planning
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${cls}`}>{label}</span>
+  const { key, cls } = map[status] || map.planning
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${cls}`}>{t(`common.status.${key}`)}</span>
 }
 
 export function SectionTitle({ children, right }) {
