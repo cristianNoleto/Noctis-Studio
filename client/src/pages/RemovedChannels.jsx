@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AlertTriangle, Search, Plus, Calendar, Eye, Film, Users, RadioTower, Loader2 } from 'lucide-react'
 import { useDb } from '../lib/db'
+import { useI18n } from '../i18n'
 import { api, apiErrorMessage } from '../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, formatCompact } from '../components/ui'
 import { PrivacyScope, PageEye, Masked, useRestricted } from '../components/privacy'
@@ -11,6 +12,7 @@ import { Field } from './channels/ChannelsList'
 // pela detecção automática dos canais monitorados. A página já abre populada.
 export default function RemovedChannels() {
   const db = useDb()
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [checking, setChecking] = useState(false)
@@ -60,7 +62,7 @@ export default function RemovedChannels() {
 
       const ids = [...monitored.keys()]
       if (!ids.length) {
-        setCheckMsg('Nada para verificar ainda — adicione canais, referências ou favoritos primeiro.')
+        setCheckMsg(t('removed.nothingToCheck'))
         setTimeout(() => setCheckMsg(''), 5000)
         setChecking(false)
         return
@@ -68,7 +70,7 @@ export default function RemovedChannels() {
 
       const found = new Map() // id → { subscribers, views }
       for (let i = 0; i < ids.length; i += 50) {
-        setCheckMsg(`Verificando ${Math.min(i + 50, ids.length)}/${ids.length} canais monitorados...`)
+        setCheckMsg(t('removed.checkProgress', { done: Math.min(i + 50, ids.length), total: ids.length }))
         const { found: page } = await api.youtube.checkChannels(ids.slice(i, i + 50))
         page.forEach((c) => found.set(c.id, c))
       }
@@ -82,7 +84,7 @@ export default function RemovedChannels() {
         detected++
         db.insert('removedChannels', {
           youtubeChannelId: id,
-          name: info.name || 'Canal desconhecido',
+          name: info.name || t('removed.unknownChannel'),
           niche: info.niche || 'Other',
           subs: info.subs || 0,
           videos: info.videos || null,
@@ -111,8 +113,14 @@ export default function RemovedChannels() {
           db.insert('platformUpdates', {
             tag: 'ALERTA',
             channelId: id,
-            title: `🚀 ${info.name} está explodindo`,
-            description: `Crescimento de ~${pct}% desde o último registro: ${formatCompact(oldSubs)} → ${formatCompact(now.subscribers)} inscritos · ${formatCompact(oldViews)} → ${formatCompact(now.views)} views. Vale analisar na Dobra de Nicho.`,
+            title: t('removed.alertTitle', { name: info.name }),
+            description: t('removed.alertDesc', {
+              pct,
+              oldSubs: formatCompact(oldSubs),
+              newSubs: formatCompact(now.subscribers),
+              oldViews: formatCompact(oldViews),
+              newViews: formatCompact(now.views),
+            }),
           })
         }
         // Atualiza a baseline p/ a próxima verificação comparar certo
@@ -132,9 +140,9 @@ export default function RemovedChannels() {
       if (favoritesChanged) db.setSetting('nicheFavorites', [...favorites])
 
       const parts = []
-      if (detected > 0) parts.push(`⚠️ ${detected} canal${detected > 1 ? 'is' : ''} sumiu do YouTube e entrou na base`)
-      if (exploded > 0) parts.push(`🚀 ${exploded} canal${exploded > 1 ? 'is' : ''} explodindo — alerta no sino`)
-      setCheckMsg(parts.length ? parts.join(' · ') : `✓ Todos os ${ids.length} canais monitorados continuam ativos, sem explosões desde o último registro.`)
+      if (detected > 0) parts.push(t('removed.detectedMsg', { n: detected }))
+      if (exploded > 0) parts.push(t('removed.explodedMsg', { n: exploded }))
+      setCheckMsg(parts.length ? parts.join(' · ') : t('removed.allActive', { n: ids.length }))
       setTimeout(() => setCheckMsg(''), 8000)
     } catch (err) {
       setCheckError(apiErrorMessage(err))
@@ -167,26 +175,26 @@ export default function RemovedChannels() {
             <AlertTriangle size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-100">Canais Removidos</h1>
-            <p className="text-sm text-slate-500">Canais que foram removidos ou encerrados no YouTube</p>
+            <h1 className="text-2xl font-bold text-slate-100">{t('removed.title')}</h1>
+            <p className="text-sm text-slate-500">{t('removed.subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300">
-            {all.length} canais removidos
+            {t('removed.count', { n: all.length })}
           </span>
           <button
             onClick={checkMonitored}
             disabled={checking}
-            title="Confere se os canais que você acompanha (canais, referências e favoritos) ainda existem no YouTube"
+            title={t('removed.checkTitle')}
             className={`${btnGhost} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`}
           >
             {checking ? <Loader2 size={13} className="animate-spin" /> : <RadioTower size={13} />}
-            {checking ? 'Verificando...' : 'Verificar monitorados'}
+            {checking ? t('removed.checking') : t('removed.checkBtn')}
           </button>
           <button className={`${btnGhost} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => setAddOpen(true)}>
             <Plus size={13} />
-            Registrar caso
+            {t('removed.registerCase')}
           </button>
           <PageEye />
         </div>
@@ -199,7 +207,7 @@ export default function RemovedChannels() {
       <div className="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3">
         <AlertTriangle size={16} className="shrink-0 text-red-400" />
         <p className="text-sm text-slate-300">
-          <b className="text-red-400">Atenção:</b> estes canais foram identificados como removidos, encerrados ou indisponíveis no YouTube.
+          <b className="text-red-400">{t('removed.warningLabel')}</b> {t('removed.warningText')}
         </p>
       </div>
 
@@ -208,7 +216,7 @@ export default function RemovedChannels() {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
         <input
           className={`${inputCls} !pl-9`}
-          placeholder="Buscar canais removidos..."
+          placeholder={t('removed.search')}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
@@ -224,17 +232,17 @@ export default function RemovedChannels() {
         ))}
       </div>
 
-      {channels.length === 0 && <p className="py-10 text-center text-sm text-slate-500">Nenhum canal encontrado com esse termo.</p>}
+      {channels.length === 0 && <p className="py-10 text-center text-sm text-slate-500">{t('removed.noneFound')}</p>}
 
       {/* Paginação (padrão do original: Mostrando X a Y de Z / 50-100 por página) */}
       {channels.length > 0 && (
         <div className="flex flex-col items-center gap-4 border-t border-slate-800 pt-6">
           <p className="text-sm text-slate-500">
-            Mostrando {pageStart + 1} a {Math.min(pageStart + perPage, channels.length)} de {channels.length} canais
+            {t('removed.showing', { from: pageStart + 1, to: Math.min(pageStart + perPage, channels.length), total: channels.length })}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500">Itens por página:</span>
+              <span className="text-sm text-slate-500">{t('removed.perPage')}</span>
               <select
                 className={`${inputCls} !h-9 !w-20 !py-1`}
                 value={perPage}
@@ -248,13 +256,13 @@ export default function RemovedChannels() {
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <PageBtn onClick={() => goTo(1)} disabled={safePage === 1} label="Primeira" />
-              <PageBtn onClick={() => goTo(safePage - 1)} disabled={safePage === 1} label="‹ Anterior" />
+              <PageBtn onClick={() => goTo(1)} disabled={safePage === 1} label={t('removed.first')} />
+              <PageBtn onClick={() => goTo(safePage - 1)} disabled={safePage === 1} label={t('removed.prev')} />
               <span className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-white">
                 {safePage} / {totalPages}
               </span>
-              <PageBtn onClick={() => goTo(safePage + 1)} disabled={safePage === totalPages} label="Próxima ›" />
-              <PageBtn onClick={() => goTo(totalPages)} disabled={safePage === totalPages} label="Última" />
+              <PageBtn onClick={() => goTo(safePage + 1)} disabled={safePage === totalPages} label={t('removed.next')} />
+              <PageBtn onClick={() => goTo(totalPages)} disabled={safePage === totalPages} label={t('removed.last')} />
             </div>
           </div>
         </div>
@@ -281,6 +289,7 @@ function PageBtn({ onClick, disabled, label }) {
 function RemovedCard({ channel: c }) {
   // Modo restrito: nome/números não entram no DOM
   const restricted = useRestricted()
+  const { t } = useI18n()
   return (
     <div className="card-hover overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
       <div className="border-t-2 border-cyan-500/50" />
@@ -296,15 +305,15 @@ function RemovedCard({ channel: c }) {
               <Calendar size={9} />
               {new Date(c.removedAt + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
               {c.verified && (
-                <span className="ml-1 rounded bg-green-500/10 px-1 font-bold text-green-500" title="Monetizado">
+                <span className="ml-1 rounded bg-green-500/10 px-1 font-bold text-green-500" title={t('removed.monetizedTitle')}>
                   $
                 </span>
               )}
             </p>
           </div>
           <span className="flex shrink-0 flex-col items-end gap-1">
-            <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-red-400">REMOVIDO</span>
-            {c.autoDetected && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[8px] font-bold text-amber-400">AUTO</span>}
+            <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-red-400">{t('removed.removedBadge')}</span>
+            {c.autoDetected && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[8px] font-bold text-amber-400">{t('removed.auto')}</span>}
           </span>
         </div>
 
@@ -322,9 +331,9 @@ function RemovedCard({ channel: c }) {
 
         {/* Stats */}
         <div className="mt-3 grid grid-cols-3 divide-x divide-slate-800 py-1 text-center">
-          <RemovedStat icon={Eye} value={<Masked mask="••">0</Masked>} label="visualizações" />
-          <RemovedStat icon={Film} value={<Masked mask="••">{c.videos ?? '—'}</Masked>} label="vídeos" />
-          <RemovedStat icon={Users} value={<Masked mask="••">{formatCompact(c.subs)}</Masked>} label="inscritos" />
+          <RemovedStat icon={Eye} value={<Masked mask="••">0</Masked>} label={t('removed.statViews')} />
+          <RemovedStat icon={Film} value={<Masked mask="••">{c.videos ?? '—'}</Masked>} label={t('removed.statVideos')} />
+          <RemovedStat icon={Users} value={<Masked mask="••">{formatCompact(c.subs)}</Masked>} label={t('removed.statSubs')} />
         </div>
 
         {/* Nicho */}
@@ -350,6 +359,7 @@ function RemovedStat({ icon: Icon, value, label }) {
 
 function AddRemovedModal({ open, onClose }) {
   const db = useDb()
+  const { t } = useI18n()
   const [form, setForm] = useState({ name: '', niche: '', subs: '', videos: '', removedAt: '', verified: false })
 
   function set(k, v) {
@@ -371,37 +381,37 @@ function AddRemovedModal({ open, onClose }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Registrar canal removido">
+    <Modal open={open} onClose={onClose} title={t('removed.modalTitle')}>
       <form onSubmit={save} className="space-y-4">
-        <Field label="NOME DO CANAL">
+        <Field label={t('removed.name')}>
           <input className={inputCls} required value={form.name} onChange={(e) => set('name', e.target.value)} />
         </Field>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="NICHO">
-            <input className={inputCls} value={form.niche} onChange={(e) => set('niche', e.target.value)} placeholder="Ex: True Crime" />
+          <Field label={t('removed.niche')}>
+            <input className={inputCls} value={form.niche} onChange={(e) => set('niche', e.target.value)} placeholder={t('removed.nichePlaceholder')} />
           </Field>
-          <Field label="INSCRITOS (APROX.)">
+          <Field label={t('removed.subsApprox')}>
             <input className={inputCls} type="number" value={form.subs} onChange={(e) => set('subs', e.target.value)} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="QTD. DE VÍDEOS">
+          <Field label={t('removed.videosQty')}>
             <input className={inputCls} type="number" value={form.videos} onChange={(e) => set('videos', e.target.value)} />
           </Field>
-          <Field label="DATA DA REMOÇÃO">
+          <Field label={t('removed.removedDate')}>
             <input className={inputCls} type="date" value={form.removedAt} onChange={(e) => set('removedAt', e.target.value)} />
           </Field>
         </div>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
           <input type="checkbox" checked={form.verified} onChange={(e) => set('verified', e.target.checked)} className="h-4 w-4 rounded accent-cyan-500" />
-          Canal era monetizado ($)
+          {t('removed.wasMonetized')}
         </label>
         <div className="flex justify-end gap-2">
           <button type="button" className={btnGhost} onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button type="submit" className={btnPrimary}>
-            Registrar
+            {t('removed.register')}
           </button>
         </div>
       </form>
