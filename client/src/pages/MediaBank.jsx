@@ -1,16 +1,12 @@
 import { useState } from 'react'
 import { Search, Loader2, Image as ImageIcon, Film, Download, X } from 'lucide-react'
 import { api, apiErrorMessage } from '../lib/api'
+import { useI18n } from '../i18n'
 import { inputCls, btnPrimary } from '../components/ui'
 
 // Layout do original: pílulas Imagens/Vídeos, busca, FONTES (Pexels/Pixabay
 // multi-seleção) e ORIENTAÇÃO (Horizontal/Vertical/Quadrada/Todas).
-const ORIENTATIONS = [
-  ['horizontal', 'Horizontal'],
-  ['vertical', 'Vertical'],
-  ['square', 'Quadrada'],
-  ['all', 'Todas'],
-]
+const ORIENTATION_KEYS = ['horizontal', 'vertical', 'square', 'all']
 
 const pill = (active) =>
   `inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
@@ -20,6 +16,7 @@ const pill = (active) =>
   }`
 
 export default function MediaBank() {
+  const { t } = useI18n()
   const [type, setType] = useState('image')
   const [query, setQuery] = useState('')
   const [orientation, setOrientation] = useState('all')
@@ -68,8 +65,8 @@ export default function MediaBank() {
     <div className="mx-auto max-w-7xl space-y-5">
       {/* Cabeçalho como no original */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">Vídeos e Imagens</h1>
-        <p className="mt-1 text-sm text-slate-500">Busque e baixe imagens e vídeos gratuitos para os seus projetos.</p>
+        <h1 className="text-2xl font-bold text-slate-100">{t('media.title')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('media.subtitle')}</p>
       </div>
 
       <form onSubmit={search} className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
@@ -77,31 +74,31 @@ export default function MediaBank() {
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => { setType('image'); if (results) search(null, { type: 'image' }) }} className={pill(type === 'image')}>
             <ImageIcon size={13} />
-            Imagens
+            {t('media.images')}
           </button>
           <button type="button" onClick={() => { setType('video'); if (results) search(null, { type: 'video' }) }} className={pill(type === 'video')}>
             <Film size={13} />
-            Vídeos
+            {t('media.videos')}
           </button>
           <div className="relative min-w-48 flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               className={`${inputCls} !pl-9`}
-              placeholder="Busque por um tema: natureza, cidade, tecnologia..."
+              placeholder={t('media.searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
           <button type="submit" className={`${btnPrimary} flex min-w-32 items-center justify-center gap-2`} disabled={loading}>
             {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-            Buscar
+            {t('media.searchBtn')}
           </button>
         </div>
 
         {/* Fontes + Orientação */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold tracking-wider text-slate-500">FONTES</span>
+            <span className="text-[11px] font-bold tracking-wider text-slate-500">{t('media.sources')}</span>
             {['Pexels', 'Pixabay'].map((name) => (
               <button key={name} type="button" onClick={() => toggleSource(name)} className={pill(sources[name])}>
                 {name}
@@ -109,8 +106,8 @@ export default function MediaBank() {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold tracking-wider text-slate-500">ORIENTAÇÃO</span>
-            {ORIENTATIONS.map(([v, l]) => (
+            <span className="text-[11px] font-bold tracking-wider text-slate-500">{t('media.orientation')}</span>
+            {ORIENTATION_KEYS.map((v) => (
               <button
                 key={v}
                 type="button"
@@ -120,7 +117,7 @@ export default function MediaBank() {
                 }}
                 className={pill(orientation === v)}
               >
-                {l}
+                {t(`media.orientations.${v}`)}
               </button>
             ))}
           </div>
@@ -132,10 +129,8 @@ export default function MediaBank() {
       {results === null && !loading && !error && (
         <div className="rounded-xl border border-dashed border-slate-800 px-6 py-16 text-center">
           <ImageIcon size={26} className="mx-auto text-slate-600" />
-          <p className="mt-4 font-semibold text-slate-200">Busque mídias para começar</p>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
-            Digite um tema e escolha entre imagens ou vídeos. Os resultados vêm direto dos bancos públicos.
-          </p>
+          <p className="mt-4 font-semibold text-slate-200">{t('media.emptyTitle')}</p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">{t('media.emptyDesc')}</p>
         </div>
       )}
 
@@ -161,7 +156,7 @@ export default function MediaBank() {
               <span className="absolute right-2 top-2 rounded bg-cyan-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.source}</span>
               {item.type === 'video' && (
                 <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                  {item.duration ? `${item.duration}s` : 'vídeo'}
+                  {item.duration ? `${item.duration}s` : t('media.videoLabel')}
                 </span>
               )}
             </button>
@@ -169,7 +164,7 @@ export default function MediaBank() {
           {visible.length === 0 && (
             <div className="col-span-full rounded-xl border border-dashed border-slate-800 px-6 py-14 text-center">
               <Search size={22} className="mx-auto text-slate-600" />
-              <p className="mt-3 text-sm text-slate-500">Nada encontrado — tente outro termo (os bancos respondem melhor em inglês).</p>
+              <p className="mt-3 text-sm text-slate-500">{t('media.nothingFound')}</p>
             </div>
           )}
         </div>
@@ -181,6 +176,7 @@ export default function MediaBank() {
 }
 
 function PreviewModal({ item, onClose }) {
+  const { t } = useI18n()
   const [file, setFile] = useState(item.files?.[0])
 
   return (
@@ -216,7 +212,7 @@ function PreviewModal({ item, onClose }) {
           </div>
           <a href={file?.url} target="_blank" rel="noopener noreferrer" download className={`${btnPrimary} ml-auto flex items-center gap-2`}>
             <Download size={15} />
-            Baixar
+            {t('media.download')}
           </a>
         </div>
       </div>
