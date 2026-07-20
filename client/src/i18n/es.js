@@ -422,7 +422,7 @@ export default {
     thumbRemove: 'Quitar miniatura',
     thumbUpload: 'Subir miniatura',
     copyHint: 'Haz clic para copiar el título',
-    titleCopied: '¡Título copiado!',
+    titleCopied: 'Copiado',
     deleteTitle: 'Eliminar video',
     deleteMsg: 'Eliminar "{title}" también borra el guion vinculado.',
     publishTitle: 'Completar checklist',

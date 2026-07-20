@@ -422,7 +422,7 @@ export default {
     thumbRemove: 'Remover thumbnail',
     thumbUpload: 'Enviar thumbnail',
     copyHint: 'Clique para copiar o título',
-    titleCopied: 'Título copiado!',
+    titleCopied: 'Copiado',
     deleteTitle: 'Excluir vídeo',
     deleteMsg: 'Excluir "{title}" apaga também o roteiro vinculado.',
     publishTitle: 'Completar checklist',

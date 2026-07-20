@@ -487,12 +487,15 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
       <div className="min-w-0 flex-1">
         <p
           onClick={copyTitle}
-          title={t('videos.copyHint')}
-          className="flex cursor-pointer items-center gap-1.5 truncate font-semibold text-slate-100 transition-colors hover:text-cyan-300"
+          className="truncate font-semibold text-slate-100 transition-colors hover:text-cyan-300 cursor-pointer"
         >
           <Masked mask="•••••••••••">{v.title}</Masked>
-          {copied && <span className="shrink-0 text-[10px] font-medium text-green-400">{t('videos.titleCopied')}</span>}
         </p>
+        {copied && (
+          <div className="fixed bottom-6 right-6 z-[120] rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-200 shadow-lg">
+            {t('videos.titleCopied')}
+          </div>
+        )}
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
           {STEPS.map(([key]) => {
             const done = !!v.steps?.[key]
