@@ -57,16 +57,16 @@ export default function ScriptDrawer({ video, onClose }) {
       title={t('script.title', { title: video.title })}
       actions={
         <>
-          <button className={`${btnGhost} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => downloadFile(`${slug}.srt`, generateSrt(content))} disabled={!content.trim()}>
-            <Captions size={13} />
+          <button className={`${btnGhost} flex shrink-0 items-center gap-1.5 whitespace-nowrap !px-3 !py-1.5 text-xs`} onClick={() => downloadFile(`${slug}.srt`, generateSrt(content))} disabled={!content.trim()}>
+            <Captions size={13} className="shrink-0" />
             {t('script.generateSrt')}
           </button>
-          <button className={`${btnGhost} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => downloadFile(`${slug}.txt`, content)} disabled={!content.trim()}>
-            <FileDown size={13} />
+          <button className={`${btnGhost} flex shrink-0 items-center gap-1.5 whitespace-nowrap !px-3 !py-1.5 text-xs`} onClick={() => downloadFile(`${slug}.txt`, content)} disabled={!content.trim()}>
+            <FileDown size={13} className="shrink-0" />
             {t('script.txt')}
           </button>
-          <button className={`${btnPrimary} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => persist(content)}>
-            <Save size={13} />
+          <button className={`${btnPrimary} flex shrink-0 items-center gap-1.5 whitespace-nowrap !px-3 !py-1.5 text-xs`} onClick={() => persist(content)}>
+            <Save size={13} className="shrink-0" />
             {t('script.save')}
           </button>
         </>
@@ -78,9 +78,9 @@ export default function ScriptDrawer({ video, onClose }) {
           <Counter label={t('script.chars')} value={stats.chars.toLocaleString('pt-BR')} />
           <Counter label={t('script.words')} value={stats.words.toLocaleString('pt-BR')} />
           <Counter label={t('script.paragraphs')} value={stats.paragraphs} />
-          <Counter label={t('script.normal')} value={formatDuration(narrationSeconds(content, 'normal'))} accent />
-          <Counter label={t('script.slow')} value={formatDuration(narrationSeconds(content, 'slow'))} />
-          <Counter label={t('script.fast')} value={formatDuration(narrationSeconds(content, 'fast'))} />
+          <Counter label={t('script.normalShort')} tip={t('script.normal')} value={formatDuration(narrationSeconds(content, 'normal'))} accent />
+          <Counter label={t('script.slowShort')} tip={t('script.slow')} value={formatDuration(narrationSeconds(content, 'slow'))} />
+          <Counter label={t('script.fastShort')} tip={t('script.fast')} value={formatDuration(narrationSeconds(content, 'fast'))} />
         </div>
 
         <textarea
@@ -110,11 +110,11 @@ export default function ScriptDrawer({ video, onClose }) {
   )
 }
 
-function Counter({ label, value, accent }) {
+function Counter({ label, value, accent, tip }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-center">
-      <p className={`text-sm font-bold ${accent ? 'text-cyan-400' : 'text-slate-200'}`}>{value}</p>
-      <p className="mt-0.5 text-[10px] text-slate-600">{label}</p>
+    <div title={tip} className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-center">
+      <p className={`truncate text-sm font-bold ${accent ? 'text-cyan-400' : 'text-slate-200'}`}>{value}</p>
+      <p className="mt-0.5 truncate text-[10px] text-slate-600">{label}</p>
     </div>
   )
 }
