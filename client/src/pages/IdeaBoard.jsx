@@ -150,11 +150,11 @@ function Column({ column, cards, onRename, onDelete }) {
       }`}
     >
       {/* Header da coluna */}
-      <div className="flex items-center gap-2 border-b border-slate-800 px-3.5 py-3">
-        <span className="h-4 w-1 rounded-full" style={{ background: column.color || '#00f2fe' }} />
-        <p className="truncate text-xs font-bold uppercase tracking-wide text-slate-200">{column.title}</p>
-        <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{cards.length}</span>
-        <div className="ml-auto flex items-center gap-1">
+      <div className="flex items-start gap-2 border-b border-slate-800 px-3.5 py-3">
+        <span className="mt-0.5 h-4 w-1 shrink-0 rounded-full" style={{ background: column.color || '#00f2fe' }} />
+        <p title={column.title} className="min-w-0 flex-1 break-words text-xs font-bold uppercase leading-snug tracking-wide text-slate-200">{column.title}</p>
+        <span className="mt-0.5 shrink-0 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{cards.length}</span>
+        <div className="flex shrink-0 items-center gap-1">
           <button onClick={onRename} title={t('ideaBoard.configColumn')} className="text-slate-600 hover:text-slate-300">
             <Settings2 size={13} />
           </button>
