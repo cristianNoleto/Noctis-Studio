@@ -47,6 +47,11 @@ export default function Header() {
   const basePath = '/' + (location.pathname.split('/')[1] || '')
   const crumb = t(`header.breadcrumb.${basePath === '/' ? '/' : basePath}`)
   const [group, page] = Array.isArray(crumb) ? crumb : ['', crumb]
+
+  // Título da guia do navegador reflete a página atual: "Noctis Studio | <página>".
+  useEffect(() => {
+    document.title = page ? `Noctis Studio | ${page}` : 'Noctis Studio'
+  }, [page])
   // O criador do sistema exibe FUNDADOR no lugar do plano
   const plan = isAdmin ? 'FUNDADOR' : user?.plan || 'FREE'
   const displayName = db.getSetting('displayName') || user?.name
