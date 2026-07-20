@@ -388,6 +388,18 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
   const report = db.all('seoReports').filter((r) => r.videoId === v.id).sort((a, b) => b.createdAt - a.createdAt)[0]
   const fileRef = useRef(null)
   const [zoom, setZoom] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  async function copyTitle() {
+    if (!v.title) return
+    try {
+      await navigator.clipboard.writeText(v.title)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1400)
+    } catch {
+      /* clipboard indisponível */
+    }
+  }
 
   async function onPickFile(e) {
     const file = e.target.files?.[0]
@@ -473,7 +485,14 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
 
       {/* Título + etapas */}
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-slate-100"><Masked mask="•••••••••••">{v.title}</Masked></p>
+        <p
+          onClick={copyTitle}
+          title={t('videos.copyHint')}
+          className="flex cursor-pointer items-center gap-1.5 truncate font-semibold text-slate-100 transition-colors hover:text-cyan-300"
+        >
+          <Masked mask="•••••••••••">{v.title}</Masked>
+          {copied && <span className="shrink-0 text-[10px] font-medium text-green-400">{t('videos.titleCopied')}</span>}
+        </p>
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
           {STEPS.map(([key]) => {
             const done = !!v.steps?.[key]

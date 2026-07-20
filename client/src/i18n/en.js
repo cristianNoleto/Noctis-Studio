@@ -421,6 +421,8 @@ export default {
     thumbDownload: 'Download thumbnail',
     thumbRemove: 'Remove thumbnail',
     thumbUpload: 'Upload thumbnail',
+    copyHint: 'Click to copy the title',
+    titleCopied: 'Title copied!',
     deleteTitle: 'Delete video',
     deleteMsg: 'Deleting "{title}" also removes the linked script.',
     publishTitle: 'Complete checklist',
