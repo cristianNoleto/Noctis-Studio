@@ -271,6 +271,8 @@ export default {
     statSubs: 'INSCRITOS',
     statVideos: 'VÍDEOS',
     statPosted: 'POSTADOS',
+    cardMenu: 'Ações do canal',
+    cardOpen: 'Abrir canal',
     create: {
       title: 'Criar Novo Canal',
       importLabel: 'IMPORTAR DE CANAL DO YOUTUBE',

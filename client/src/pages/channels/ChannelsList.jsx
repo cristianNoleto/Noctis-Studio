@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Plus, Tv, Search, Loader2, Users, Eye, Film } from 'lucide-react'
+import { Plus, Tv, Search, Loader2, Users, Eye, Film, MoreVertical, ExternalLink, Archive, Trash2 } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
 import { api, apiErrorMessage } from '../../lib/api'
 import { importChannelVideos } from '../../lib/importVideos'
 import { isPosted } from '../../lib/videoStatus'
-import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, formatCompact } from '../../components/ui'
+import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, ConfirmDialog, formatCompact } from '../../components/ui'
+import { AnchoredMenu } from '../../components/AnchoredMenu'
 import { PrivacyScope, PageEye, Masked } from '../../components/privacy'
 import { ChannelAvatar } from '../Dashboard'
 
@@ -100,29 +101,7 @@ export default function ChannelsList() {
             const chVideos = videos.filter((v) => v.channelId === ch.id)
             const posted = chVideos.filter(isPosted).length
             const pending = chVideos.length - posted
-            return (
-              <Link
-                key={ch.id}
-                to={`/canais/${ch.id}`}
-                className="group card-hover rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-cyan-500/50"
-              >
-                <div className="flex items-center gap-3">
-                  <ChannelAvatar channel={ch} size="h-12 w-12" />
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-slate-100 group-hover:text-cyan-300"><Masked mask="•••••••">{ch.name}</Masked></p>
-                    <div className="mt-0.5 flex items-center gap-2">
-                      <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold text-red-400">YouTube</span>
-                      <span className="text-xs text-slate-500">{t(`common.langFull.${ch.language}`)}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-3 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2.5 text-center">
-                  <MiniStat icon={Users} value={formatCompact(ch.ytSubscribers)} label={t('channels.statSubs')} />
-                  <MiniStat icon={Film} value={chVideos.length} label={t('channels.statVideos')} />
-                  <MiniStat icon={Eye} value={`${posted}/${posted + pending}`} label={t('channels.statPosted')} />
-                </div>
-              </Link>
-            )
+            return <ChannelCard key={ch.id} ch={ch} videoCount={chVideos.length} posted={posted} pending={pending} />
           })}
         </div>
       )}
@@ -130,6 +109,110 @@ export default function ChannelsList() {
       <CreateChannelModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
     </PrivacyScope>
+  )
+}
+
+function ChannelCard({ ch, videoCount, posted, pending }) {
+  const db = useDb()
+  const { t } = useI18n()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmArchive, setConfirmArchive] = useState(false)
+  const btnRef = useRef(null)
+
+  function deleteChannel() {
+    db.removeWhere('videos', (v) => v.channelId === ch.id)
+    db.removeWhere('channelButtons', (b) => b.channelId === ch.id)
+    db.removeWhere('channelMembers', (m) => m.channelId === ch.id)
+    db.remove('channels', ch.id)
+  }
+
+  // Evita que o clique no botão de menu dispare a navegação do <Link>.
+  function stop(e) {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const items = [
+    { icon: ExternalLink, label: t('channels.cardOpen'), to: `/canais/${ch.id}` },
+    ch.archived
+      ? { icon: Archive, label: t('channels.detail.unarchive'), action: () => db.update('channels', ch.id, { archived: false }) }
+      : { icon: Archive, label: t('channels.detail.archive'), action: () => setConfirmArchive(true) },
+    { icon: Trash2, label: t('channels.detail.deleteChannel'), cls: 'text-red-400', action: () => setConfirmDelete(true) },
+  ]
+
+  return (
+    <div className="relative">
+      <Link
+        to={`/canais/${ch.id}`}
+        className="group card-hover block rounded-xl border border-slate-800 bg-slate-900/40 p-5 hover:border-cyan-500/50"
+      >
+        <div className="flex items-center gap-3">
+          <ChannelAvatar channel={ch} size="h-12 w-12" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate pr-7 font-semibold text-slate-100 group-hover:text-cyan-300"><Masked mask="•••••••">{ch.name}</Masked></p>
+            <div className="mt-0.5 flex items-center gap-2">
+              <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold text-red-400">YouTube</span>
+              <span className="text-xs text-slate-500">{t(`common.langFull.${ch.language}`)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-3 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2.5 text-center">
+          <MiniStat icon={Users} value={formatCompact(ch.ytSubscribers)} label={t('channels.statSubs')} />
+          <MiniStat icon={Film} value={videoCount} label={t('channels.statVideos')} />
+          <MiniStat icon={Eye} value={`${posted}/${posted + pending}`} label={t('channels.statPosted')} />
+        </div>
+      </Link>
+
+      {/* Menu de 3 pontos — ações rápidas sem entrar no canal */}
+      <button
+        ref={btnRef}
+        onClick={(e) => { stop(e); setMenuOpen((v) => !v) }}
+        title={t('channels.cardMenu')}
+        aria-label={t('channels.cardMenu')}
+        className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
+      >
+        <MoreVertical size={17} />
+      </button>
+
+      <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => setMenuOpen(false)}>
+        {items.map((it) => {
+          const cls = `flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-slate-800 ${it.cls || 'text-slate-300'}`
+          const content = (
+            <>
+              <it.icon size={15} className="shrink-0" />
+              {it.label}
+            </>
+          )
+          return it.to ? (
+            <Link key={it.label} to={it.to} className={cls} onClick={() => setMenuOpen(false)}>
+              {content}
+            </Link>
+          ) : (
+            <button key={it.label} onClick={() => { setMenuOpen(false); it.action() }} className={cls}>
+              {content}
+            </button>
+          )
+        })}
+      </AnchoredMenu>
+
+      <ConfirmDialog
+        open={confirmArchive}
+        onClose={() => setConfirmArchive(false)}
+        onConfirm={() => db.update('channels', ch.id, { archived: true })}
+        danger={false}
+        title={t('channels.detail.archiveTitle')}
+        message={t('channels.detail.archiveMsg', { name: ch.name })}
+        confirmLabel={t('channels.detail.archiveConfirm')}
+      />
+      <ConfirmDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={deleteChannel}
+        title={t('channels.detail.deleteTitle')}
+        message={t('channels.detail.deleteMsg', { name: ch.name })}
+      />
+    </div>
   )
 }
 

@@ -271,6 +271,8 @@ export default {
     statSubs: 'SUBSCRIBERS',
     statVideos: 'VIDEOS',
     statPosted: 'POSTED',
+    cardMenu: 'Channel actions',
+    cardOpen: 'Open channel',
     create: {
       title: 'Create New Channel',
       importLabel: 'IMPORT FROM A YOUTUBE CHANNEL',
