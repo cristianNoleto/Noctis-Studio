@@ -104,6 +104,28 @@ async function adminRequest(path, { method = 'GET', body } = {}) {
   return json
 }
 
+// Requisição autenticada às rotas normais (/api/*) — manda o token JWT do
+// Supabase; o servidor valida (ex.: escrita nas skills do sistema = fundador).
+async function authRequest(path, { method = 'GET', body } = {}) {
+  if (!supabase) throw new ApiError('local_mode', 'Disponível apenas no site publicado (Supabase).')
+  const { data } = await supabase.auth.getSession()
+  const token = data?.session?.access_token
+  if (!token) throw new ApiError('unauthorized')
+  let res
+  try {
+    res = await fetch(`/api${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw new ApiError('server_offline')
+  }
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new ApiError(json.error || 'request_failed', json.message)
+  return json
+}
+
 export const api = {
   youtube: {
     lookupChannel: (q) => request(`/youtube/channel?q=${encodeURIComponent(q)}`),
@@ -134,6 +156,13 @@ export const api = {
     categories: () => request('/channels/categories'),
     stats: () => request('/channels/stats'),
     upsert: (channels) => request('/channels/upsert', { method: 'POST', body: { channels } }),
+  },
+  skills: {
+    // Biblioteca de Skills do sistema (catálogo global; escrita só do fundador)
+    list: () => request('/skills'),
+    save: (skill) => authRequest('/skills/save', { method: 'POST', body: { skill } }),
+    remove: (id) => authRequest(`/skills/${id}`, { method: 'DELETE' }),
+    copied: (id) => request(`/skills/${id}/copied`, { method: 'POST', body: {} }),
   },
   transcription: {
     // Envia o arquivo de áudio direto para a AssemblyAI e abre o job.

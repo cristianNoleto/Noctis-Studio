@@ -231,7 +231,10 @@ export function AuthProvider({ children }) {
   refreshUserRef.current = refreshUser
 
   // Fundador: e-mail na allowlist VITE_FOUNDER_EMAIL. Blindado — nunca perde acesso.
-  const isFounder = isFounderEmail(user?.email)
+  // No modo local (sem Supabase) o admin do dispositivo é o dono da instalação,
+  // então também conta como fundador — permite testar as ferramentas dele.
+  const isFounder =
+    isFounderEmail(user?.email) || (isLocalMode && !!user?.email && localStorage.getItem(LOCAL_ADMIN_KEY) === user.email)
 
   // Admin: no modo local é a primeira conta criada; no Supabase é a
   // allowlist VITE_ADMIN_EMAILS (ou is_admin em app_metadata). O fundador é

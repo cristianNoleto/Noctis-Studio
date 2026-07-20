@@ -1,14 +1,114 @@
-import { useEffect, useState } from 'react'
-import { Plus, Star, Copy, Trash2, Pencil, Search, FileText, MoreVertical, X, Globe, Check } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Plus, Star, Copy, Trash2, Pencil, Search, FileText, MoreVertical, X, Globe, Check, Sparkles, Captions, Bot, ChevronDown, Bookmark, Download, PlayCircle, ListChecks, Loader2, ImagePlus } from 'lucide-react'
 import { useDb } from '../lib/db'
+import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n'
+import { api } from '../lib/api'
+import { downloadFile } from '../lib/text'
 import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, ConfirmDialog } from '../components/ui'
 import { PrivacyScope, PageEye, Masked } from '../components/privacy'
 import { Field } from './channels/ChannelsList'
 
+const SKILL_CATEGORIES = ['generation', 'visual', 'camera']
+const NEW_BADGE_MS = 14 * 86_400_000 // "Nova" nos primeiros 14 dias
+
+// Comprime a imagem de exemplo para caber no banco (data URL ~640px).
+function compressImage(file, maxW = 640, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width)
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = reject
+      img.src = reader.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function Prompts() {
   const db = useDb()
   const { t } = useI18n()
+  const { isFounder, isLocalMode } = useAuth()
+
+  // ------------------------------------------------------------------
+  // Catálogo de skills do sistema (global via servidor; local no dev)
+  // ------------------------------------------------------------------
+  const localSkills = db.all('systemSkills')
+  const [remoteSkills, setRemoteSkills] = useState([])
+  const [loadingSkills, setLoadingSkills] = useState(!isLocalMode)
+  const [skillsError, setSkillsError] = useState('')
+  const [detail, setDetail] = useState(null) // skill aberta no modal
+  const [editingSystem, setEditingSystem] = useState(null) // null | 'new:<cat>' | skill
+  const [deletingSystem, setDeletingSystem] = useState(null)
+  const [guideOpen, setGuideOpen] = useState(() => !db.getSetting('skillsGuideDismissed', false))
+
+  const systemSkills = isLocalMode ? localSkills : remoteSkills
+
+  const refreshSkills = useCallback(async () => {
+    if (isLocalMode) return
+    try {
+      const { skills } = await api.skills.list()
+      setRemoteSkills(skills)
+      setSkillsError('')
+    } catch {
+      setSkillsError(t('skillsLib.loadError'))
+    } finally {
+      setLoadingSkills(false)
+    }
+  }, [isLocalMode, t])
+
+  useEffect(() => {
+    refreshSkills()
+  }, [refreshSkills])
+
+  function bumpCopies(skill) {
+    if (isLocalMode) db.update('systemSkills', skill.id, { copies: (skill.copies || 0) + 1 })
+    else {
+      setRemoteSkills((list) => list.map((s) => (s.id === skill.id ? { ...s, copies: (s.copies || 0) + 1 } : s)))
+      api.skills.copied(skill.id).catch(() => {})
+    }
+  }
+
+  // Salva a skill do sistema na coleção pessoal do usuário (Minhas Skills)
+  function saveToMine(skill) {
+    db.insert('prompts', {
+      name: skill.title,
+      content: skill.content,
+      notes: skill.howToUse || '',
+      channelId: null,
+      categoryId: db.all('promptCategories')[0]?.id || '',
+      suggestedLanguage: 'pt',
+      tags: [],
+      isFavorite: false,
+    })
+    bumpCopies(skill)
+  }
+
+  async function deleteSystemSkill(skill) {
+    if (isLocalMode) db.remove('systemSkills', skill.id)
+    else {
+      try {
+        await api.skills.remove(skill.id)
+        refreshSkills()
+      } catch (e) {
+        setSkillsError(e?.message || t('skillsLib.loadError'))
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Minhas Skills (prompts do usuário — mesmo dado de antes)
+  // ------------------------------------------------------------------
   const [activeCat, setActiveCat] = useState('all')
   const [channelFilter, setChannelFilter] = useState('')
   const [onlyFavorites, setOnlyFavorites] = useState(false)
@@ -26,8 +126,8 @@ export default function Prompts() {
   else if (channelFilter) filtered = filtered.filter((p) => p.channelId === channelFilter)
   if (onlyFavorites) filtered = filtered.filter((p) => p.isFavorite)
   if (query.trim()) {
-    const t = query.trim().toLowerCase()
-    filtered = filtered.filter((p) => `${p.name} ${p.content} ${(p.tags || []).join(' ')}`.toLowerCase().includes(t))
+    const q = query.trim().toLowerCase()
+    filtered = filtered.filter((p) => `${p.name} ${p.content} ${(p.tags || []).join(' ')}`.toLowerCase().includes(q))
   }
   const inCat = activeCat === 'all' ? filtered : filtered.filter((p) => p.categoryId === activeCat)
 
@@ -37,90 +137,178 @@ export default function Prompts() {
       {/* Cabeçalho */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
-            <FileText size={22} />
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-sky-500 text-white shadow-lg shadow-cyan-500/25">
+            <Sparkles size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-100">{t('prompts.title')}</h1>
-            <p className="text-sm text-slate-500">{t('prompts.subtitle')}</p>
+            <h1 className="text-2xl font-bold text-slate-100">{t('skillsLib.title')}</h1>
+            <p className="text-sm text-slate-500">{t('skillsLib.subtitle')}</p>
           </div>
         </div>
         <PageEye />
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2">
-        <select className={`${inputCls} !w-48`} value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}>
-          <option value="">{t('prompts.allChannels')}</option>
-          <option value="global">{t('prompts.global')}</option>
-          {channels.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={() => setOnlyFavorites((v) => !v)}
-          className={`flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm font-medium transition-colors ${
-            onlyFavorites ? 'border-amber-500/50 bg-amber-500/10 text-amber-400' : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
-          }`}
-        >
-          <Star size={14} className={onlyFavorites ? 'fill-amber-400' : ''} />
-          {t('prompts.onlyFavorites')}
-        </button>
-        <div className="relative min-w-56 flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input className={`${inputCls} !pl-9`} placeholder={t('prompts.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
-        <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setEditPrompt('new')}>
-          <Plus size={16} />
-          {t('prompts.newPrompt')}
-        </button>
-      </div>
+      {/* Guia de 3 passos (dispensável) */}
+      {guideOpen && (
+        <section className="relative rounded-xl border border-slate-800 bg-slate-900/40">
+          <div className="border-t-2 border-cyan-500/50" />
+          <button
+            onClick={() => { setGuideOpen(false); db.setSetting('skillsGuideDismissed', true) }}
+            title={t('skillsLib.dismiss')}
+            className="absolute right-2.5 top-3 flex h-6 w-6 items-center justify-center rounded-md border border-slate-800 text-slate-500 hover:text-slate-300"
+          >
+            <X size={13} />
+          </button>
+          <div className="grid grid-cols-1 divide-y divide-slate-800 md:grid-cols-3 md:divide-x md:divide-y-0">
+            <GuideStep n={1} title={t('skillsLib.step1Title')} desc={t('skillsLib.step1Desc')}>
+              <Link to="/transcricao" className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-300 hover:bg-cyan-500/20">
+                <Captions size={11} />
+                {t('skillsLib.step1Link')}
+              </Link>
+            </GuideStep>
+            <GuideStep n={2} title={t('skillsLib.step2Title')} desc={t('skillsLib.step2Desc')} icon={<Copy size={12} className="text-cyan-400" />} />
+            <GuideStep n={3} title={t('skillsLib.step3Title')} desc={t('skillsLib.step3Desc')} icon={<Bot size={13} className="text-cyan-400" />} />
+          </div>
+        </section>
+      )}
 
-      {/* Pílulas de categoria */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <CatPill active={activeCat === 'all'} onClick={() => setActiveCat('all')} label={t('prompts.all')} count={filtered.length} />
-        {categories.map((cat) => (
-          <CatPill
-            key={cat.id}
-            active={activeCat === cat.id}
-            onClick={() => setActiveCat(cat.id)}
-            label={cat.name}
-            count={filtered.filter((p) => p.categoryId === cat.id).length}
-          />
-        ))}
-        <button onClick={() => setManagingCats(true)} className="rounded-full border border-dashed border-slate-700 px-3 py-1.5 text-xs text-slate-500 hover:border-cyan-500/40 hover:text-cyan-400" title={t('prompts.manageCategories')}>
-          <Plus size={12} className="inline" /> {t('prompts.category')}
-        </button>
-      </div>
-
-      {inCat.length === 0 ? (
-        <EmptyState
-          icon={FileText}
-          title={t('prompts.emptyTitle')}
-          description={t('prompts.emptyDesc')}
-          action={
-            <button className={btnPrimary} onClick={() => setEditPrompt('new')}>
-              {t('prompts.createFirst')}
-            </button>
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-          {inCat.map((p) => (
-            <PromptCard
-              key={p.id}
-              prompt={p}
-              category={categories.find((c) => c.id === p.categoryId)}
-              channelName={p.channelId ? channels.find((c) => c.id === p.channelId)?.name : null}
-              onEdit={() => setEditPrompt(p)}
-              onDelete={() => setDeletePrompt(p)}
-            />
-          ))}
+      {skillsError && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-xs text-red-400">{skillsError}</p>}
+      {loadingSkills && (
+        <div className="flex justify-center py-8">
+          <Loader2 size={20} className="animate-spin text-cyan-400" />
         </div>
       )}
 
+      {/* Seções do catálogo do sistema */}
+      {!loadingSkills && SKILL_CATEGORIES.map((cat) => (
+        <SystemSection
+          key={cat}
+          category={cat}
+          skills={systemSkills.filter((s) => s.category === cat)}
+          isFounder={isFounder}
+          onOpen={setDetail}
+          onNew={() => setEditingSystem(`new:${cat}`)}
+          onEdit={setEditingSystem}
+          onDelete={setDeletingSystem}
+          onCopy={bumpCopies}
+          onSaveToMine={saveToMine}
+        />
+      ))}
+
+      {/* ------------------------------------------------------------ */}
+      {/* Minhas Skills                                                  */}
+      {/* ------------------------------------------------------------ */}
+      <section className="rounded-xl border border-slate-800 bg-slate-900/40">
+        <div className="border-t-2 border-cyan-500/50" />
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-4 py-3">
+          <FileText size={15} className="text-cyan-400" />
+          <span className="text-sm font-semibold text-slate-100">{t('skillsLib.mySkills')}</span>
+          <span className="rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 px-2 py-0.5 text-[10px] font-bold text-white">{prompts.length}</span>
+          <span className="flex-1" />
+          <button className={`${btnPrimary} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => setEditPrompt('new')}>
+            <Plus size={13} />
+            {t('skillsLib.newSkill')}
+          </button>
+        </div>
+
+        <div className="space-y-4 p-4">
+          <p className="text-xs text-slate-500">{t('skillsLib.mySkillsIntro')}</p>
+
+          {/* Filtros */}
+          <div className="flex flex-wrap items-center gap-2">
+            <select className={`${inputCls} !w-48`} value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}>
+              <option value="">{t('prompts.allChannels')}</option>
+              <option value="global">{t('prompts.global')}</option>
+              {channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <div className="relative min-w-56 flex-1">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input className={`${inputCls} !pl-9`} placeholder={t('prompts.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
+            </div>
+            <button
+              onClick={() => setOnlyFavorites((v) => !v)}
+              className={`flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium transition-colors ${
+                onlyFavorites ? 'border-amber-500/50 bg-amber-500/10 text-amber-400' : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
+              }`}
+            >
+              <Star size={13} className={onlyFavorites ? 'fill-amber-400' : ''} />
+              {t('prompts.onlyFavorites')}
+            </button>
+          </div>
+
+          {/* Pílulas de categoria */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <CatPill active={activeCat === 'all'} onClick={() => setActiveCat('all')} label={t('prompts.all')} count={filtered.length} />
+            {categories.map((cat) => (
+              <CatPill
+                key={cat.id}
+                active={activeCat === cat.id}
+                onClick={() => setActiveCat(cat.id)}
+                label={cat.name}
+                count={filtered.filter((p) => p.categoryId === cat.id).length}
+              />
+            ))}
+            <button onClick={() => setManagingCats(true)} className="rounded-full border border-dashed border-slate-700 px-3 py-1.5 text-xs text-slate-500 hover:border-cyan-500/40 hover:text-cyan-400" title={t('prompts.manageCategories')}>
+              <Plus size={12} className="inline" /> {t('prompts.category')}
+            </button>
+          </div>
+
+          {inCat.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title={t('prompts.emptyTitle')}
+              description={t('prompts.emptyDesc')}
+              action={
+                <button className={btnPrimary} onClick={() => setEditPrompt('new')}>
+                  {t('prompts.createFirst')}
+                </button>
+              }
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+              {inCat.map((p) => (
+                <PromptCard
+                  key={p.id}
+                  prompt={p}
+                  category={categories.find((c) => c.id === p.categoryId)}
+                  channelName={p.channelId ? channels.find((c) => c.id === p.channelId)?.name : null}
+                  onEdit={() => setEditPrompt(p)}
+                  onDelete={() => setDeletePrompt(p)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Modais */}
+      <SkillDetailModal
+        skill={detail}
+        onClose={() => setDetail(null)}
+        isFounder={isFounder}
+        onCopy={bumpCopies}
+        onSaveToMine={saveToMine}
+        onEdit={(s) => { setDetail(null); setEditingSystem(s) }}
+      />
+      <SystemSkillFormModal
+        open={editingSystem !== null}
+        onClose={() => setEditingSystem(null)}
+        skill={typeof editingSystem === 'string' ? null : editingSystem}
+        initialCategory={typeof editingSystem === 'string' ? editingSystem.split(':')[1] : null}
+        isLocalMode={isLocalMode}
+        onSaved={refreshSkills}
+      />
+      <ConfirmDialog
+        open={deletingSystem !== null}
+        onClose={() => setDeletingSystem(null)}
+        onConfirm={() => deleteSystemSkill(deletingSystem)}
+        title={t('skillsLib.deleteTitle')}
+        message={t('skillsLib.deleteMsg', { title: deletingSystem?.title })}
+      />
       <PromptFormModal open={editPrompt !== null} onClose={() => setEditPrompt(null)} prompt={editPrompt === 'new' ? null : editPrompt} categories={categories} channels={channels} />
       <CategoriesModal open={managingCats} onClose={() => setManagingCats(false)} categories={categories} />
       <ConfirmDialog
@@ -132,6 +320,371 @@ export default function Prompts() {
       />
     </div>
     </PrivacyScope>
+  )
+}
+
+function GuideStep({ n, title, desc, icon, children }) {
+  return (
+    <div className="flex gap-2.5 px-4 py-4">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-sky-500 text-[11px] font-bold text-white shadow shadow-cyan-500/25">{n}</span>
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-slate-100">
+          {title}
+          {icon}
+        </p>
+        <p className="mt-0.5 text-[11.5px] leading-relaxed text-slate-400">{desc}</p>
+        {children && <div className="mt-2 flex flex-wrap gap-1.5">{children}</div>}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Seção colapsável do catálogo (Skills de Geração / Estilos Visuais / Câmera)
+// ---------------------------------------------------------------------------
+function SystemSection({ category, skills, isFounder, onOpen, onNew, onEdit, onDelete, onCopy, onSaveToMine }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(true)
+  if (!skills.length && !isFounder) return null
+
+  return (
+    <section className="rounded-xl border border-slate-800 bg-slate-900/40">
+      <div className="border-t-2 border-cyan-500/50" />
+      <div
+        role="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex cursor-pointer select-none flex-wrap items-center gap-2 border-b border-slate-800 px-4 py-3"
+      >
+        <Sparkles size={15} className="text-cyan-400" />
+        <span className="text-sm font-semibold text-slate-100">{t(`skillsLib.sections.${category}`)}</span>
+        <span className="rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 px-2 py-0.5 text-[10px] font-bold text-white">{skills.length}</span>
+        <span className="flex-1" />
+        {isFounder && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onNew() }}
+            className={`${btnPrimary} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`}
+          >
+            <Plus size={13} />
+            {t('skillsLib.newSystem')}
+          </button>
+        )}
+        <ChevronDown size={15} className={`text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </div>
+      {open && (
+        <div className="p-4">
+          {skills.length === 0 ? (
+            <p className="py-6 text-center text-xs text-slate-600">{t('skillsLib.emptySection')}</p>
+          ) : (
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(205px, 1fr))' }}>
+              {skills.map((s) => (
+                <SystemSkillCard key={s.id} skill={s} isFounder={isFounder} onOpen={onOpen} onEdit={onEdit} onDelete={onDelete} onCopy={onCopy} onSaveToMine={onSaveToMine} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy, onSaveToMine }) {
+  const { t } = useI18n()
+  const [copied, setCopied] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const isNew = s.createdAt && Date.now() - s.createdAt < NEW_BADGE_MS
+
+  async function copy(e) {
+    e.stopPropagation()
+    await navigator.clipboard.writeText(s.content)
+    onCopy(s)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  function save(e) {
+    e.stopPropagation()
+    onSaveToMine(s)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1500)
+  }
+
+  return (
+    <div
+      onClick={() => onOpen(s)}
+      className="flex cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-950 transition-colors hover:border-cyan-500/40"
+    >
+      {/* Thumb 16:9 */}
+      <div className="relative aspect-video overflow-hidden bg-gradient-to-br from-slate-900 to-slate-950">
+        {s.imageUrl ? (
+          <img src={s.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Sparkles size={26} className="text-slate-700" />
+          </div>
+        )}
+        {isNew && (
+          <span className="absolute left-2 top-2 rounded-full border border-green-500/35 bg-green-500/15 px-2 py-0.5 text-[10px] font-semibold text-green-400">
+            {t('skillsLib.badgeNew')}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-1 px-3 pb-1.5 pt-2.5">
+        <p className="truncate text-[13px] font-semibold text-slate-100">{s.title}</p>
+        <p className="line-clamp-2 text-[11.5px] leading-snug text-slate-400">{s.description}</p>
+        <p className="truncate text-[10.5px] text-slate-600">{t(`skillsLib.sections.${s.category}`)} · {t('skillsLib.copies', { n: s.copies || 0 })}</p>
+      </div>
+
+      <div className="flex items-center gap-1.5 px-3 pb-2.5 pt-1">
+        <button
+          onClick={copy}
+          className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
+            copied ? 'border-green-500/40 bg-green-500/10 text-green-400' : 'border-cyan-500/30 bg-cyan-500/[0.06] text-cyan-400 hover:bg-cyan-500/15'
+          }`}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? t('skillsLib.copied') : t('skillsLib.copy')}
+        </button>
+        <span className="flex-1" />
+        {isFounder && (
+          <>
+            <button onClick={(e) => { e.stopPropagation(); onEdit(s) }} title={t('prompts.edit')} className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-slate-800 text-slate-500 hover:text-slate-200">
+              <Pencil size={12} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onDelete(s) }} title={t('prompts.delete')} className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-slate-800 text-slate-500 hover:text-red-400">
+              <Trash2 size={12} />
+            </button>
+          </>
+        )}
+        <button
+          onClick={save}
+          title={t('skillsLib.saveToMine')}
+          className={`flex h-[26px] w-[26px] items-center justify-center rounded-lg border transition-colors ${
+            saved ? 'border-green-500/40 text-green-400' : 'border-slate-800 text-slate-500 hover:text-cyan-300'
+          }`}
+        >
+          {saved ? <Check size={12} /> : <Bookmark size={12} />}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Modal de detalhe da skill (vídeo tutorial + como usar + exemplos + conteúdo)
+// ---------------------------------------------------------------------------
+function SkillDetailModal({ skill: s, onClose, isFounder, onCopy, onSaveToMine, onEdit }) {
+  const { t } = useI18n()
+  const [copied, setCopied] = useState(false)
+  const [saved, setSaved] = useState(false)
+  useEffect(() => { setCopied(false); setSaved(false) }, [s])
+  if (!s) return null
+
+  async function copy() {
+    await navigator.clipboard.writeText(s.content)
+    onCopy(s)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  function save() {
+    onSaveToMine(s)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1500)
+  }
+
+  const slug = s.title.toLowerCase().replace(/[^a-z0-9à-ú]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'skill'
+
+  return (
+    <Modal open onClose={onClose} title={s.title} wide>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-300">{t(`skillsLib.sections.${s.category}`)}</span>
+          <span className="text-[11px] text-slate-500">{t('skillsLib.copies', { n: s.copies || 0 })}</span>
+        </div>
+
+        {s.description && <p className="text-[13px] leading-relaxed text-slate-400">{s.description}</p>}
+
+        {s.videoUrl && (
+          <a
+            href={s.videoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 rounded-lg border border-cyan-500/25 bg-cyan-500/[0.06] px-3.5 py-2.5 transition-colors hover:bg-cyan-500/10"
+          >
+            <PlayCircle size={19} className="shrink-0 text-cyan-400" />
+            <span className="flex-1 text-[13px] font-semibold text-slate-100">{t('skillsLib.watchTutorial')}</span>
+          </a>
+        )}
+
+        {s.howToUse && (
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <ListChecks size={12} />
+              {t('skillsLib.howToUse')}
+            </p>
+            <div className="whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-3 text-[12.5px] leading-relaxed text-slate-200">{s.howToUse}</div>
+          </div>
+        )}
+
+        {s.imageUrl && (
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('skillsLib.examples')}</p>
+            <div className="relative aspect-video overflow-hidden rounded-xl border border-slate-800 bg-black">
+              <img src={s.imageUrl} alt={s.title} className="absolute inset-0 h-full w-full object-contain" />
+            </div>
+          </div>
+        )}
+
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('skillsLib.contentLabel')}</p>
+          <pre className="max-h-[40vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-slate-800 bg-slate-950 p-3.5 font-mono text-xs leading-relaxed text-slate-200">{s.content}</pre>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={copy} className={`${btnGhost} flex items-center gap-1.5 text-xs ${copied ? '!text-green-400' : ''}`}>
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? t('skillsLib.copied') : t('skillsLib.copy')}
+          </button>
+          <button onClick={() => downloadFile(`${slug}.md`, s.content)} className={`${btnGhost} flex items-center gap-1.5 text-xs`}>
+            <Download size={13} />
+            {t('skillsLib.downloadMd')}
+          </button>
+          <span className="flex-1" />
+          {isFounder && (
+            <button onClick={() => onEdit(s)} className={`${btnGhost} flex items-center gap-1.5 text-xs`}>
+              <Pencil size={13} />
+              {t('prompts.edit')}
+            </button>
+          )}
+          <button onClick={save} className={`${btnPrimary} flex items-center gap-1.5 text-xs ${saved ? '!bg-green-500' : ''}`}>
+            {saved ? <Check size={13} /> : <Bookmark size={13} />}
+            {saved ? t('skillsLib.savedToMine') : t('skillsLib.saveToMine')}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Form do fundador — cria/edita skill do sistema (vídeo + imagem + conteúdo)
+// ---------------------------------------------------------------------------
+function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMode, onSaved }) {
+  const db = useDb()
+  const { t } = useI18n()
+  const [form, setForm] = useState({})
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (open) {
+      setForm({
+        category: skill?.category || initialCategory || 'generation',
+        title: skill?.title || '',
+        description: skill?.description || '',
+        howToUse: skill?.howToUse || '',
+        content: skill?.content || '',
+        videoUrl: skill?.videoUrl || '',
+        imageUrl: skill?.imageUrl || '',
+      })
+      setError('')
+    }
+  }, [open, skill, initialCategory])
+
+  function set(k, v) {
+    setForm((f) => ({ ...f, [k]: v }))
+  }
+
+  async function onPickImage(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      set('imageUrl', await compressImage(file))
+    } catch {
+      /* arquivo inválido */
+    }
+  }
+
+  async function save(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      if (isLocalMode) {
+        if (skill) db.update('systemSkills', skill.id, form)
+        else db.insert('systemSkills', { ...form, copies: 0 })
+      } else {
+        await api.skills.save(skill ? { ...form, id: skill.id } : form)
+        onSaved()
+      }
+      onClose()
+    } catch (err) {
+      setError(err?.message || 'Erro ao salvar.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={skill ? t('skillsLib.editSystem') : t('skillsLib.newSystem')} wide>
+      <form onSubmit={save} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Field label={t('skillsLib.form.category')}>
+            <select className={inputCls} value={form.category || 'generation'} onChange={(e) => set('category', e.target.value)}>
+              {SKILL_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {t(`skillsLib.sections.${c}`)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t('skillsLib.form.video')}>
+            <input className={inputCls} type="url" placeholder="https://youtu.be/..." value={form.videoUrl || ''} onChange={(e) => set('videoUrl', e.target.value)} />
+          </Field>
+        </div>
+        <Field label={t('skillsLib.form.title')}>
+          <input className={inputCls} required value={form.title || ''} onChange={(e) => set('title', e.target.value)} />
+        </Field>
+        <Field label={t('skillsLib.form.desc')}>
+          <textarea className={`${inputCls} min-h-16 resize-y`} value={form.description || ''} onChange={(e) => set('description', e.target.value)} />
+        </Field>
+        <Field label={t('skillsLib.form.howTo')}>
+          <textarea className={`${inputCls} min-h-16 resize-y`} value={form.howToUse || ''} onChange={(e) => set('howToUse', e.target.value)} />
+        </Field>
+        <Field label={t('skillsLib.form.content')}>
+          <textarea className={`${inputCls} min-h-44 resize-y font-mono text-xs`} required value={form.content || ''} onChange={(e) => set('content', e.target.value)} />
+        </Field>
+        <Field label={t('skillsLib.form.image')}>
+          <div className="flex items-start gap-3">
+            <label className={`${btnGhost} flex cursor-pointer items-center gap-1.5 text-xs`}>
+              <ImagePlus size={13} />
+              {t('skillsLib.form.upload')}
+              <input type="file" accept="image/*" hidden onChange={onPickImage} />
+            </label>
+            {form.imageUrl && (
+              <div className="flex items-center gap-2">
+                <img src={form.imageUrl} alt="" className="h-16 w-28 rounded-lg border border-slate-800 object-cover" />
+                <button type="button" onClick={() => set('imageUrl', '')} className="text-xs text-red-400 hover:underline">
+                  {t('skillsLib.form.removeImage')}
+                </button>
+              </div>
+            )}
+          </div>
+        </Field>
+        {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" className={btnGhost} onClick={onClose}>
+            {t('common.cancel')}
+          </button>
+          <button type="submit" disabled={busy} className={`${btnPrimary} flex items-center gap-2 disabled:opacity-50`}>
+            {busy && <Loader2 size={13} className="animate-spin" />}
+            {t('skillsLib.form.save')}
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
