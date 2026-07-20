@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Star, Copy, Trash2, Pencil, Search, FileText, MoreVertical, X, Globe, Check, Sparkles, Captions, Bot, ChevronDown, Bookmark, Download, PlayCircle, ListChecks, Loader2, ImagePlus } from 'lucide-react'
+import { Plus, Star, Copy, Trash2, Pencil, Search, FileText, MoreVertical, X, Globe, Check, Sparkles, Captions, Bot, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Bookmark, Download, PlayCircle, ListChecks, Loader2, ImagePlus, Video as VideoIcon } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n'
@@ -33,6 +33,131 @@ function compressImage(file, maxW = 640, quality = 0.72) {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
+}
+
+// Comprime o vídeo AO MÁXIMO no navegador: redesenha em canvas ~480px e
+// regrava em WebM com bitrate baixo (e teto de duração) via MediaRecorder.
+function compressVideo(file, { maxW = 480, maxSeconds = 12, bitrate = 350_000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.src = url
+    video.onerror = () => { URL.revokeObjectURL(url); reject(new Error('invalid_video')) }
+    video.onloadedmetadata = () => {
+      try {
+        const scale = Math.min(1, maxW / (video.videoWidth || maxW))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(2, Math.round((video.videoWidth || maxW) * scale))
+        canvas.height = Math.max(2, Math.round((video.videoHeight || maxW) * scale))
+        const ctx = canvas.getContext('2d')
+        const stream = canvas.captureStream(24)
+        const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm'
+        const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate })
+        const chunks = []
+        let raf = 0
+        let done = false
+        rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+        rec.onstop = () => {
+          URL.revokeObjectURL(url)
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result)
+          reader.onerror = reject
+          reader.readAsDataURL(new Blob(chunks, { type: 'video/webm' }))
+        }
+        const finish = () => {
+          if (done) return
+          done = true
+          cancelAnimationFrame(raf)
+          video.pause()
+          if (rec.state === 'recording') rec.stop()
+        }
+        const draw = () => {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          raf = requestAnimationFrame(draw)
+        }
+        video.onended = finish
+        video
+          .play()
+          .then(() => {
+            rec.start(250)
+            draw()
+            setTimeout(finish, maxSeconds * 1000)
+          })
+          .catch(reject)
+      } catch (err) {
+        URL.revokeObjectURL(url)
+        reject(err)
+      }
+    }
+  })
+}
+
+// Compat: skills antigas com imageUrl única viram uma lista de mídia.
+function skillMedia(s) {
+  if (Array.isArray(s.media) && s.media.length) return s.media
+  if (s.imageUrl) return [{ type: 'image', url: s.imageUrl, caption: '' }]
+  return []
+}
+
+function MediaFrame({ item, className, controls = false }) {
+  if (!item) return null
+  return item.type === 'video' ? (
+    <video src={item.url} muted playsInline loop autoPlay={!controls} controls={controls} className={className} />
+  ) : (
+    <img src={item.url} alt="" className={className} loading="lazy" />
+  )
+}
+
+// Carrossel de exemplos: mídia grande com legenda, contador, setas ◂ ▸ e
+// miniaturas. Suporta imagem e vídeo (o vídeo mostra controles quando ativo).
+function MediaCarousel({ media }) {
+  const [i, setI] = useState(0)
+  const idx = Math.min(i, media.length - 1)
+  const current = media[idx]
+  const go = (d) => setI((v) => (v + d + media.length) % media.length)
+
+  return (
+    <div>
+      <div className="relative aspect-video overflow-hidden rounded-xl border border-slate-800 bg-black">
+        <MediaFrame item={current} controls={current.type === 'video'} className="absolute inset-0 h-full w-full object-contain" />
+        {/* Legenda (ex.: "PROMPT GERADO PELO: ...") */}
+        {current.caption && (
+          <span className="absolute bottom-2 left-2 max-w-[80%] truncate rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[11px] font-medium text-slate-100 backdrop-blur-sm">
+            {current.caption}
+          </span>
+        )}
+        {media.length > 1 && (
+          <>
+            <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+              {idx + 1}/{media.length}
+            </span>
+            <button type="button" onClick={() => go(-1)} className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm hover:bg-black/75">
+              <ChevronLeft size={18} />
+            </button>
+            <button type="button" onClick={() => go(1)} className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm hover:bg-black/75">
+              <ChevronRight size={18} />
+            </button>
+          </>
+        )}
+      </div>
+      {media.length > 1 && (
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+          {media.map((m, k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setI(k)}
+              className={`relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg border transition-colors ${k === idx ? 'border-cyan-500' : 'border-slate-800 hover:border-slate-600'}`}
+            >
+              <MediaFrame item={m} className="absolute inset-0 h-full w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function Prompts() {
@@ -392,6 +517,7 @@ function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
   const isNew = s.createdAt && Date.now() - s.createdAt < NEW_BADGE_MS
+  const media = skillMedia(s)
 
   async function copy(e) {
     e.stopPropagation()
@@ -413,10 +539,10 @@ function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy
       onClick={() => onOpen(s)}
       className="flex cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-950 transition-colors hover:border-cyan-500/40"
     >
-      {/* Thumb 16:9 */}
+      {/* Thumb 16:9 — primeira mídia (imagem ou vídeo) */}
       <div className="relative aspect-video overflow-hidden bg-gradient-to-br from-slate-900 to-slate-950">
-        {s.imageUrl ? (
-          <img src={s.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+        {media[0] ? (
+          <MediaFrame item={media[0]} className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <Sparkles size={26} className="text-slate-700" />
@@ -425,6 +551,11 @@ function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy
         {isNew && (
           <span className="absolute left-2 top-2 rounded-full border border-green-500/35 bg-green-500/15 px-2 py-0.5 text-[10px] font-semibold text-green-400">
             {t('skillsLib.badgeNew')}
+          </span>
+        )}
+        {media.length > 1 && (
+          <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+            {media.length} 🖼
           </span>
         )}
       </div>
@@ -494,6 +625,7 @@ function SkillDetailModal({ skill: s, onClose, isFounder, onCopy, onSaveToMine, 
   }
 
   const slug = s.title.toLowerCase().replace(/[^a-z0-9à-ú]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'skill'
+  const media = skillMedia(s)
 
   return (
     <Modal open onClose={onClose} title={s.title} wide>
@@ -527,12 +659,10 @@ function SkillDetailModal({ skill: s, onClose, isFounder, onCopy, onSaveToMine, 
           </div>
         )}
 
-        {s.imageUrl && (
+        {media.length > 0 && (
           <div>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('skillsLib.examples')}</p>
-            <div className="relative aspect-video overflow-hidden rounded-xl border border-slate-800 bg-black">
-              <img src={s.imageUrl} alt={s.title} className="absolute inset-0 h-full w-full object-contain" />
-            </div>
+            <MediaCarousel media={media} />
           </div>
         )}
 
@@ -576,6 +706,7 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
   const [form, setForm] = useState({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [processing, setProcessing] = useState('') // '' | 'image' | 'video'
 
   useEffect(() => {
     if (open) {
@@ -586,7 +717,7 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
         howToUse: skill?.howToUse || '',
         content: skill?.content || '',
         videoUrl: skill?.videoUrl || '',
-        imageUrl: skill?.imageUrl || '',
+        media: skill ? skillMedia(skill) : [],
       })
       setError('')
     }
@@ -596,14 +727,44 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
     setForm((f) => ({ ...f, [k]: v }))
   }
 
+  const addMedia = (item) => setForm((f) => ({ ...f, media: [...(f.media || []), item].slice(0, 10) }))
+  const updateMedia = (i, patch) => setForm((f) => ({ ...f, media: f.media.map((m, k) => (k === i ? { ...m, ...patch } : m)) }))
+  const removeMedia = (i) => setForm((f) => ({ ...f, media: f.media.filter((_, k) => k !== i) }))
+  const moveMedia = (i, d) =>
+    setForm((f) => {
+      const arr = [...f.media]
+      const j = i + d
+      if (j < 0 || j >= arr.length) return f
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      return { ...f, media: arr }
+    })
+
   async function onPickImage(e) {
+    const files = [...(e.target.files || [])]
+    e.target.value = ''
+    if (!files.length) return
+    setProcessing('image')
+    try {
+      for (const file of files) addMedia({ type: 'image', url: await compressImage(file), caption: '' })
+    } catch {
+      setError(t('skillsLib.mediaError'))
+    } finally {
+      setProcessing('')
+    }
+  }
+
+  async function onPickVideo(e) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    setProcessing('video')
+    setError('')
     try {
-      set('imageUrl', await compressImage(file))
+      addMedia({ type: 'video', url: await compressVideo(file), caption: '' })
     } catch {
-      /* arquivo inválido */
+      setError(t('skillsLib.mediaError'))
+    } finally {
+      setProcessing('')
     }
   }
 
@@ -656,22 +817,56 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
         <Field label={t('skillsLib.form.content')}>
           <textarea className={`${inputCls} min-h-44 resize-y font-mono text-xs`} required value={form.content || ''} onChange={(e) => set('content', e.target.value)} />
         </Field>
-        <Field label={t('skillsLib.form.image')}>
-          <div className="flex items-start gap-3">
-            <label className={`${btnGhost} flex cursor-pointer items-center gap-1.5 text-xs`}>
+        <Field label={t('skillsLib.form.media')}>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className={`${btnGhost} flex cursor-pointer items-center gap-1.5 text-xs ${processing ? 'pointer-events-none opacity-50' : ''}`}>
               <ImagePlus size={13} />
-              {t('skillsLib.form.upload')}
-              <input type="file" accept="image/*" hidden onChange={onPickImage} />
+              {t('skillsLib.form.addImage')}
+              <input type="file" accept="image/*" multiple hidden onChange={onPickImage} />
             </label>
-            {form.imageUrl && (
-              <div className="flex items-center gap-2">
-                <img src={form.imageUrl} alt="" className="h-16 w-28 rounded-lg border border-slate-800 object-cover" />
-                <button type="button" onClick={() => set('imageUrl', '')} className="text-xs text-red-400 hover:underline">
-                  {t('skillsLib.form.removeImage')}
-                </button>
-              </div>
+            <label className={`${btnGhost} flex cursor-pointer items-center gap-1.5 text-xs ${processing ? 'pointer-events-none opacity-50' : ''}`}>
+              <VideoIcon size={13} />
+              {t('skillsLib.form.addVideo')}
+              <input type="file" accept="video/*" hidden onChange={onPickVideo} />
+            </label>
+            {processing && (
+              <span className="flex items-center gap-1.5 text-xs text-cyan-300">
+                <Loader2 size={12} className="animate-spin" />
+                {processing === 'video' ? t('skillsLib.form.compressingVideo') : t('skillsLib.form.processingImage')}
+              </span>
             )}
           </div>
+          <p className="mt-1.5 text-[11px] text-slate-600">{t('skillsLib.form.mediaHint')}</p>
+
+          {(form.media || []).length > 0 && (
+            <div className="mt-3 space-y-2">
+              {form.media.map((m, i) => (
+                <div key={i} className="flex items-center gap-2.5 rounded-lg border border-slate-800 bg-slate-950 p-2">
+                  <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md border border-slate-800 bg-black">
+                    <MediaFrame item={m} className="absolute inset-0 h-full w-full object-cover" />
+                    <span className="absolute left-0.5 top-0.5 rounded bg-black/70 px-1 text-[8px] font-bold uppercase text-white">{m.type === 'video' ? '▶' : '🖼'}</span>
+                  </div>
+                  <input
+                    className={`${inputCls} !py-1.5 text-xs`}
+                    placeholder={t('skillsLib.form.captionPlaceholder')}
+                    value={m.caption || ''}
+                    onChange={(e) => updateMedia(i, { caption: e.target.value })}
+                  />
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button type="button" onClick={() => moveMedia(i, -1)} disabled={i === 0} title={t('ideaBoard.moveUp')} className="text-slate-600 hover:text-slate-300 disabled:opacity-25">
+                      <ChevronUp size={15} />
+                    </button>
+                    <button type="button" onClick={() => moveMedia(i, 1)} disabled={i === form.media.length - 1} title={t('ideaBoard.moveDown')} className="text-slate-600 hover:text-slate-300 disabled:opacity-25">
+                      <ChevronDown size={15} />
+                    </button>
+                    <button type="button" onClick={() => removeMedia(i)} title={t('prompts.delete')} className="text-slate-600 hover:text-red-400">
+                      <X size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Field>
         {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>}
         <div className="flex justify-end gap-2">

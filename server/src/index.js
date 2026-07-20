@@ -7,7 +7,7 @@ const app = express()
 const port = process.env.PORT || 3001
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }))
-app.use(express.json({ limit: '2mb' }))
+app.use(express.json({ limit: '4mb' }))
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'noctis-studio-api', ts: new Date().toISOString() })

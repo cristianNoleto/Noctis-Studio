@@ -38,6 +38,12 @@ async function requireFounder(req, res, supa) {
 }
 
 function toClient(r) {
+  // Compat: skills antigas com image_url única viram um item de media.
+  const media = Array.isArray(r.media) && r.media.length
+    ? r.media
+    : r.image_url
+      ? [{ type: 'image', url: r.image_url, caption: '' }]
+      : []
   return {
     id: r.id,
     category: r.category,
@@ -46,10 +52,18 @@ function toClient(r) {
     howToUse: r.how_to_use || '',
     content: r.content || '',
     videoUrl: r.video_url || '',
-    imageUrl: r.image_url || '',
+    media,
     copies: Number(r.copies) || 0,
     createdAt: r.created_at ? new Date(r.created_at).getTime() : null,
   }
+}
+
+function sanitizeMedia(list) {
+  if (!Array.isArray(list)) return []
+  return list
+    .filter((m) => m && (m.type === 'image' || m.type === 'video') && typeof m.url === 'string' && m.url.startsWith('data:'))
+    .slice(0, 10)
+    .map((m) => ({ type: m.type, url: m.url, caption: String(m.caption || '').slice(0, 140) }))
 }
 
 // GET /skills — lista o catálogo inteiro
@@ -77,7 +91,7 @@ router.post('/save', async (req, res) => {
     how_to_use: s.howToUse || '',
     content: s.content || '',
     video_url: s.videoUrl || '',
-    image_url: s.imageUrl || '',
+    media: sanitizeMedia(s.media),
     updated_at: new Date().toISOString(),
   }
   const query = s.id

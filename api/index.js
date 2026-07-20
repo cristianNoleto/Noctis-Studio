@@ -15,7 +15,7 @@ import adminRouter from './_admin.js'
 
 const app = express()
 
-app.use(express.json({ limit: '2mb' }))
+app.use(express.json({ limit: '4mb' }))
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: 'noctis-studio-api', runtime: 'vercel', ts: new Date().toISOString() })
