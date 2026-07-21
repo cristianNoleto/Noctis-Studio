@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Star, Copy, Trash2, Pencil, Search, FileText, MoreVertical, X, Globe, Check, Sparkles, Captions, Bot, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Bookmark, Download, PlayCircle, ListChecks, Loader2, ImagePlus, Video as VideoIcon } from 'lucide-react'
+import { Plus, Star, Copy, Trash2, Pencil, Search, FileText, MoreVertical, X, Globe, Check, Sparkles, Captions, Bot, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Bookmark, Download, PlayCircle, ListChecks, Loader2, ImagePlus, Video as VideoIcon, Lock, Users, Eye, UserPlus } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n'
@@ -12,6 +12,34 @@ import { Field } from './channels/ChannelsList'
 
 const SKILL_CATEGORIES = ['generation', 'visual', 'camera']
 const NEW_BADGE_MS = 14 * 86_400_000 // "Nova" nos primeiros 14 dias
+
+// Visibilidade das skills. 'global' = catálogo oficial (só fundador publica);
+// 'workspace' = colaboradores do dono; 'specific' = lista de e-mails; 'only_me'.
+const SKILL_VISIBILITIES = ['global', 'workspace', 'specific', 'only_me']
+
+function visibilityIcon(v) {
+  return v === 'only_me' ? Lock : v === 'workspace' ? Users : v === 'specific' ? Eye : Globe
+}
+
+// Regra de visibilidade (mesma lógica usada no servidor): o fundador vê tudo;
+// o dono vê a própria; global todos; specific pela lista; workspace se o
+// espectador é colaborador (com acesso a skills) do dono.
+function canSeeSkill(s, email, isFounder, workspaceOwners) {
+  const vis = s.visibility || 'global'
+  const owner = (s.ownerEmail || '').toLowerCase()
+  if (isFounder) return true
+  if (owner && owner === email) return true
+  if (vis === 'global') return true
+  if (vis === 'only_me') return false
+  if (vis === 'specific') return (s.allowedEmails || []).map((e) => String(e).toLowerCase()).includes(email)
+  if (vis === 'workspace') return workspaceOwners.has(owner)
+  return false
+}
+
+// "a@b.com, c@d.com\n e@f.com" -> ['a@b.com','c@d.com','e@f.com']
+function parseEmails(str) {
+  return [...new Set((str || '').split(/[\n,;]+/).map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@')))]
+}
 
 // Comprime a imagem de exemplo para caber no banco (data URL ~640px).
 function compressImage(file, maxW = 640, quality = 0.72) {
@@ -163,7 +191,12 @@ function MediaCarousel({ media }) {
 export default function Prompts() {
   const db = useDb()
   const { t } = useI18n()
-  const { isFounder, isLocalMode } = useAuth()
+  const { user, isFounder, isLocalMode } = useAuth()
+
+  // Quem pode criar/filtrar skills: fundador + plano mais caro (MASTER).
+  const myEmail = (user?.email || '').toLowerCase()
+  const canManageSkills = isFounder || user?.plan === 'MASTER'
+  const [managingCollab, setManagingCollab] = useState(false)
 
   // ------------------------------------------------------------------
   // Catálogo de skills do sistema (global via servidor; local no dev)
@@ -178,6 +211,18 @@ export default function Prompts() {
   const [guideOpen, setGuideOpen] = useState(() => !db.getSetting('skillsGuideDismissed', false))
 
   const systemSkills = isLocalMode ? localSkills : remoteSkills
+
+  // Workspaces em que EU sou colaborador (com acesso a skills) → posso ver as
+  // skills desses donos marcadas como "workspace".
+  const collaborators = db.all('collaborators')
+  const workspaceOwners = new Set(
+    collaborators
+      .filter((c) => (c.memberEmail || '').toLowerCase() === myEmail && c.skills && c.skills !== 'none')
+      .map((c) => (c.ownerEmail || '').toLowerCase()),
+  )
+  const canEditSkill = (s) => isFounder || (canManageSkills && (s.ownerEmail || '').toLowerCase() === myEmail)
+  // Em produção o servidor já filtra por visibilidade; no modo local filtramos aqui.
+  const visibleSkills = isLocalMode ? systemSkills.filter((s) => canSeeSkill(s, myEmail, isFounder, workspaceOwners)) : systemSkills
 
   const refreshSkills = useCallback(async () => {
     if (isLocalMode) return
@@ -270,7 +315,18 @@ export default function Prompts() {
             <p className="text-sm text-slate-500">{t('skillsLib.subtitle')}</p>
           </div>
         </div>
-        <PageEye />
+        <div className="flex items-center gap-2">
+          {canManageSkills && (
+            <button
+              onClick={() => setManagingCollab(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/40 hover:text-cyan-300"
+            >
+              <Users size={14} />
+              {t('skillsLib.collab.button')}
+            </button>
+          )}
+          <PageEye />
+        </div>
       </div>
 
       {/* Guia de 3 passos (dispensável) */}
@@ -309,8 +365,9 @@ export default function Prompts() {
         <SystemSection
           key={cat}
           category={cat}
-          skills={systemSkills.filter((s) => s.category === cat)}
-          isFounder={isFounder}
+          skills={visibleSkills.filter((s) => s.category === cat)}
+          canManage={canManageSkills}
+          canEditSkill={canEditSkill}
           onOpen={setDetail}
           onNew={() => setEditingSystem(`new:${cat}`)}
           onEdit={setEditingSystem}
@@ -425,8 +482,11 @@ export default function Prompts() {
         skill={typeof editingSystem === 'string' ? null : editingSystem}
         initialCategory={typeof editingSystem === 'string' ? editingSystem.split(':')[1] : null}
         isLocalMode={isLocalMode}
+        isFounder={isFounder}
+        ownerEmail={myEmail}
         onSaved={refreshSkills}
       />
+      <CollaboratorsModal open={managingCollab} onClose={() => setManagingCollab(false)} ownerEmail={myEmail} isLocalMode={isLocalMode} />
       <ConfirmDialog
         open={deletingSystem !== null}
         onClose={() => setDeletingSystem(null)}
@@ -467,10 +527,10 @@ function GuideStep({ n, title, desc, icon, children }) {
 // ---------------------------------------------------------------------------
 // Seção colapsável do catálogo (Skills de Geração / Estilos Visuais / Câmera)
 // ---------------------------------------------------------------------------
-function SystemSection({ category, skills, isFounder, onOpen, onNew, onEdit, onDelete, onCopy, onSaveToMine }) {
+function SystemSection({ category, skills, canManage, canEditSkill, onOpen, onNew, onEdit, onDelete, onCopy, onSaveToMine }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(true)
-  if (!skills.length && !isFounder) return null
+  if (!skills.length && !canManage) return null
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-900/40">
@@ -484,7 +544,7 @@ function SystemSection({ category, skills, isFounder, onOpen, onNew, onEdit, onD
         <span className="text-sm font-semibold text-slate-100">{t(`skillsLib.sections.${category}`)}</span>
         <span className="rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 px-2 py-0.5 text-[10px] font-bold text-white">{skills.length}</span>
         <span className="flex-1" />
-        {isFounder && (
+        {canManage && (
           <button
             onClick={(e) => { e.stopPropagation(); onNew() }}
             className={`${btnPrimary} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`}
@@ -502,7 +562,7 @@ function SystemSection({ category, skills, isFounder, onOpen, onNew, onEdit, onD
           ) : (
             <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(205px, 1fr))' }}>
               {skills.map((s) => (
-                <SystemSkillCard key={s.id} skill={s} isFounder={isFounder} onOpen={onOpen} onEdit={onEdit} onDelete={onDelete} onCopy={onCopy} onSaveToMine={onSaveToMine} />
+                <SystemSkillCard key={s.id} skill={s} canEdit={canEditSkill(s)} onOpen={onOpen} onEdit={onEdit} onDelete={onDelete} onCopy={onCopy} onSaveToMine={onSaveToMine} />
               ))}
             </div>
           )}
@@ -512,7 +572,7 @@ function SystemSection({ category, skills, isFounder, onOpen, onNew, onEdit, onD
   )
 }
 
-function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy, onSaveToMine }) {
+function SystemSkillCard({ skill: s, canEdit, onOpen, onEdit, onDelete, onCopy, onSaveToMine }) {
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -556,11 +616,23 @@ function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy
             <Sparkles size={26} className="text-slate-700" />
           </div>
         )}
-        {isNew && (
-          <span className="absolute left-2 top-2 rounded-full border border-green-500/35 bg-green-500/15 px-2 py-0.5 text-[10px] font-semibold text-green-400">
-            {t('skillsLib.badgeNew')}
-          </span>
-        )}
+        {/* Topo-esquerdo: "Nova" + badge de visibilidade (empilhados sem colidir com a legenda no rodapé) */}
+        <div className="absolute left-2 top-2 z-[1] flex flex-wrap items-center gap-1">
+          {isNew && (
+            <span className="rounded-full border border-green-500/35 bg-green-500/15 px-2 py-0.5 text-[10px] font-semibold text-green-400">
+              {t('skillsLib.badgeNew')}
+            </span>
+          )}
+          {s.visibility && s.visibility !== 'global' && (() => {
+            const VisIcon = visibilityIcon(s.visibility)
+            return (
+              <span className="flex items-center gap-1 rounded-full border border-white/15 bg-black/65 px-2 py-0.5 text-[9.5px] font-semibold text-slate-100 backdrop-blur-sm">
+                <VisIcon size={10} />
+                {t(`skillsLib.visShort.${s.visibility}`)}
+              </span>
+            )
+          })()}
+        </div>
         {media.length > 1 && (
           <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
             {media.length} 🖼
@@ -593,7 +665,7 @@ function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy
           {copied ? t('skillsLib.copied') : t('skillsLib.copy')}
         </button>
         <span className="flex-1" />
-        {isFounder && (
+        {canEdit && (
           <>
             <button onClick={(e) => { e.stopPropagation(); onEdit(s) }} title={t('prompts.edit')} className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-slate-800 text-slate-500 hover:text-slate-200">
               <Pencil size={12} />
@@ -716,7 +788,7 @@ function SkillDetailModal({ skill: s, onClose, isFounder, onCopy, onSaveToMine, 
 // ---------------------------------------------------------------------------
 // Form do fundador — cria/edita skill do sistema (vídeo + imagem + conteúdo)
 // ---------------------------------------------------------------------------
-function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMode, onSaved }) {
+function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMode, isFounder, ownerEmail, onSaved }) {
   const db = useDb()
   const { t } = useI18n()
   const [form, setForm] = useState({})
@@ -734,6 +806,8 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
         content: skill?.content || '',
         videoUrl: skill?.videoUrl || '',
         media: skill ? skillMedia(skill) : [],
+        visibility: skill?.visibility || (isFounder ? 'global' : 'workspace'),
+        allowedEmails: (skill?.allowedEmails || []).join(', '),
       })
       setError('')
     }
@@ -789,11 +863,19 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
     setBusy(true)
     setError('')
     try {
+      // Fundador pode publicar no global; outros não (força workspace).
+      const visibility = !isFounder && form.visibility === 'global' ? 'workspace' : form.visibility
+      const payload = {
+        ...form,
+        visibility,
+        allowedEmails: visibility === 'specific' ? parseEmails(form.allowedEmails) : [],
+        ownerEmail: skill?.ownerEmail || ownerEmail,
+      }
       if (isLocalMode) {
-        if (skill) db.update('systemSkills', skill.id, form)
-        else db.insert('systemSkills', { ...form, copies: 0 })
+        if (skill) db.update('systemSkills', skill.id, payload)
+        else db.insert('systemSkills', { ...payload, copies: 0 })
       } else {
-        await api.skills.save(skill ? { ...form, id: skill.id } : form)
+        await api.skills.save(skill ? { ...payload, id: skill.id } : payload)
         onSaved()
       }
       onClose()
@@ -833,6 +915,28 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
         <Field label={t('skillsLib.form.content')}>
           <textarea className={`${inputCls} min-h-44 resize-y font-mono text-xs`} required value={form.content || ''} onChange={(e) => set('content', e.target.value)} />
         </Field>
+
+        {/* Visibilidade — quem pode ver a skill */}
+        <Field label={t('skillsLib.form.visibility')}>
+          <select className={inputCls} value={form.visibility || 'global'} onChange={(e) => set('visibility', e.target.value)}>
+            {SKILL_VISIBILITIES.filter((v) => isFounder || v !== 'global').map((v) => (
+              <option key={v} value={v}>
+                {t(`skillsLib.form.vis${v === 'only_me' ? 'OnlyMe' : v.charAt(0).toUpperCase() + v.slice(1)}`)}
+              </option>
+            ))}
+          </select>
+          {!isFounder && <p className="mt-1 text-[11px] text-slate-600">{t('skillsLib.form.visGlobalFounder')}</p>}
+        </Field>
+        {form.visibility === 'specific' && (
+          <Field label={t('skillsLib.form.allowedEmails')}>
+            <textarea
+              className={`${inputCls} min-h-16 resize-y`}
+              placeholder={t('skillsLib.form.allowedPlaceholder')}
+              value={form.allowedEmails || ''}
+              onChange={(e) => set('allowedEmails', e.target.value)}
+            />
+          </Field>
+        )}
         <Field label={t('skillsLib.form.media')}>
           <div className="flex flex-wrap items-center gap-2">
             <label className={`${btnGhost} flex cursor-pointer items-center gap-1.5 text-xs ${processing ? 'pointer-events-none opacity-50' : ''}`}>
@@ -895,6 +999,127 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
           </button>
         </div>
       </form>
+    </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Colaboradores do workspace — liberam o acesso às skills marcadas como
+// "workspace" (e opcionalmente às referências). Base para a futura fase de
+// colaboração em canais/vídeos.
+// ---------------------------------------------------------------------------
+function AccessSelect({ label, value, onChange, compact }) {
+  const { t } = useI18n()
+  return (
+    <div>
+      {!compact && <label className="mb-1 block text-[11px] font-semibold text-slate-400">{label}</label>}
+      <select className={`${inputCls} !w-28 !py-2 text-xs`} title={label} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="none">{t('skillsLib.collab.none')}</option>
+        <option value="view">{t('skillsLib.collab.view')}</option>
+        <option value="edit">{t('skillsLib.collab.edit')}</option>
+      </select>
+    </div>
+  )
+}
+
+function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
+  const db = useDb()
+  const { t } = useI18n()
+  const [email, setEmail] = useState('')
+  const [skills, setSkills] = useState('view')
+  const [references, setReferences] = useState('none')
+  const [error, setError] = useState('')
+  const [remote, setRemote] = useState([])
+  const owner = (ownerEmail || '').toLowerCase()
+  const mine = isLocalMode ? db.all('collaborators').filter((c) => (c.ownerEmail || '').toLowerCase() === owner) : remote
+
+  const refresh = useCallback(async () => {
+    if (isLocalMode) return
+    try {
+      const { collaborators } = await api.collaborators.list()
+      setRemote(collaborators)
+    } catch {
+      /* ignora */
+    }
+  }, [isLocalMode])
+  useEffect(() => {
+    if (open) refresh()
+  }, [open, refresh])
+
+  async function add(e) {
+    e.preventDefault()
+    const m = email.trim().toLowerCase()
+    if (!m.includes('@')) return
+    if (mine.some((c) => (c.memberEmail || '').toLowerCase() === m)) {
+      setError(t('skillsLib.collab.dupe'))
+      return
+    }
+    if (isLocalMode) db.insert('collaborators', { ownerEmail: owner, memberEmail: m, skills, references })
+    else {
+      try {
+        await api.collaborators.save({ memberEmail: m, skills, references })
+        refresh()
+      } catch (err) {
+        setError(err?.message || 'Erro')
+        return
+      }
+    }
+    setEmail('')
+    setSkills('view')
+    setReferences('none')
+    setError('')
+  }
+
+  async function setAccess(c, field, value) {
+    if (isLocalMode) db.update('collaborators', c.id, { [field]: value })
+    else {
+      await api.collaborators.save({ memberEmail: c.memberEmail, skills: field === 'skills' ? value : c.skills, references: field === 'references' ? value : c.references })
+      refresh()
+    }
+  }
+
+  async function removeCollab(c) {
+    if (isLocalMode) db.remove('collaborators', c.id)
+    else {
+      await api.collaborators.remove(c.id)
+      refresh()
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={t('skillsLib.collab.title')} wide>
+      <p className="-mt-2 mb-4 text-xs leading-relaxed text-slate-500">{t('skillsLib.collab.subtitle')}</p>
+      <form onSubmit={add} className="flex flex-wrap items-end gap-2">
+        <div className="min-w-52 flex-1">
+          <label className="mb-1 block text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.email')}</label>
+          <input className={inputCls} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="pessoa@email.com" />
+        </div>
+        <AccessSelect label={t('skillsLib.collab.skills')} value={skills} onChange={setSkills} />
+        <AccessSelect label={t('skillsLib.collab.references')} value={references} onChange={setReferences} />
+        <button type="submit" className={`${btnPrimary} flex items-center gap-1.5`}>
+          <UserPlus size={14} />
+          {t('skillsLib.collab.add')}
+        </button>
+      </form>
+      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-600">{t('skillsLib.collab.inviteHint')}</p>
+
+      <div className="mt-4 space-y-2">
+        {mine.length === 0 ? (
+          <p className="py-6 text-center text-xs text-slate-600">{t('skillsLib.collab.empty')}</p>
+        ) : (
+          mine.map((c) => (
+            <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 p-2.5">
+              <span className="min-w-40 flex-1 truncate text-sm text-slate-200">{c.memberEmail}</span>
+              <AccessSelect label={t('skillsLib.collab.skills')} value={c.skills || 'none'} onChange={(v) => setAccess(c, 'skills', v)} compact />
+              <AccessSelect label={t('skillsLib.collab.references')} value={c.references || 'none'} onChange={(v) => setAccess(c, 'references', v)} compact />
+              <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 text-slate-500 hover:text-red-400">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
     </Modal>
   )
 }

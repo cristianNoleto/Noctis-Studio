@@ -126,6 +126,29 @@ async function authRequest(path, { method = 'GET', body } = {}) {
   return json
 }
 
+// Igual ao request público, mas anexa o token do Supabase quando disponível
+// (o servidor usa para filtrar por visibilidade; sem token, cai no público).
+async function authRequestOptional(path, { method = 'GET', body } = {}) {
+  let token
+  if (supabase) {
+    const { data } = await supabase.auth.getSession()
+    token = data?.session?.access_token
+  }
+  let res
+  try {
+    res = await fetch(`/api${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw new ApiError('server_offline')
+  }
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new ApiError(json.error || 'request_failed', json.message)
+  return json
+}
+
 export const api = {
   youtube: {
     lookupChannel: (q) => request(`/youtube/channel?q=${encodeURIComponent(q)}`),
@@ -158,11 +181,17 @@ export const api = {
     upsert: (channels) => request('/channels/upsert', { method: 'POST', body: { channels } }),
   },
   skills: {
-    // Biblioteca de Skills do sistema (catálogo global; escrita só do fundador)
-    list: () => request('/skills'),
+    // Biblioteca de Skills do sistema — a listagem manda o token (quando houver)
+    // para o servidor filtrar por visibilidade; escrita = fundador ou MASTER.
+    list: () => authRequestOptional('/skills'),
     save: (skill) => authRequest('/skills/save', { method: 'POST', body: { skill } }),
     remove: (id) => authRequest(`/skills/${id}`, { method: 'DELETE' }),
     copied: (id) => request(`/skills/${id}/copied`, { method: 'POST', body: {} }),
+  },
+  collaborators: {
+    list: () => authRequest('/collaborators'),
+    save: (collaborator) => authRequest('/collaborators/save', { method: 'POST', body: { collaborator } }),
+    remove: (id) => authRequest(`/collaborators/${id}`, { method: 'DELETE' }),
   },
   transcription: {
     // Envia o arquivo de áudio direto para a AssemblyAI e abre o job.
