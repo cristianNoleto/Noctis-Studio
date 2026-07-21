@@ -288,7 +288,7 @@ export default function NicheDoubling() {
   if (!current) {
     return (
       <PrivacyScope page="dobra-de-nicho">
-      <div className="mx-auto max-w-6xl space-y-5">
+      <div className="mx-auto max-w-[1500px] space-y-5">
         <PageHeader t={t} />
         <form
           onSubmit={(e) => {
@@ -368,7 +368,7 @@ export default function NicheDoubling() {
 
   return (
     <PrivacyScope page="dobra-de-nicho">
-    <div className="mx-auto max-w-7xl space-y-4">
+    <div className="mx-auto max-w-[1600px] space-y-4">
       <PageHeader t={t} />
 
       {/* Cabeçalho da análise */}
@@ -401,11 +401,11 @@ export default function NicheDoubling() {
                 <span className="font-semibold text-cyan-400">{t('doubling.subNiche')}</span> <span className="text-slate-300">{r.subNiche}</span>
               </p>
             )}
-            <p className="mt-0.5 max-w-3xl text-xs text-slate-500">
+            <p className="mt-0.5 max-w-[920px] text-xs text-slate-500">
               <span className="font-semibold text-slate-400">{t('doubling.audience')}</span> {r.audience || '—'}
             </p>
             {r.territory && (
-              <p className="mt-0.5 max-w-3xl text-xs text-slate-500">
+              <p className="mt-0.5 max-w-[920px] text-xs text-slate-500">
                 <span className="font-semibold text-slate-400">{t('doubling.territory')}</span> {r.territory}
               </p>
             )}

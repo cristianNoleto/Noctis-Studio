@@ -94,7 +94,7 @@ export default function Dashboard() {
 
   return (
     <PrivacyScope page="dashboard">
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-[1600px] space-y-6">
       {/* Saudação + olho do modo restrito desta página */}
       <div className="flex items-start justify-between">
         <div>

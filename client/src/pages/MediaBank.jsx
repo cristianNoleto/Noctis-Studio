@@ -62,7 +62,7 @@ export default function MediaBank() {
   const visible = (results || []).filter((r) => sources[r.source])
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="mx-auto max-w-[1600px] space-y-5">
       {/* Cabeçalho como no original */}
       <div>
         <h1 className="text-2xl font-bold text-slate-100">{t('media.title')}</h1>
@@ -181,7 +181,7 @@ function PreviewModal({ item, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-6" onClick={onClose}>
-      <div className="max-h-full w-full max-w-4xl overflow-y-auto rounded-xl border border-slate-800 bg-slate-950" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-full w-full max-w-[1040px] overflow-y-auto rounded-xl border border-slate-800 bg-slate-950" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3.5">
           <span className="rounded bg-cyan-500/15 px-2 py-0.5 text-[11px] font-bold text-cyan-400">{item.source}</span>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300">

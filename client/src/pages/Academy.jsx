@@ -11,7 +11,7 @@ export default function Academy() {
   const CONTENT = [...db.all('academyContent')].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-[1500px] space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-100">{t('academy.title')}</h1>
         <p className="mt-1 text-sm text-slate-500">{t('academy.subtitle')}</p>
@@ -38,7 +38,7 @@ export default function Academy() {
 
       {playing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-6" onClick={() => setPlaying(null)}>
-          <div className="w-full max-w-3xl rounded-xl border border-slate-800 bg-slate-950" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-[920px] rounded-xl border border-slate-800 bg-slate-950" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3.5">
               <p className="font-semibold text-slate-100">{playing.title}</p>
               <button onClick={() => setPlaying(null)} className="text-slate-500 hover:text-slate-300">

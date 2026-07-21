@@ -119,7 +119,7 @@ export default function ChannelDetail() {
 
   return (
     <PrivacyScope page="canais">
-    <div className="mx-auto max-w-7xl space-y-4">
+    <div className="mx-auto max-w-[1600px] space-y-4">
       {/* Navegação superior */}
       <div className="flex items-center justify-between">
         <Link to="/canais" className="flex items-center gap-1.5 text-sm text-cyan-400 hover:text-cyan-300">

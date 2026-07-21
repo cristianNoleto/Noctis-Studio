@@ -42,7 +42,7 @@ export default function MyPlan() {
   const renewal = new Date(Date.now() + 30 * 86_400_000).toLocaleDateString('pt-BR')
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-[1500px] space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-100">{t('myPlan.title')}</h1>
         <p className="mt-1 text-sm text-slate-500">{t('myPlan.subtitle')}</p>

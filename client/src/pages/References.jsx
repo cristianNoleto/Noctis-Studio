@@ -38,7 +38,7 @@ export default function References() {
     .filter((g) => g.items.length > 0)
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
+    <div className="mx-auto max-w-[1600px] space-y-5">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

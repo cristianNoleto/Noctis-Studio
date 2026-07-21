@@ -35,7 +35,7 @@ export default function Admin() {
   const tabs = isFounder ? [...TABS, ['crawl', Radar]] : TABS
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="mx-auto max-w-[1360px] space-y-5">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
           <ShieldCheck size={22} />

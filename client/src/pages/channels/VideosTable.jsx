@@ -172,7 +172,14 @@ export default function VideosTable({ channelId, channel }) {
       const v = targets[i]
       setBatch((b) => ({ ...b, done: i, current: v.title }))
       try {
-        const data = await api.ai.seoReport({ title: v.title, description: v.description || '', tags: v.tags || [] })
+        const data = await api.ai.seoReport({
+          title: v.title,
+          description: v.description || '',
+          tags: v.tags || [],
+          language: channel?.language || 'pt',
+          channelName: channel?.name || '',
+          channelNotes: channel?.notes || channel?.description || '',
+        })
         db.insert('seoReports', { videoId: v.id, score: data.score, report: data })
         setBatch((b) => ({ ...b, done: i + 1 }))
       } catch {
@@ -304,7 +311,7 @@ export default function VideosTable({ channelId, channel }) {
       {/* Modais */}
       <VideoFormModal open={editVideo !== null} onClose={() => setEditVideo(null)} channelId={channelId} video={editVideo === 'new' ? null : editVideo} nextNumber={Math.max(0, ...videos.map((v) => v.videoNumber || 0)) + 1} />
       <LinkYoutubeModal open={linkVideo !== null} onClose={() => setLinkVideo(null)} video={linkVideo} />
-      <SeoReportModal open={reportVideo !== null} onClose={() => setReportVideo(null)} video={reportVideo} />
+      <SeoReportModal open={reportVideo !== null} onClose={() => setReportVideo(null)} video={reportVideo} channel={channel} />
       {scriptVideo && <ScriptDrawer video={scriptVideo} onClose={() => setScriptVideo(null)} />}
       <ConfirmDialog
         open={deleteVideo !== null}
@@ -822,7 +829,7 @@ function LinkYoutubeModal({ open, onClose, video }) {
 }
 
 // Relatório de SEO/CTR por IA — resultado cacheado localmente
-function SeoReportModal({ open, onClose, video }) {
+function SeoReportModal({ open, onClose, video, channel }) {
   const db = useDb()
   const { t } = useI18n()
   const [generating, setGenerating] = useState(false)
@@ -834,7 +841,14 @@ function SeoReportModal({ open, onClose, video }) {
     setGenerating(true)
     setError('')
     try {
-      const data = await api.ai.seoReport({ title: video.title, description: video.description || '', tags: video.tags || [] })
+      const data = await api.ai.seoReport({
+        title: video.title,
+        description: video.description || '',
+        tags: video.tags || [],
+        language: channel?.language || 'pt',
+        channelName: channel?.name || '',
+        channelNotes: channel?.notes || channel?.description || '',
+      })
       db.insert('seoReports', { videoId: video.id, score: data.score, report: data })
     } catch (err) {
       setError(apiErrorMessage(err))

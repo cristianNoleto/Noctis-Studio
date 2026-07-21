@@ -38,29 +38,41 @@ function handleError(res, err) {
   res.status(500).json({ error: 'internal_error' })
 }
 
-// POST /api/ai/seo-report  { title, description, tags }
+// POST /api/ai/seo-report  { title, description, tags, language, channelName, channelNotes }
+const SEO_LANGS = { pt: 'português (Brasil)', en: 'inglês', es: 'espanhol', de: 'alemão', fr: 'francês', it: 'italiano', ja: 'japonês' }
 router.post('/seo-report', async (req, res) => {
   try {
-    const { title, description = '', tags = [] } = req.body || {}
+    const { title, description = '', tags = [], language = 'pt', channelName = '', channelNotes = '' } = req.body || {}
     if (!title) return res.status(400).json({ error: 'missing_title' })
+    const langName = SEO_LANGS[language] || language || 'português (Brasil)'
+    const isPt = language === 'pt'
 
     const result = await aiGenerateJson(req, {
       system:
         'Você é um especialista em SEO e CTR do YouTube para canais dark (conteúdo narrado sem rosto). ' +
-        'Analise com rigor: aponte problemas reais (título vago, gatilho fraco, sem palavra-chave, ' +
-        'descrição/tags ausentes) e dê sugestões acionáveis e específicas — nada genérico. ' +
-        'Responda SEMPRE em JSON válido, em português do Brasil.',
+        `O canal analisado é em ${langName} e mira o público falante desse idioma — avalie o SEO/CTR PARA ESSE mercado e idioma. ` +
+        (isPt
+          ? ''
+          : `NUNCA trate estar em ${langName} como um problema, NUNCA sugira traduzir para português e NUNCA cite o alcance no Brasil — o público-alvo NÃO é brasileiro. `) +
+        'Analise com rigor os problemas REAIS de SEO/CTR (título vago, gatilho fraco, ausência de palavra-chave forte no idioma do canal, ' +
+        'descrição/tags ausentes ou fracas, promessa pouco clara) e dê sugestões acionáveis e específicas — nada genérico. ' +
+        'O texto do relatório (strengths/weaknesses) sai em português do Brasil (idioma da interface), ' +
+        `mas os títulos, tags, hashtags e descrição SUGERIDOS devem estar em ${langName} (o idioma do canal). ` +
+        'Responda SEMPRE em JSON válido.',
       prompt: `Analise o vídeo abaixo e devolva um relatório de SEO/CTR completo.
 
+IDIOMA/MERCADO DO CANAL: ${langName}
+CANAL: ${channelName || '(sem nome)'}
+CONTEXTO/NOTAS DO CANAL: ${channelNotes || '(sem notas)'}
 TÍTULO: ${title}
 DESCRIÇÃO: ${description || '(vazia)'}
 TAGS: ${tags.join(', ') || '(nenhuma)'}
 
 Regras:
-- "score" é a nota geral (0-100). "ctrScore" foca em atratividade/clique; "seoScore" foca em descoberta/busca.
-- "altTitles": 2 a 3 títulos alternativos prontos para usar (com gatilho de curiosidade, até 70 caracteres).
-- "tags": 8 a 15 tags relevantes de busca (sem #). "hashtags": 3 a 5 (com #).
-- Descrição sugerida: 2-4 frases otimizadas, com palavras-chave naturais.
+- "score" é a nota geral (0-100). "ctrScore" foca em atratividade/clique; "seoScore" foca em descoberta/busca. Avalie considerando o mercado de ${langName}.
+- "altTitles": 2 a 3 títulos alternativos prontos para usar, EM ${langName} (com gatilho de curiosidade, até 70 caracteres).
+- "tags": 8 a 15 tags de busca EM ${langName} (sem #). "hashtags": 3 a 5 (com #), EM ${langName}.
+- Descrição sugerida: 2-4 frases otimizadas EM ${langName}, com palavras-chave naturais.
 
 Responda neste formato JSON exato:
 {

@@ -38,7 +38,7 @@ export default function ChannelsList() {
 
   return (
     <PrivacyScope page="canais">
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-[1600px] space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-100">{t('channels.title')}</h1>

@@ -80,7 +80,7 @@ export default function ViralVideos() {
 
   return (
     <PrivacyScope page="videos-virais">
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-[1500px] space-y-5">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">

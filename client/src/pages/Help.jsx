@@ -21,7 +21,7 @@ export default function Help() {
   const [open, setOpen] = useState(0)
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-[920px] space-y-5">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
           <HelpCircle size={22} />

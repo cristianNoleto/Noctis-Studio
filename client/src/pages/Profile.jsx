@@ -23,7 +23,7 @@ export default function Profile() {
   const [tab, setTab] = useState('profile')
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-[1040px] space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-100">{t('profile.title')}</h1>
         <p className="mt-1 text-sm text-slate-500">{t('profile.subtitle')}</p>

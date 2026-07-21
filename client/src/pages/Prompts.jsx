@@ -566,9 +566,11 @@ function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy
             {media.length} 🖼
           </span>
         )}
-        {/* Legenda sobreposta na imagem, igual fica dentro da skill */}
+        {/* Legenda sobreposta na imagem, igual fica dentro da skill —
+            ocupa a largura toda do card e mostra até 2 linhas para caber o
+            máximo de texto legível; só corta (…) se for realmente longa. */}
         {shown?.caption && (
-          <span className="absolute bottom-2 left-2 max-w-[85%] truncate rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[10.5px] font-medium text-slate-100 backdrop-blur-sm">
+          <span className="absolute inset-x-1.5 bottom-1.5 line-clamp-2 rounded-lg border border-white/15 bg-black/70 px-2 py-1 text-[10.5px] font-medium leading-tight text-slate-100 backdrop-blur-sm">
             {shown.caption}
           </span>
         )}
