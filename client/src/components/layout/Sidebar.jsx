@@ -82,9 +82,9 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-slate-800/70 bg-slate-950">
+    <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800/70 bg-slate-950">
       {/* Logo/nome clicável → volta ao dashboard */}
-      <Link to="/" className="flex h-16 items-center border-b border-slate-800/70 px-5 transition-opacity hover:opacity-80" title={t('nav.backToDashboard')}>
+      <Link to="/" className="flex h-14 items-center border-b border-slate-800/70 px-4 transition-opacity hover:opacity-80" title={t('nav.backToDashboard')}>
         <Logo />
       </Link>
 
@@ -117,14 +117,14 @@ export default function Sidebar() {
                         end={to === '/'}
                         tabIndex={isOpen ? 0 : -1}
                         className={({ isActive }) =>
-                          `flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
+                          `flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium tracking-tight transition-colors ${
                             isActive
                               ? 'border-l-2 border-cyan-500 bg-cyan-500/10 text-cyan-300'
                               : 'border-l-2 border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-200'
                           }`
                         }
                       >
-                        <Icon size={17} />
+                        <Icon size={16} />
                         {t(`nav.${label}`)}
                         {badge && (
                           <span className="ml-auto rounded bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300">

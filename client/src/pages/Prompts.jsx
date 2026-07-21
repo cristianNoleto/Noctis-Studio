@@ -516,8 +516,12 @@ function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [hover, setHover] = useState(false)
   const isNew = s.createdAt && Date.now() - s.createdAt < NEW_BADGE_MS
   const media = skillMedia(s)
+  // Ao passar o mouse, se houver mais de uma mídia, mostra a 2ª (imagem ou vídeo)
+  // para sinalizar que a skill tem mais conteúdo salvo.
+  const shown = hover && media.length > 1 ? media[1] : media[0]
 
   async function copy(e) {
     e.stopPropagation()
@@ -539,10 +543,14 @@ function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy
       onClick={() => onOpen(s)}
       className="flex cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-950 transition-colors hover:border-cyan-500/40"
     >
-      {/* Thumb 16:9 — primeira mídia (imagem ou vídeo) */}
-      <div className="relative aspect-video overflow-hidden bg-gradient-to-br from-slate-900 to-slate-950">
-        {media[0] ? (
-          <MediaFrame item={media[0]} className="absolute inset-0 h-full w-full object-cover" />
+      {/* Thumb 16:9 — 1ª mídia (troca para a 2ª no hover se houver mais) */}
+      <div
+        className="relative aspect-video overflow-hidden bg-gradient-to-br from-slate-900 to-slate-950"
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+      >
+        {shown ? (
+          <MediaFrame key={shown.url} item={shown} className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <Sparkles size={26} className="text-slate-700" />
@@ -556,6 +564,12 @@ function SystemSkillCard({ skill: s, isFounder, onOpen, onEdit, onDelete, onCopy
         {media.length > 1 && (
           <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
             {media.length} 🖼
+          </span>
+        )}
+        {/* Legenda sobreposta na imagem, igual fica dentro da skill */}
+        {shown?.caption && (
+          <span className="absolute bottom-2 left-2 max-w-[85%] truncate rounded-full border border-white/15 bg-black/65 px-2.5 py-1 text-[10.5px] font-medium text-slate-100 backdrop-blur-sm">
+            {shown.caption}
           </span>
         )}
       </div>

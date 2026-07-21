@@ -485,12 +485,24 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
 
       {/* Título + etapas */}
       <div className="min-w-0 flex-1">
-        <p
-          onClick={copyTitle}
-          className="truncate font-semibold text-slate-100 transition-colors hover:text-cyan-300 cursor-pointer"
-        >
-          <Masked mask="•••••••••••">{v.title}</Masked>
-        </p>
+        <div className="flex items-baseline gap-2">
+          <p
+            onClick={copyTitle}
+            title={t('videos.copyHint')}
+            className="min-w-0 truncate font-semibold text-slate-100 transition-colors hover:text-cyan-300 cursor-pointer"
+          >
+            <Masked mask="•••••••••••">{v.title}</Masked>
+          </p>
+          {(() => {
+            const len = (v.title || '').length
+            const tone = len > 100 ? 'text-red-400' : len >= 90 ? 'text-amber-400' : 'text-slate-600'
+            return (
+              <span className={`shrink-0 font-mono text-[10px] tabular-nums ${tone}`} title={t('videos.form.title')}>
+                {len}/100
+              </span>
+            )
+          })()}
+        </div>
         {copied && (
           <div className="fixed bottom-6 right-6 z-[120] rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-200 shadow-lg">
             {t('videos.titleCopied')}
@@ -519,7 +531,12 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
 
       {/* Score + ações (layout compacto do print) */}
       <div className="flex shrink-0 items-center gap-1.5">
-        <button onClick={onReport} title={t('videos.reportTitle')} className="mr-0.5 text-sm font-bold text-cyan-400 transition-colors hover:text-cyan-300">
+        <button
+          onClick={onReport}
+          title={t('videos.reportTitle')}
+          className="mr-0.5 flex h-8 items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/60 px-2 text-xs font-bold text-cyan-400 transition-colors hover:border-cyan-500/40 hover:text-cyan-300"
+        >
+          <span className="text-[9px] font-semibold text-slate-500">SEO</span>
           {report?.score != null ? `${report.score}/100` : '—/100'}
         </button>
         <RowBtn title={t('videos.edit')} onClick={onEdit}>
@@ -531,7 +548,7 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
             target="_blank"
             rel="noopener noreferrer"
             title={t('videos.openYoutube')}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 text-slate-500 transition-colors hover:border-red-500/40 hover:bg-slate-800 hover:text-red-400"
           >
             <PlaySquare size={15} />
           </a>
@@ -573,8 +590,10 @@ function RowBtn({ children, title, onClick, danger }) {
     <button
       title={title}
       onClick={onClick}
-      className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-        danger ? 'text-slate-500 hover:bg-red-500/10 hover:text-red-400' : 'text-slate-500 hover:bg-slate-800 hover:text-slate-200'
+      className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
+        danger
+          ? 'border-slate-800 bg-slate-900/60 text-slate-500 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400'
+          : 'border-slate-800 bg-slate-900/60 text-slate-500 hover:border-cyan-500/40 hover:bg-slate-800 hover:text-cyan-300'
       }`}
     >
       {children}
@@ -727,6 +746,7 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
             <span className="text-[10px] text-slate-600">{(form.thumbnailConcept || '').length}</span>
           </div>
           <input className={inputCls} placeholder={t('videos.form.thumbConceptPlaceholder')} value={form.thumbnailConcept || ''} onChange={(e) => set('thumbnailConcept', e.target.value)} />
+          <p className="mt-1 text-[10px] leading-relaxed text-slate-600">{t('videos.form.thumbConceptHint')}</p>
         </div>
 
         <div>

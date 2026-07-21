@@ -10,7 +10,7 @@
   Vermelho #ff4747:     YouTube e ações destrutivas
 */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Satoshi', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --color-slate-950: #0d0e12;
   --color-slate-900: #16171d;
   --color-slate-800: #23252e;
