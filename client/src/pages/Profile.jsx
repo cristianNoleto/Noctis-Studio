@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { User, Shield, ShieldCheck, KeyRound, SlidersHorizontal, Wrench, Eye, EyeOff, Check, Camera, DownloadCloud, UploadCloud, AlertTriangle, Loader2, X, Plug } from 'lucide-react'
+import { User, Shield, ShieldCheck, KeyRound, SlidersHorizontal, Wrench, Eye, EyeOff, Check, Camera, DownloadCloud, UploadCloud, AlertTriangle, Loader2, X, Plug, Cloud } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
 import { api } from '../lib/api'
@@ -808,6 +808,24 @@ function AdvancedTab() {
   const [importOk, setImportOk] = useState(false)
   const [pendingImport, setPendingImport] = useState(null)
   const [wipeOpen, setWipeOpen] = useState(false)
+  const [migrating, setMigrating] = useState(false)
+  const [migrateSummary, setMigrateSummary] = useState(null)
+  const [migrateError, setMigrateError] = useState('')
+  const { cloud, cloudActive } = db.cloudStatus()
+
+  async function migrateNow() {
+    setMigrating(true)
+    setMigrateError('')
+    setMigrateSummary(null)
+    try {
+      const r = await db.migrateToCloud()
+      setMigrateSummary(r.summary || {})
+    } catch (e) {
+      setMigrateError(e?.message || 'Erro ao migrar.')
+    } finally {
+      setMigrating(false)
+    }
+  }
 
   const counts = [
     ['countChannels', db.all('channels').length],
@@ -881,6 +899,41 @@ function AdvancedTab() {
         <p className="mt-3 text-[11px] text-slate-600">
           {t('profile.adv.keysNote')}
         </p>
+      </Card>
+
+      <Card title={t('profile.adv.cloudTitle')} subtitle={t('profile.adv.cloudSub')}>
+        {!cloud ? (
+          <p className="text-xs text-slate-500">{t('profile.adv.cloudLocalOnly')}</p>
+        ) : (
+          <>
+            <div className="mb-3">
+              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${cloudActive ? 'border-green-500/40 bg-green-500/10 text-green-400' : 'border-amber-500/40 bg-amber-500/10 text-amber-400'}`}>
+                {cloudActive ? t('profile.adv.cloudOn') : t('profile.adv.cloudOff')}
+              </span>
+            </div>
+            <button onClick={migrateNow} disabled={migrating} className={`${btnPrimary} flex items-center gap-2 disabled:opacity-50`}>
+              {migrating ? <Loader2 size={15} className="animate-spin" /> : <Cloud size={15} />}
+              {t('profile.adv.cloudBtn')}
+            </button>
+            {migrateError && <p className="mt-3 text-xs text-red-400">{migrateError}</p>}
+            {migrateSummary && (
+              <div className="mt-3 rounded-lg border border-green-500/25 bg-green-500/5 p-3">
+                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-green-400">
+                  <Check size={13} />
+                  {t('profile.adv.cloudDone')}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(migrateSummary).map(([k, v]) => (
+                    <span key={k} className="rounded border border-slate-800 bg-slate-950 px-2 py-0.5 text-[10.5px] text-slate-400">
+                      {k}: <b className={typeof v === 'number' ? 'text-slate-200' : 'text-red-400'}>{String(v)}</b>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="mt-3 text-[11px] leading-relaxed text-slate-600">{t('profile.adv.cloudNote')}</p>
+          </>
+        )}
       </Card>
 
       <Card title={t('profile.adv.dangerTitle')}>

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { api } from './api'
 
 // ---------------------------------------------------------------------------
 // Camada de dados local (localStorage) — modo local do Noctis Studio.
@@ -11,6 +12,18 @@ let storageKey = null
 let state = null
 let version = 0
 const subscribers = new Set()
+
+// ---- Sincronização com o banco (Supabase, produção) --------------------------
+// cloud: Supabase disponível. cloudActive: workspace já migrado → o banco é a
+// fonte da verdade e cada save faz write-through. Coleções gerenciadas no banco:
+let cloud = false
+let cloudActive = false
+let pushTimer = null
+const MANAGED = [
+  'channels', 'channelButtons', 'videos', 'scripts', 'seoReports', 'boardSpaces', 'boardColumns',
+  'boardCards', 'checklistItems', 'referenceFolders', 'referenceChannels', 'promptCategories',
+  'prompts', 'transcriptions', 'nicheAnalyses',
+]
 
 const emptyState = () => ({
   channels: [],
@@ -102,17 +115,49 @@ function seed(base) {
   return s
 }
 
-function persist() {
+// Escreve só no cache local + notifia a UI (sem tocar no servidor).
+function writeLocal() {
   localStorage.setItem(storageKey, JSON.stringify(state))
   version++
   subscribers.forEach((fn) => fn())
 }
 
+// Após migrado, cada mutação sobe o estado para o banco (debounce).
+function schedulePush() {
+  clearTimeout(pushTimer)
+  pushTimer = setTimeout(() => {
+    api.workspace.migrate(state).catch(() => {
+      /* offline/erro → tenta de novo na próxima mutação */
+    })
+  }, 2500)
+}
+
+function persist() {
+  writeLocal()
+  if (cloud && cloudActive) schedulePush()
+}
+
+// Puxa o snapshot do banco no login; se já migrado, adota como fonte da verdade.
+async function pullSnapshot() {
+  try {
+    const { migrated, snapshot } = await api.workspace.snapshot()
+    if (migrated && snapshot) {
+      for (const k of MANAGED) if (Array.isArray(snapshot[k])) state[k] = snapshot[k]
+      cloudActive = true
+      writeLocal() // atualiza o cache local sem re-subir
+    }
+  } catch {
+    /* sem conexão → segue no cache local */
+  }
+}
+
 export const db = {
-  init(email) {
+  init(email, opts = {}) {
     const key = `noctis_data_${email}`
+    cloud = !!opts.cloud
     if (storageKey === key && state) return
     storageKey = key
+    cloudActive = false
     let saved = null
     try {
       saved = JSON.parse(localStorage.getItem(key))
@@ -120,7 +165,19 @@ export const db = {
       saved = null
     }
     state = seed(saved || {})
-    persist()
+    writeLocal()
+    // Em produção, tenta adotar o que já está no banco (fonte da verdade).
+    if (cloud) pullSnapshot()
+  },
+  // Estado da nuvem para a UI (botão de migração em Configurações).
+  cloudStatus() {
+    return { cloud, cloudActive }
+  },
+  // Sobe TODO o estado local para o banco (botão "Migrar para a nuvem").
+  async migrateToCloud() {
+    const result = await api.workspace.migrate(state)
+    cloudActive = true
+    return result // { ok, owner, summary }
   },
   ready() {
     return state !== null

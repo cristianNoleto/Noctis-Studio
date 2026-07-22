@@ -193,6 +193,11 @@ export const api = {
     save: (collaborator) => authRequest('/collaborators/save', { method: 'POST', body: { collaborator } }),
     remove: (id) => authRequest(`/collaborators/${id}`, { method: 'DELETE' }),
   },
+  workspace: {
+    // Migração localStorage -> banco e leitura do snapshot no formato do client.
+    migrate: (data) => authRequest('/workspace/migrate', { method: 'POST', body: { data } }),
+    snapshot: () => authRequest('/workspace/snapshot'),
+  },
   transcription: {
     // Envia o arquivo de áudio direto para a AssemblyAI e abre o job.
     // language_detection: o idioma é detectado sozinho (pt, en, es...) — com

@@ -5,9 +5,10 @@ import { useAuth } from '../../auth/AuthContext'
 import { db } from '../../lib/db'
 
 export default function Layout() {
-  const { user } = useAuth()
-  // Inicializa o banco local do usuário antes de renderizar qualquer página.
-  db.init(user.email)
+  const { user, isLocalMode } = useAuth()
+  // Inicializa o banco do usuário; em produção (Supabase) o banco é a fonte da
+  // verdade e o localStorage vira cache.
+  db.init(user.email, { cloud: !isLocalMode })
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950">
