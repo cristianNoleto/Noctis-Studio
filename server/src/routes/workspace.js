@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { createHash } from 'crypto'
 import { supabaseAdmin } from '../lib/supabaseAdmin.js'
 
 // ---------------------------------------------------------------------------
@@ -72,6 +73,21 @@ const CONFIG = [
 
 const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
 
+// Ids do client que NÃO são UUID (ex.: vídeos importados do YouTube, cujo id é
+// o id do YouTube) viram um UUID DETERMINÍSTICO (mesmo id de origem → sempre o
+// mesmo UUID). A MESMA conversão é aplicada às referências (videoId, folderId…),
+// então as chaves estrangeiras continuam batendo.
+function toUuid(v) {
+  if (v == null) return null
+  if (isUuid(v)) return v
+  const h = createHash('sha1').update(String(v)).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
+// Campos do client que apontam para o id de outro registro (precisam da mesma
+// conversão de id para as FKs continuarem consistentes).
+const FK_FIELDS = new Set(['channelId', 'videoId', 'columnId', 'cardId', 'folderId', 'categoryId', 'spaceId'])
+
 // Converte ms/number/ISO em ISO string (colunas timestamptz).
 function toIso(v) {
   if (v == null) return null
@@ -83,17 +99,17 @@ const TS_COLS = new Set(['created_at', 'published_at', 'yt_stats_updated_at'])
 // registro do client -> linha do banco
 function toRow(rec, cfg, ownerId) {
   const row = { extra: {} }
-  if (isUuid(rec.id)) row.id = rec.id
+  if (rec.id != null) row.id = toUuid(rec.id)
   if (cfg.owner) row[cfg.owner] = ownerId
   if (cfg.parent) {
     const pid = rec[cfg.parent.field]
-    if (isUuid(pid)) row[cfg.parent.col] = pid
+    if (pid != null) row[cfg.parent.col] = toUuid(pid)
   }
   for (const [k, v] of Object.entries(rec)) {
     if (k === 'id') continue
     if (cfg.parent && k === cfg.parent.field) continue
     const col = cfg.cols[k]
-    if (col) row[col] = TS_COLS.has(col) ? toIso(v) : v
+    if (col) row[col] = FK_FIELDS.has(k) ? toUuid(v) : TS_COLS.has(col) ? toIso(v) : v
     else if (cfg.hasExtra !== false) row.extra[k] = v
   }
   // defaults p/ colunas NOT NULL ausentes
