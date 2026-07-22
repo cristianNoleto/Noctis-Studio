@@ -10,6 +10,7 @@ const AUTOSAVE_DEBOUNCE_MS = 2000
 export default function ScriptDrawer({ video, onClose }) {
   const db = useDb()
   const { t } = useI18n()
+  const readOnly = !db.canEdit('videos') // colaborador "Ver": só leitura
   const existing = db.all('scripts').find((s) => s.videoId === video.id)
   const [content, setContent] = useState(existing?.content || '')
   const [savedAt, setSavedAt] = useState(existing ? Date.now() : null)
@@ -65,10 +66,12 @@ export default function ScriptDrawer({ video, onClose }) {
             <FileDown size={13} className="shrink-0" />
             {t('script.txt')}
           </button>
-          <button className={`${btnPrimary} flex shrink-0 items-center gap-1.5 whitespace-nowrap !px-3 !py-1.5 text-xs`} onClick={() => persist(content)}>
-            <Save size={13} className="shrink-0" />
-            {t('script.save')}
-          </button>
+          {!readOnly && (
+            <button className={`${btnPrimary} flex shrink-0 items-center gap-1.5 whitespace-nowrap !px-3 !py-1.5 text-xs`} onClick={() => persist(content)}>
+              <Save size={13} className="shrink-0" />
+              {t('script.save')}
+            </button>
+          )}
         </>
       }
     >
@@ -85,14 +88,17 @@ export default function ScriptDrawer({ video, onClose }) {
 
         <textarea
           className="min-h-0 flex-1 resize-none bg-slate-950 p-6 font-mono text-sm leading-relaxed text-slate-200 placeholder:text-slate-700 focus:outline-none"
-          placeholder={t('script.placeholder')}
+          placeholder={readOnly ? t('script.readOnlyEmpty') : t('script.placeholder')}
           value={content}
           onChange={(e) => handleChange(e.target.value)}
+          readOnly={readOnly}
         />
 
         <div className="flex items-center justify-between border-t border-slate-800 px-6 py-2.5 text-[11px] text-slate-500">
           <span>
-            {dirty ? (
+            {readOnly ? (
+              t('script.readOnly')
+            ) : dirty ? (
               t('script.unsaved')
             ) : savedAt ? (
               <span className="flex items-center gap-1 text-green-400">

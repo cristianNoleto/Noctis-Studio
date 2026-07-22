@@ -21,6 +21,7 @@ import {
   Upload,
   Download,
   SquareCheckBig,
+  Eye,
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
@@ -81,6 +82,8 @@ function matchesTab(video, tab) {
 export default function VideosTable({ channelId, channel }) {
   const db = useDb()
   const { t } = useI18n()
+  // Colaborador com acesso só "Ver" → tudo em modo leitura (sem editar/salvar).
+  const readOnly = !db.canEdit('videos')
   const [view, setView] = useState('list')
   const [tab, setTab] = useState('all')
   const [query, setQuery] = useState('')
@@ -125,6 +128,7 @@ export default function VideosTable({ channelId, channel }) {
   }
 
   function toggleStep(video, key) {
+    if (readOnly) return
     const turningOn = !video.steps?.[key]
     // Ao marcar "Publicado" com etapas faltando, pede confirmação (completar tudo).
     if (key === 'publicado' && turningOn) {
@@ -230,13 +234,13 @@ export default function VideosTable({ channelId, channel }) {
         >
           <ArrowUpDown size={14} />
         </button>
-        {channel?.youtubeChannelId && (
+        {!readOnly && channel?.youtubeChannelId && (
           <button onClick={importFromYoutube} disabled={importing} className={`${btnGhost} flex items-center gap-2 text-xs`}>
             {importing ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
             {importing ? importMsg || t('videos.importing') : t('videos.importYoutube')}
           </button>
         )}
-        {videos.length > 0 && (
+        {!readOnly && videos.length > 0 && (
           <button
             onClick={analyzeAll}
             disabled={!batch?.running && pendingReports === 0}
@@ -247,10 +251,17 @@ export default function VideosTable({ channelId, channel }) {
             {batch?.running ? t('videos.stopAnalysis') : t('videos.analyzeAll', { n: pendingReports })}
           </button>
         )}
-        <button className={`${btnPrimary} flex items-center gap-1.5`} onClick={() => setEditVideo('new')}>
-          <Plus size={15} />
-          {t('videos.newTitle')}
-        </button>
+        {readOnly ? (
+          <span className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-400">
+            <Eye size={14} />
+            {t('videos.readOnly')}
+          </span>
+        ) : (
+          <button className={`${btnPrimary} flex items-center gap-1.5`} onClick={() => setEditVideo('new')}>
+            <Plus size={15} />
+            {t('videos.newTitle')}
+          </button>
+        )}
       </div>
 
       {/* Progresso da análise em lote */}
@@ -295,6 +306,7 @@ export default function VideosTable({ channelId, channel }) {
             <VideoRow
               key={v.id}
               video={v}
+              readOnly={readOnly}
               onToggleStep={(key) => toggleStep(v, key)}
               onEdit={() => setEditVideo(v)}
               onScript={() => setScriptVideo(v)}
@@ -305,13 +317,13 @@ export default function VideosTable({ channelId, channel }) {
           ))}
         </div>
       ) : (
-        <VideosKanban videos={filtered} onOpenScript={setScriptVideo} />
+        <VideosKanban videos={filtered} readOnly={readOnly} onOpenScript={setScriptVideo} />
       )}
 
       {/* Modais */}
-      <VideoFormModal open={editVideo !== null} onClose={() => setEditVideo(null)} channelId={channelId} video={editVideo === 'new' ? null : editVideo} nextNumber={Math.max(0, ...videos.map((v) => v.videoNumber || 0)) + 1} />
+      <VideoFormModal open={editVideo !== null} onClose={() => setEditVideo(null)} channelId={channelId} video={editVideo === 'new' ? null : editVideo} nextNumber={Math.max(0, ...videos.map((v) => v.videoNumber || 0)) + 1} readOnly={readOnly} />
       <LinkYoutubeModal open={linkVideo !== null} onClose={() => setLinkVideo(null)} video={linkVideo} />
-      <SeoReportModal open={reportVideo !== null} onClose={() => setReportVideo(null)} video={reportVideo} channel={channel} />
+      <SeoReportModal open={reportVideo !== null} onClose={() => setReportVideo(null)} video={reportVideo} channel={channel} readOnly={readOnly} />
       {scriptVideo && <ScriptDrawer video={scriptVideo} onClose={() => setScriptVideo(null)} />}
       <ConfirmDialog
         open={deleteVideo !== null}
@@ -389,7 +401,7 @@ function StatusTag({ video }) {
   return <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${cls[status] || cls.planning}`}>{t(`videos.tabs.${status}`)}</span>
 }
 
-function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, onDelete }) {
+function VideoRow({ video: v, readOnly, onToggleStep, onEdit, onScript, onReport, onLink, onDelete }) {
   const db = useDb()
   const { t } = useI18n()
   const report = db.all('seoReports').filter((r) => r.videoId === v.id).sort((a, b) => b.createdAt - a.createdAt)[0]
@@ -450,20 +462,26 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
               <ThumbBtn title={t('videos.thumbView')} onClick={() => setZoom(true)}>
                 <ZoomIn size={12} />
               </ThumbBtn>
-              <ThumbBtn title={t('videos.thumbReplace')} onClick={() => fileRef.current?.click()}>
-                <Upload size={12} />
-              </ThumbBtn>
               <ThumbBtn title={t('videos.thumbDownload')} onClick={downloadThumb}>
                 <Download size={12} />
               </ThumbBtn>
-              <ThumbBtn title={t('videos.thumbRemove')} danger onClick={() => db.update('videos', v.id, { thumbnailUrl: null })}>
-                <Trash2 size={12} />
-              </ThumbBtn>
+              {!readOnly && (
+                <>
+                  <ThumbBtn title={t('videos.thumbReplace')} onClick={() => fileRef.current?.click()}>
+                    <Upload size={12} />
+                  </ThumbBtn>
+                  <ThumbBtn title={t('videos.thumbRemove')} danger onClick={() => db.update('videos', v.id, { thumbnailUrl: null })}>
+                    <Trash2 size={12} />
+                  </ThumbBtn>
+                </>
+              )}
             </>
           ) : (
-            <ThumbBtn title={t('videos.thumbUpload')} onClick={() => fileRef.current?.click()}>
-              <Upload size={12} />
-            </ThumbBtn>
+            !readOnly && (
+              <ThumbBtn title={t('videos.thumbUpload')} onClick={() => fileRef.current?.click()}>
+                <Upload size={12} />
+              </ThumbBtn>
+            )
           )}
         </div>
         {zoom && v.thumbnailUrl && (
@@ -523,8 +541,9 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
               <button
                 key={key}
                 onClick={() => onToggleStep(key)}
+                disabled={readOnly}
                 title={done ? t('videos.stepDone', { label }) : t('videos.stepPending', { label })}
-                className={`flex items-center gap-1 text-[10px] transition-colors ${done ? 'text-green-400' : 'text-slate-600 hover:text-slate-400'}`}
+                className={`flex items-center gap-1 text-[10px] transition-colors ${readOnly ? 'cursor-default' : ''} ${done ? 'text-green-400' : `text-slate-600 ${readOnly ? '' : 'hover:text-slate-400'}`}`}
               >
                 <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border ${done ? 'border-green-500 bg-green-500/20' : 'border-slate-700'}`}>
                   {done && <Check size={9} />}
@@ -546,8 +565,8 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
           <span className="text-[9px] font-semibold text-slate-500">SEO</span>
           {report?.score != null ? `${report.score}/100` : '—/100'}
         </button>
-        <RowBtn title={t('videos.edit')} onClick={onEdit}>
-          <Pencil size={14} />
+        <RowBtn title={readOnly ? t('videos.view') : t('videos.edit')} onClick={onEdit}>
+          {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
         </RowBtn>
         {v.youtubeUrl ? (
           <a
@@ -560,13 +579,17 @@ function VideoRow({ video: v, onToggleStep, onEdit, onScript, onReport, onLink, 
             <PlaySquare size={15} />
           </a>
         ) : (
-          <RowBtn title={t('videos.linkYoutube')} onClick={onLink}>
-            <Link2 size={14} />
+          !readOnly && (
+            <RowBtn title={t('videos.linkYoutube')} onClick={onLink}>
+              <Link2 size={14} />
+            </RowBtn>
+          )
+        )}
+        {!readOnly && (
+          <RowBtn title={t('videos.delete')} danger onClick={onDelete}>
+            <Trash2 size={14} />
           </RowBtn>
         )}
-        <RowBtn title={t('videos.delete')} danger onClick={onDelete}>
-          <Trash2 size={14} />
-        </RowBtn>
         <button
           onClick={onScript}
           title={t('videos.roteiro')}
@@ -618,13 +641,13 @@ const KANBAN_COLUMNS = [
   ['scheduled_published', 'Agendado/Publicado', '#4ade80'],
 ]
 
-function VideosKanban({ videos, onOpenScript }) {
+function VideosKanban({ videos, readOnly, onOpenScript }) {
   const db = useDb()
   const { t } = useI18n()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   function onDragEnd({ active, over }) {
-    if (!over) return
+    if (readOnly || !over) return
     const v = db.get('videos', active.id)
     if (!v) return
     // Arrastar para uma coluna ajusta as etapas para bater com aquele estágio.
@@ -643,14 +666,14 @@ function VideosKanban({ videos, onOpenScript }) {
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       <div className="flex gap-3 overflow-x-auto pb-2">
         {KANBAN_COLUMNS.map(([key, , color]) => (
-          <KanbanColumn key={key} id={key} label={t(`videos.tabs.${key}`)} color={color} videos={videos.filter((v) => matchesTab(v, key))} onOpenScript={onOpenScript} />
+          <KanbanColumn key={key} id={key} label={t(`videos.tabs.${key}`)} color={color} videos={videos.filter((v) => matchesTab(v, key))} readOnly={readOnly} onOpenScript={onOpenScript} />
         ))}
       </div>
     </DndContext>
   )
 }
 
-function KanbanColumn({ id, label, color, videos, onOpenScript }) {
+function KanbanColumn({ id, label, color, videos, readOnly, onOpenScript }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <div
@@ -664,19 +687,20 @@ function KanbanColumn({ id, label, color, videos, onOpenScript }) {
       </div>
       <div className="space-y-2 p-2.5">
         {videos.map((v) => (
-          <KanbanCard key={v.id} video={v} onOpenScript={onOpenScript} />
+          <KanbanCard key={v.id} video={v} readOnly={readOnly} onOpenScript={onOpenScript} />
         ))}
       </div>
     </div>
   )
 }
 
-function KanbanCard({ video: v, onOpenScript }) {
+function KanbanCard({ video: v, readOnly, onOpenScript }) {
   const { t } = useI18n()
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: v.id })
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: v.id, disabled: readOnly })
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined
+  const dnd = readOnly ? {} : { ...listeners, ...attributes }
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={`cursor-grab rounded-lg border border-slate-800 bg-slate-950 p-2.5 active:cursor-grabbing ${isDragging ? 'opacity-80 shadow-2xl' : ''}`}>
+    <div ref={setNodeRef} style={style} {...dnd} className={`rounded-lg border border-slate-800 bg-slate-950 p-2.5 ${readOnly ? '' : 'cursor-grab active:cursor-grabbing'} ${isDragging ? 'opacity-80 shadow-2xl' : ''}`}>
       {v.thumbnailUrl && <RestrictedThumb src={v.thumbnailUrl} className="mb-2 aspect-video w-full rounded object-cover" loading="lazy" />}
       <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-200"><Masked mask="•••••••••••">{v.title}</Masked></p>
       <div className="mt-1.5 flex items-center justify-between">
@@ -698,7 +722,7 @@ function KanbanCard({ video: v, onOpenScript }) {
 // ---------------------------------------------------------------------------
 // Modais
 // ---------------------------------------------------------------------------
-function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
+function VideoFormModal({ open, onClose, channelId, video, nextNumber, readOnly }) {
   const db = useDb()
   const { t } = useI18n()
   const [form, setForm] = useState({})
@@ -722,6 +746,7 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
 
   function save(e) {
     e.preventDefault()
+    if (readOnly) return onClose()
     const payload = {
       title: form.title,
       thumbnailConcept: form.thumbnailConcept || null,
@@ -736,9 +761,10 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={video ? t('videos.form.editTitle') : t('videos.form.createTitle')} wide>
-      <p className="-mt-3 mb-5 text-xs text-slate-500">{video ? t('videos.form.editSub') : t('videos.form.createSub')}</p>
+    <Modal open={open} onClose={onClose} title={readOnly ? t('videos.form.viewTitle') : video ? t('videos.form.editTitle') : t('videos.form.createTitle')} wide>
+      <p className="-mt-3 mb-5 text-xs text-slate-500">{readOnly ? t('videos.form.viewSub') : video ? t('videos.form.editSub') : t('videos.form.createSub')}</p>
       <form onSubmit={save} className="space-y-4">
+        <fieldset disabled={readOnly} className="space-y-4 border-0 p-0">
         <div>
           <div className="mb-1.5 flex items-end justify-between">
             <label className="block text-xs font-semibold tracking-wide text-slate-400">{t('videos.form.title')}</label>
@@ -778,13 +804,16 @@ function VideoFormModal({ open, onClose, channelId, video, nextNumber }) {
           <input className={inputCls} value={form.thumbnailUrl || ''} onChange={(e) => set('thumbnailUrl', e.target.value)} placeholder={t('videos.form.thumbUrlPlaceholder')} />
         </Field>
         <p className="-mt-2 text-[10px] text-slate-600">{t('videos.form.statusAuto')}</p>
+        </fieldset>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className={btnGhost} onClick={onClose}>
-            {t('common.cancel')}
+            {readOnly ? t('common.close') : t('common.cancel')}
           </button>
-          <button type="submit" className={btnPrimary}>
-            {video ? t('videos.form.save') : t('videos.form.create')}
-          </button>
+          {!readOnly && (
+            <button type="submit" className={btnPrimary}>
+              {video ? t('videos.form.save') : t('videos.form.create')}
+            </button>
+          )}
         </div>
       </form>
     </Modal>
@@ -829,7 +858,7 @@ function LinkYoutubeModal({ open, onClose, video }) {
 }
 
 // Relatório de SEO/CTR por IA — resultado cacheado localmente
-function SeoReportModal({ open, onClose, video, channel }) {
+function SeoReportModal({ open, onClose, video, channel, readOnly }) {
   const db = useDb()
   const { t } = useI18n()
   const [generating, setGenerating] = useState(false)
@@ -861,11 +890,13 @@ function SeoReportModal({ open, onClose, video, channel }) {
     <Modal open={open} onClose={onClose} title={t('videos.seo.title')} wide>
       {!report && !generating && (
         <div className="py-6 text-center">
-          <p className="text-sm text-slate-500">{t('videos.seo.intro')}</p>
-          <button className={`${btnPrimary} mt-4 inline-flex items-center gap-2`} onClick={generate}>
-            <Sparkles size={15} />
-            {t('videos.seo.generate')}
-          </button>
+          <p className="text-sm text-slate-500">{readOnly ? t('videos.seo.none') : t('videos.seo.intro')}</p>
+          {!readOnly && (
+            <button className={`${btnPrimary} mt-4 inline-flex items-center gap-2`} onClick={generate}>
+              <Sparkles size={15} />
+              {t('videos.seo.generate')}
+            </button>
+          )}
           {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
         </div>
       )}
@@ -889,9 +920,11 @@ function SeoReportModal({ open, onClose, video, channel }) {
                 </div>
               )}
             </div>
-            <button className={`${btnGhost} ml-auto !px-3 !py-1.5 text-xs`} onClick={generate}>
-              {t('videos.seo.regenerate')}
-            </button>
+            {!readOnly && (
+              <button className={`${btnGhost} ml-auto !px-3 !py-1.5 text-xs`} onClick={generate}>
+                {t('videos.seo.regenerate')}
+              </button>
+            )}
           </div>
           <ReportSection title={t('videos.seo.strengths')} items={report.report?.strengths} />
           <ReportSection title={t('videos.seo.weaknesses')} items={report.report?.weaknesses} />

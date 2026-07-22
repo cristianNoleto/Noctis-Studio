@@ -21,6 +21,9 @@ let cloudActive = false
 let pushTimer = null
 let selfEmail = null // e-mail do usuário logado
 let activeOwner = null // dono do workspace ativo (null = próprio)
+// Permissão no workspace ativo. No próprio, tudo 'edit'. Em workspace de outro
+// dono, começa conservador ('view') e é atualizado pelo snapshot do servidor.
+let activeAccess = { self: true, videos: 'edit', skills: 'edit', references: 'edit' }
 const MANAGED = [
   'channels', 'channelButtons', 'videos', 'scripts', 'seoReports', 'boardSpaces', 'boardColumns',
   'boardCards', 'checklistItems', 'referenceFolders', 'referenceChannels', 'promptCategories',
@@ -145,8 +148,11 @@ function persist() {
 async function pullSnapshot() {
   const owner = activeOwner || undefined
   try {
-    const { migrated, snapshot } = await api.workspace.snapshot(owner)
+    const { migrated, snapshot, access } = await api.workspace.snapshot(owner)
     if (owner !== (activeOwner || undefined)) return // trocou de workspace no meio
+    if (access) {
+      activeAccess = { self: !!access.self, videos: access.videos, skills: access.skills, references: access.references }
+    }
     if (migrated && snapshot) {
       for (const k of MANAGED) {
         // SEGURANÇA: só adota a coleção do servidor se ela vier com dados.
@@ -177,6 +183,10 @@ function loadWorkspace() {
   } catch {
     saved = null
   }
+  // Permissão conservadora até o snapshot confirmar (evita editar sem direito).
+  activeAccess = activeOwner
+    ? { self: false, videos: 'view', skills: 'view', references: 'view' }
+    : { self: true, videos: 'edit', skills: 'edit', references: 'edit' }
   // Workspace de outro dono NÃO semeia coleções globais (o colaborador só
   // recebe vídeos/referências via snapshot).
   state = activeOwner ? { ...emptyState(), ...(saved || {}) } : seed(saved || {})
@@ -205,6 +215,14 @@ export const db = {
   // Workspace ativo (null = próprio) — usado pelo seletor de workspace.
   activeWorkspace() {
     return activeOwner
+  },
+  // Permissão no workspace ativo.
+  access() {
+    return activeAccess
+  },
+  // Pode editar a área ('videos' | 'skills' | 'references')? Dono sempre pode.
+  canEdit(area) {
+    return activeAccess.self || activeAccess[area] === 'edit'
   },
   // Troca o workspace ativo (próprio ou de um dono que me deu acesso).
   switchWorkspace(owner) {
