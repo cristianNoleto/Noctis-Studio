@@ -43,6 +43,9 @@ export default function ChannelDetail() {
   const db = useDb()
   const { t } = useI18n()
   const channel = db.get('channels', id)
+  // Só o dono do workspace configura/exclui o canal. Colaborador (mesmo editor)
+  // mexe apenas nos vídeos.
+  const isOwner = db.access().self
 
   const [modal, setModal] = useState(null) // edit | buttons | share | prompts | references | delete | unlink | archive
   const [menuOpen, setMenuOpen] = useState(false)
@@ -197,7 +200,8 @@ export default function ChannelDetail() {
             ))}
           </div>
 
-          {/* Menu 3 pontinhos */}
+          {/* Menu 3 pontinhos — só o dono configura o canal */}
+          {isOwner && (
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
@@ -223,6 +227,7 @@ export default function ChannelDetail() {
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
 
@@ -270,11 +275,13 @@ export default function ChannelDetail() {
         </div>
       </div>
 
-      {/* Cards de controle central — mesmo padrão de bloco (largura total, preview inline) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <PromptsControlCard channelId={id} count={promptsCount} onManage={() => setModal('prompts')} />
-        <ReferenceControlCard channelId={id} count={refsCount} onManage={() => setModal('references')} />
-      </div>
+      {/* Cards de controle central — config do canal, só para o dono */}
+      {isOwner && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <PromptsControlCard channelId={id} count={promptsCount} onManage={() => setModal('prompts')} />
+          <ReferenceControlCard channelId={id} count={refsCount} onManage={() => setModal('references')} />
+        </div>
+      )}
 
       {/* Títulos & Vídeos */}
       <VideosTable channelId={id} channel={channel} />
