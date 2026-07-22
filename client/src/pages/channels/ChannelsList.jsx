@@ -16,6 +16,8 @@ const LANG_CODES = ['pt', 'en', 'es', 'de', 'fr', 'it', 'ja']
 export default function ChannelsList() {
   const db = useDb()
   const { t } = useI18n()
+  // Só o dono do workspace cria/arquiva/exclui canais. Colaborador só abre.
+  const isOwner = db.access().self
   const [params, setParams] = useSearchParams()
   const [createOpen, setCreateOpen] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
@@ -56,10 +58,12 @@ export default function ChannelsList() {
               {showArchived ? t('channels.backToActive') : t('channels.archived', { count: archivedCount })}
             </button>
           )}
-          <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setCreateOpen(true)}>
-            <Plus size={16} />
-            {t('channels.createChannel')}
-          </button>
+          {isOwner && (
+            <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setCreateOpen(true)}>
+              <Plus size={16} />
+              {t('channels.createChannel')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -89,9 +93,11 @@ export default function ChannelsList() {
             title={t('channels.emptyTitle')}
             description={t('channels.emptyDesc')}
             action={
-              <button className={btnPrimary} onClick={() => setCreateOpen(true)}>
-                {t('channels.createFirst')}
-              </button>
+              isOwner ? (
+                <button className={btnPrimary} onClick={() => setCreateOpen(true)}>
+                  {t('channels.createFirst')}
+                </button>
+              ) : null
             }
           />
         )
@@ -101,7 +107,7 @@ export default function ChannelsList() {
             const chVideos = videos.filter((v) => v.channelId === ch.id)
             const posted = chVideos.filter(isPosted).length
             const pending = chVideos.length - posted
-            return <ChannelCard key={ch.id} ch={ch} videoCount={chVideos.length} posted={posted} pending={pending} />
+            return <ChannelCard key={ch.id} ch={ch} isOwner={isOwner} videoCount={chVideos.length} posted={posted} pending={pending} />
           })}
         </div>
       )}
@@ -112,7 +118,7 @@ export default function ChannelsList() {
   )
 }
 
-function ChannelCard({ ch, videoCount, posted, pending }) {
+function ChannelCard({ ch, isOwner, videoCount, posted, pending }) {
   const db = useDb()
   const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -164,18 +170,20 @@ function ChannelCard({ ch, videoCount, posted, pending }) {
         </div>
       </Link>
 
-      {/* Menu de 3 pontos — ações rápidas sem entrar no canal */}
-      <button
-        ref={btnRef}
-        onClick={(e) => { stop(e); setMenuOpen((v) => !v) }}
-        title={t('channels.cardMenu')}
-        aria-label={t('channels.cardMenu')}
-        className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
-      >
-        <MoreVertical size={17} />
-      </button>
+      {/* Menu de 3 pontos — ações rápidas (arquivar/excluir): só o dono */}
+      {isOwner && (
+        <button
+          ref={btnRef}
+          onClick={(e) => { stop(e); setMenuOpen((v) => !v) }}
+          title={t('channels.cardMenu')}
+          aria-label={t('channels.cardMenu')}
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
+        >
+          <MoreVertical size={17} />
+        </button>
+      )}
 
-      <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => setMenuOpen(false)}>
+      <AnchoredMenu open={menuOpen && isOwner} anchorRef={btnRef} onClose={() => setMenuOpen(false)}>
         {items.map((it) => {
           const cls = `flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-slate-800 ${it.cls || 'text-slate-300'}`
           const content = (

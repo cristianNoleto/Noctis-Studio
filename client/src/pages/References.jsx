@@ -12,6 +12,7 @@ import { Field } from './channels/ChannelsList'
 export default function References() {
   const db = useDb()
   const { t } = useI18n()
+  const readOnly = !db.canEdit('references') // colaborador "Ver": só leitura
   const [modal, setModal] = useState(null) // 'new' | referência (edição)
   const [channelFilter, setChannelFilter] = useState('')
   const [nicheFilter, setNicheFilter] = useState('')
@@ -50,10 +51,17 @@ export default function References() {
             <p className="text-sm text-slate-500">{t('references.subtitle')}</p>
           </div>
         </div>
-        <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setModal('new')}>
-          <Plus size={16} />
-          {t('references.newChannel')}
-        </button>
+        {readOnly ? (
+          <span className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-400">
+            <Bookmark size={14} />
+            {t('references.readOnly')}
+          </span>
+        ) : (
+          <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setModal('new')}>
+            <Plus size={16} />
+            {t('references.newChannel')}
+          </button>
+        )}
       </div>
 
       {/* Filtros */}
@@ -87,9 +95,11 @@ export default function References() {
           title={t('references.emptyTitle')}
           description={t('references.emptyDesc')}
           action={
-            <button className={btnPrimary} onClick={() => setModal('new')}>
-              {t('references.addFirst')}
-            </button>
+            readOnly ? null : (
+              <button className={btnPrimary} onClick={() => setModal('new')}>
+                {t('references.addFirst')}
+              </button>
+            )
           }
         />
       )}
@@ -119,7 +129,7 @@ export default function References() {
             {open && (
               <div className="grid grid-cols-1 gap-3 border-t border-slate-800 p-4 sm:grid-cols-2 xl:grid-cols-4">
                 {items.map((r) => (
-                  <ReferenceCard key={r.id} reference={r} linkedName={channelName(r.channelId)} onEdit={() => setModal(r)} />
+                  <ReferenceCard key={r.id} reference={r} readOnly={readOnly} linkedName={channelName(r.channelId)} onEdit={() => setModal(r)} />
                 ))}
               </div>
             )}
@@ -138,7 +148,7 @@ export default function References() {
   )
 }
 
-function ReferenceCard({ reference: r, linkedName, onEdit }) {
+function ReferenceCard({ reference: r, readOnly, linkedName, onEdit }) {
   const db = useDb()
   const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -162,9 +172,9 @@ function ReferenceCard({ reference: r, linkedName, onEdit }) {
       </div>
 
       <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => setMenuOpen(false)} width={176}>
-        <MenuItem icon={Pencil} label={t('references.menuEdit')} onClick={() => { setMenuOpen(false); onEdit() }} />
+        {!readOnly && <MenuItem icon={Pencil} label={t('references.menuEdit')} onClick={() => { setMenuOpen(false); onEdit() }} />}
         <MenuItem icon={ExternalLink} label={t('references.menuOpen')} onClick={() => { setMenuOpen(false); window.open(url, '_blank') }} />
-        <MenuItem icon={Trash2} label={t('references.menuDelete')} danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />
+        {!readOnly && <MenuItem icon={Trash2} label={t('references.menuDelete')} danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />}
       </AnchoredMenu>
 
       <span className="mt-2.5 inline-block rounded-full bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-300">

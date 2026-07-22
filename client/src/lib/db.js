@@ -23,7 +23,7 @@ let selfEmail = null // e-mail do usuário logado
 let activeOwner = null // dono do workspace ativo (null = próprio)
 // Permissão no workspace ativo. No próprio, tudo 'edit'. Em workspace de outro
 // dono, começa conservador ('view') e é atualizado pelo snapshot do servidor.
-let activeAccess = { self: true, videos: 'edit', skills: 'edit', references: 'edit' }
+let activeAccess = { self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit' }
 const MANAGED = [
   'channels', 'channelButtons', 'videos', 'scripts', 'seoReports', 'boardSpaces', 'boardColumns',
   'boardCards', 'checklistItems', 'referenceFolders', 'referenceChannels', 'promptCategories',
@@ -151,7 +151,7 @@ async function pullSnapshot() {
     const { migrated, snapshot, access } = await api.workspace.snapshot(owner)
     if (owner !== (activeOwner || undefined)) return // trocou de workspace no meio
     if (access) {
-      activeAccess = { self: !!access.self, videos: access.videos, skills: access.skills, references: access.references }
+      activeAccess = { self: !!access.self, videos: access.videos, skills: access.skills, references: access.references, board: access.board }
     }
     if (migrated && snapshot) {
       for (const k of MANAGED) {
@@ -185,8 +185,8 @@ function loadWorkspace() {
   }
   // Permissão conservadora até o snapshot confirmar (evita editar sem direito).
   activeAccess = activeOwner
-    ? { self: false, videos: 'view', skills: 'view', references: 'view' }
-    : { self: true, videos: 'edit', skills: 'edit', references: 'edit' }
+    ? { self: false, videos: 'view', skills: 'view', references: 'view', board: 'view' }
+    : { self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit' }
   // Workspace de outro dono NÃO semeia coleções globais (o colaborador só
   // recebe vídeos/referências via snapshot).
   state = activeOwner ? { ...emptyState(), ...(saved || {}) } : seed(saved || {})

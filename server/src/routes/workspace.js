@@ -160,6 +160,7 @@ router.post('/migrate', async (req, res) => {
     writable = new Set()
     if (access.videos === 'edit') ['videos', 'scripts', 'seoReports'].forEach((k) => writable.add(k))
     if (access.references === 'edit') ['referenceFolders', 'referenceChannels'].forEach((k) => writable.add(k))
+    if (access.board === 'edit') ['boardSpaces', 'boardColumns', 'boardCards', 'checklistItems'].forEach((k) => writable.add(k))
     if (!writable.size) return res.status(403).json({ error: 'forbidden', message: 'Sem permissão de edição.' })
   }
 
@@ -230,10 +231,10 @@ async function userIdByEmail(supa, email) {
 async function resolveAccess(supa, requester, ownerEmail) {
   const me = (requester.email || '').toLowerCase()
   const owner = (ownerEmail || me).toLowerCase()
-  if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit' }
+  if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit' }
   const { data } = await supa.from('workspace_collaborators').select('*').eq('owner_email', owner).eq('member_email', me).maybeSingle()
   if (!data) return null
-  return { owner, self: false, videos: data.videos_access || 'none', skills: data.skills || 'none', references: data.references_access || 'none' }
+  return { owner, self: false, videos: data.videos_access || 'none', skills: data.skills || 'none', references: data.references_access || 'none', board: data.board_access || 'none' }
 }
 
 // GET /workspace/workspaces — workspaces que o usuário pode acessar (próprio + convidados)
@@ -242,11 +243,15 @@ router.get('/workspaces', async (req, res) => {
   if (!supa) return
   const user = await getUser(req, supa)
   if (!user) return res.status(401).json({ error: 'unauthorized' })
-  const list = [{ ownerEmail: user.email, self: true, videos: 'edit', skills: 'edit', references: 'edit' }]
+  const list = [{ ownerEmail: user.email, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit' }]
   const { data } = await supa.from('workspace_collaborators').select('*').eq('member_email', (user.email || '').toLowerCase())
   for (const c of data || []) {
-    const any = (c.videos_access && c.videos_access !== 'none') || (c.skills && c.skills !== 'none') || (c.references_access && c.references_access !== 'none')
-    if (any) list.push({ ownerEmail: c.owner_email, self: false, videos: c.videos_access || 'none', skills: c.skills || 'none', references: c.references_access || 'none' })
+    const any =
+      (c.videos_access && c.videos_access !== 'none') ||
+      (c.skills && c.skills !== 'none') ||
+      (c.references_access && c.references_access !== 'none') ||
+      (c.board_access && c.board_access !== 'none')
+    if (any) list.push({ ownerEmail: c.owner_email, self: false, videos: c.videos_access || 'none', skills: c.skills || 'none', references: c.references_access || 'none', board: c.board_access || 'none' })
   }
   res.json({ workspaces: list })
 })
@@ -288,14 +293,17 @@ router.get('/snapshot', async (req, res) => {
     out.referenceFolders = folders
     out.referenceChannels = await fetchBy('reference_channels', 'folder_id', folders.map((f) => f.id))
   }
-  // Coleções privadas do dono (quadro, prompts, transcrições, análises): só no próprio workspace.
-  if (access.self) {
+  // Quadro de Ideias: dono, ou colaborador com acesso ao quadro.
+  if (access.self || access.board !== 'none') {
     out.boardSpaces = await byOwner('board_spaces')
     const columns = await byOwner('board_columns')
     out.boardColumns = columns
     const cards = await fetchBy('board_cards', 'column_id', columns.map((c) => c.id))
     out.boardCards = cards
     out.checklistItems = await fetchBy('board_card_checklist_items', 'card_id', cards.map((c) => c.id))
+  }
+  // Coleções privadas do dono (prompts, transcrições, análises): só no próprio workspace.
+  if (access.self) {
     out.promptCategories = await byOwner('prompt_categories')
     out.prompts = await byOwner('prompts')
     out.transcriptions = await byOwner('transcriptions')

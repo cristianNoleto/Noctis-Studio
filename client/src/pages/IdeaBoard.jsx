@@ -10,6 +10,7 @@ const COLUMN_COLORS = ['#00f2fe', '#f59e0b', '#22c55e', '#00b8cc', '#ef4444', '#
 export default function IdeaBoard() {
   const db = useDb()
   const { t } = useI18n()
+  const readOnly = !db.canEdit('board') // colaborador "Ver": só leitura
   const [spaceId, setSpaceId] = useState(null) // null = Espaço Geral
   const [newColumnOpen, setNewColumnOpen] = useState(false)
   const [newSpaceOpen, setNewSpaceOpen] = useState(false)
@@ -25,7 +26,7 @@ export default function IdeaBoard() {
 
   function onDragEnd({ active, over }) {
     setActiveId(null)
-    if (!over) return
+    if (readOnly || !over) return
     const card = db.get('boardCards', active.id)
     if (card && card.columnId !== over.id) db.update('boardCards', active.id, { columnId: over.id })
   }
@@ -63,10 +64,17 @@ export default function IdeaBoard() {
               <option value="__new">{t('ideaBoard.newSpaceOption')}</option>
             </select>
           </div>
-          <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setNewColumnOpen(true)}>
-            <Plus size={16} />
-            {t('ideaBoard.newColumn')}
-          </button>
+          {readOnly ? (
+            <span className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-400">
+              <Lightbulb size={14} />
+              {t('ideaBoard.readOnly')}
+            </span>
+          ) : (
+            <button className={`${btnPrimary} flex items-center gap-2`} onClick={() => setNewColumnOpen(true)}>
+              <Plus size={16} />
+              {t('ideaBoard.newColumn')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -78,17 +86,20 @@ export default function IdeaBoard() {
               key={col.id}
               column={col}
               cards={cards.filter((c) => c.columnId === col.id)}
+              readOnly={readOnly}
               onRename={() => setRenameColumn(col)}
               onDelete={() => setDeleteColumn(col)}
             />
           ))}
-          {/* Coluna fantasma "+ Nova Coluna" */}
-          <button
-            onClick={() => setNewColumnOpen(true)}
-            className="flex h-full min-h-[60vh] w-64 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-slate-800 text-sm text-slate-600 transition-colors hover:border-cyan-500/40 hover:text-cyan-400"
-          >
-            + {t('ideaBoard.newColumn')}
-          </button>
+          {/* Coluna fantasma "+ Nova Coluna" (só quem pode editar) */}
+          {!readOnly && (
+            <button
+              onClick={() => setNewColumnOpen(true)}
+              className="flex h-full min-h-[60vh] w-64 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-slate-800 text-sm text-slate-600 transition-colors hover:border-cyan-500/40 hover:text-cyan-400"
+            >
+              + {t('ideaBoard.newColumn')}
+            </button>
+          )}
         </div>
         {/* Preview do card durante o arraste — renderizado acima de tudo, sem ser cortado */}
         <DragOverlay dropAnimation={null}>{activeCard ? <CardPreview card={activeCard} /> : null}</DragOverlay>
@@ -112,7 +123,7 @@ export default function IdeaBoard() {
 }
 
 // ---------------------------------------------------------------------------
-function Column({ column, cards, onRename, onDelete }) {
+function Column({ column, cards, readOnly, onRename, onDelete }) {
   const db = useDb()
   const { t } = useI18n()
   const { setNodeRef, isOver } = useDroppable({ id: column.id })
@@ -154,14 +165,16 @@ function Column({ column, cards, onRename, onDelete }) {
         <span className="mt-0.5 h-4 w-1 shrink-0 rounded-full" style={{ background: column.color || '#00f2fe' }} />
         <p title={column.title} className="min-w-0 flex-1 break-words text-xs font-bold uppercase leading-snug tracking-wide text-slate-200">{column.title}</p>
         <span className="mt-0.5 shrink-0 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">{cards.length}</span>
-        <div className="flex shrink-0 items-center gap-1">
-          <button onClick={onRename} title={t('ideaBoard.configColumn')} className="text-slate-600 hover:text-slate-300">
-            <Settings2 size={13} />
-          </button>
-          <button onClick={onDelete} title={t('ideaBoard.deleteColumnTitle')} className="text-slate-600 hover:text-red-400">
-            <Trash2 size={13} />
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="flex shrink-0 items-center gap-1">
+            <button onClick={onRename} title={t('ideaBoard.configColumn')} className="text-slate-600 hover:text-slate-300">
+              <Settings2 size={13} />
+            </button>
+            <button onClick={onDelete} title={t('ideaBoard.deleteColumnTitle')} className="text-slate-600 hover:text-red-400">
+              <Trash2 size={13} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Corpo */}
@@ -173,25 +186,27 @@ function Column({ column, cards, onRename, onDelete }) {
           </div>
         )}
         {ordered.map((card, i) => (
-          <Card key={card.id} card={card} onMoveUp={() => move(card.id, -1)} onMoveDown={() => move(card.id, 1)} isFirst={i === 0} isLast={i === ordered.length - 1} />
+          <Card key={card.id} card={card} readOnly={readOnly} onMoveUp={() => move(card.id, -1)} onMoveDown={() => move(card.id, 1)} isFirst={i === 0} isLast={i === ordered.length - 1} />
         ))}
       </div>
 
       {/* Rodapé */}
-      <div className="grid grid-cols-2 gap-2 border-t border-slate-800 p-2.5">
-        <button
-          onClick={() => addCard('nota')}
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-800 py-2 text-xs text-slate-400 transition-colors hover:border-amber-500/40 hover:text-amber-400"
-        >
-          <FileText size={12} />{t('ideaBoard.addNote')}
-        </button>
-        <button
-          onClick={() => addCard('checklist')}
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-800 py-2 text-xs text-slate-400 transition-colors hover:border-cyan-500/40 hover:text-cyan-400"
-        >
-          <CheckSquare size={12} />{t('ideaBoard.addChecklist')}
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="grid grid-cols-2 gap-2 border-t border-slate-800 p-2.5">
+          <button
+            onClick={() => addCard('nota')}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-800 py-2 text-xs text-slate-400 transition-colors hover:border-amber-500/40 hover:text-amber-400"
+          >
+            <FileText size={12} />{t('ideaBoard.addNote')}
+          </button>
+          <button
+            onClick={() => addCard('checklist')}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-800 py-2 text-xs text-slate-400 transition-colors hover:border-cyan-500/40 hover:text-cyan-400"
+          >
+            <CheckSquare size={12} />{t('ideaBoard.addChecklist')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -211,11 +226,12 @@ function MoveBtns({ onMoveUp, onMoveDown, isFirst, isLast }) {
   )
 }
 
-function Card({ card, onMoveUp, onMoveDown, isFirst, isLast }) {
+function Card({ card, readOnly, onMoveUp, onMoveDown, isFirst, isLast }) {
   const db = useDb()
   const { t } = useI18n()
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id })
-  const [editing, setEditing] = useState(!card.content && card.type === 'nota' && !card.title)
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id, disabled: readOnly })
+  const dnd = readOnly ? {} : { ...listeners, ...attributes }
+  const [editing, setEditing] = useState(!readOnly && !card.content && card.type === 'nota' && !card.title)
   const [checklistOpen, setChecklistOpen] = useState(false)
 
   const items = db.all('checklistItems').filter((i) => i.cardId === card.id)
@@ -232,13 +248,17 @@ function Card({ card, onMoveUp, onMoveDown, isFirst, isLast }) {
         ref={setNodeRef}
         style={style}
         className={`group rounded-lg border border-amber-500/40 bg-slate-950 p-3 ${isDragging ? 'opacity-30' : ''}`}
-        onDoubleClick={() => setEditing(true)}
+        onDoubleClick={() => !readOnly && setEditing(true)}
       >
         <div className="flex items-center gap-1.5">
-          <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title={t('ideaBoard.dragBetween')}>
-            <GripVertical size={12} />
-          </button>
-          <MoveBtns onMoveUp={onMoveUp} onMoveDown={onMoveDown} isFirst={isFirst} isLast={isLast} />
+          {!readOnly && (
+            <>
+              <button {...dnd} className="cursor-grab text-slate-600 active:cursor-grabbing" title={t('ideaBoard.dragBetween')}>
+                <GripVertical size={12} />
+              </button>
+              <MoveBtns onMoveUp={onMoveUp} onMoveDown={onMoveDown} isFirst={isFirst} isLast={isLast} />
+            </>
+          )}
           <span className="flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-amber-400">
             <FileText size={9} />
             {t('ideaBoard.note')}
@@ -250,13 +270,15 @@ function Card({ card, onMoveUp, onMoveDown, isFirst, isLast }) {
           >
             {card.collapsed ? <Plus size={12} /> : <Minus size={12} />}
           </button>
-          <button
-            onClick={() => db.remove('boardCards', card.id)}
-            className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
-            title={t('ideaBoard.delete')}
-          >
-            <X size={12} />
-          </button>
+          {!readOnly && (
+            <button
+              onClick={() => db.remove('boardCards', card.id)}
+              className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+              title={t('ideaBoard.delete')}
+            >
+              <X size={12} />
+            </button>
+          )}
         </div>
         {card.collapsed ? (
           <p className="mt-2 truncate text-[11px] text-slate-500">{card.content || card.title || t('ideaBoard.emptyNote')}</p>
@@ -275,7 +297,7 @@ function Card({ card, onMoveUp, onMoveDown, isFirst, isLast }) {
             ) : (
               <>
                 <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-slate-300">{card.content || card.title || '...'}</p>
-                <p className="mt-2 text-[9px] text-slate-600">{t('ideaBoard.doubleClickEdit')}</p>
+                {!readOnly && <p className="mt-2 text-[9px] text-slate-600">{t('ideaBoard.doubleClickEdit')}</p>}
               </>
             )}
             {card.source && card.source !== 'manual' && (
@@ -294,10 +316,14 @@ function Card({ card, onMoveUp, onMoveDown, isFirst, isLast }) {
     <>
       <div ref={setNodeRef} style={style} className={`group rounded-lg border border-cyan-500/30 bg-slate-950 p-3 ${isDragging ? 'opacity-30' : ''}`}>
         <div className="flex items-center gap-1.5">
-          <button {...listeners} {...attributes} className="cursor-grab text-slate-600 active:cursor-grabbing" title={t('ideaBoard.dragBetween')}>
-            <GripVertical size={12} />
-          </button>
-          <MoveBtns onMoveUp={onMoveUp} onMoveDown={onMoveDown} isFirst={isFirst} isLast={isLast} />
+          {!readOnly && (
+            <>
+              <button {...dnd} className="cursor-grab text-slate-600 active:cursor-grabbing" title={t('ideaBoard.dragBetween')}>
+                <GripVertical size={12} />
+              </button>
+              <MoveBtns onMoveUp={onMoveUp} onMoveDown={onMoveDown} isFirst={isFirst} isLast={isLast} />
+            </>
+          )}
           <span className="flex items-center gap-1 rounded bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-cyan-400">
             <CheckSquare size={9} />
             {t('ideaBoard.checklist')}
@@ -309,12 +335,16 @@ function Card({ card, onMoveUp, onMoveDown, isFirst, isLast }) {
           >
             {card.collapsed ? <Plus size={12} /> : <Minus size={12} />}
           </button>
-          <button onClick={() => setChecklistOpen(true)} className="text-slate-600 opacity-0 transition-opacity hover:text-slate-300 group-hover:opacity-100" title={t('ideaBoard.edit')}>
-            <Settings2 size={12} />
-          </button>
-          <button onClick={() => db.remove('boardCards', card.id)} className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100" title={t('ideaBoard.delete')}>
-            <X size={12} />
-          </button>
+          {!readOnly && (
+            <>
+              <button onClick={() => setChecklistOpen(true)} className="text-slate-600 opacity-0 transition-opacity hover:text-slate-300 group-hover:opacity-100" title={t('ideaBoard.edit')}>
+                <Settings2 size={12} />
+              </button>
+              <button onClick={() => db.remove('boardCards', card.id)} className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100" title={t('ideaBoard.delete')}>
+                <X size={12} />
+              </button>
+            </>
+          )}
         </div>
         <p className="mt-2 truncate text-xs font-semibold text-slate-200">{card.title}</p>
         {card.collapsed ? (
@@ -331,6 +361,7 @@ function Card({ card, onMoveUp, onMoveDown, isFirst, isLast }) {
                   <input
                     type="checkbox"
                     checked={item.done}
+                    disabled={readOnly}
                     onChange={(e) => db.update('checklistItems', item.id, { done: e.target.checked })}
                     className="h-3.5 w-3.5 shrink-0 rounded accent-cyan-500"
                   />
@@ -343,7 +374,7 @@ function Card({ card, onMoveUp, onMoveDown, isFirst, isLast }) {
                 {t('ideaBoard.tasksCompleted', { done, total: items.length })}
               </p>
             )}
-            {items.length === 0 && (
+            {items.length === 0 && !readOnly && (
               <button onClick={() => setChecklistOpen(true)} className="mt-1.5 text-[10px] text-cyan-400 hover:underline">
                 {t('ideaBoard.addTasks')}
               </button>

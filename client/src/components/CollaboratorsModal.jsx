@@ -30,6 +30,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   const [skills, setSkills] = useState('view')
   const [references, setReferences] = useState('none')
   const [videos, setVideos] = useState('edit')
+  const [board, setBoard] = useState('none')
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [remote, setRemote] = useState([])
@@ -57,10 +58,10 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
       setError(t('skillsLib.collab.dupe'))
       return
     }
-    if (isLocalMode) db.insert('collaborators', { ownerEmail: owner, memberEmail: m, skills, references, videos })
+    if (isLocalMode) db.insert('collaborators', { ownerEmail: owner, memberEmail: m, skills, references, videos, board })
     else {
       try {
-        const res = await api.collaborators.save({ memberEmail: m, skills, references, videos })
+        const res = await api.collaborators.save({ memberEmail: m, skills, references, videos, board })
         setInfo(res?.invited ? t('skillsLib.collab.invited', { email: m }) : '')
         refresh()
       } catch (err) {
@@ -72,6 +73,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
     setSkills('view')
     setReferences('none')
     setVideos('edit')
+    setBoard('none')
     setError('')
   }
 
@@ -83,7 +85,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
     // Otimista: atualiza a UI na hora e persiste em seguida (se falhar, reverte).
     setRemote((list) => list.map((x) => (x.id === c.id ? { ...x, [field]: value } : x)))
     try {
-      await api.collaborators.save({ memberEmail: c.memberEmail, skills: c.skills, references: c.references, videos: c.videos, [field]: value })
+      await api.collaborators.save({ memberEmail: c.memberEmail, skills: c.skills, references: c.references, videos: c.videos, board: c.board, [field]: value })
     } catch (e) {
       setError(e?.message || 'Erro ao salvar acesso.')
       refresh()
@@ -107,8 +109,9 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
           <input className={inputCls} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="pessoa@email.com" />
         </div>
         <AccessSelect label={t('skillsLib.collab.videos')} value={videos} onChange={setVideos} />
-        <AccessSelect label={t('skillsLib.collab.skills')} value={skills} onChange={setSkills} />
         <AccessSelect label={t('skillsLib.collab.references')} value={references} onChange={setReferences} />
+        <AccessSelect label={t('skillsLib.collab.board')} value={board} onChange={setBoard} />
+        <AccessSelect label={t('skillsLib.collab.skills')} value={skills} onChange={setSkills} />
         <button type="submit" className={`${btnPrimary} flex items-center gap-1.5`}>
           <UserPlus size={14} />
           {t('skillsLib.collab.add')}
@@ -126,8 +129,9 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
             <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 p-2.5">
               <span className="min-w-40 flex-1 truncate text-sm text-slate-200">{c.memberEmail}</span>
               <AccessSelect label={t('skillsLib.collab.videos')} value={c.videos || 'none'} onChange={(v) => setAccess(c, 'videos', v)} compact />
-              <AccessSelect label={t('skillsLib.collab.skills')} value={c.skills || 'none'} onChange={(v) => setAccess(c, 'skills', v)} compact />
               <AccessSelect label={t('skillsLib.collab.references')} value={c.references || 'none'} onChange={(v) => setAccess(c, 'references', v)} compact />
+              <AccessSelect label={t('skillsLib.collab.board')} value={c.board || 'none'} onChange={(v) => setAccess(c, 'board', v)} compact />
+              <AccessSelect label={t('skillsLib.collab.skills')} value={c.skills || 'none'} onChange={(v) => setAccess(c, 'skills', v)} compact />
               <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 text-slate-500 hover:text-red-400">
                 <Trash2 size={13} />
               </button>
