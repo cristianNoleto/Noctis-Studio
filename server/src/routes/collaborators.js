@@ -63,7 +63,7 @@ router.post('/save', async (req, res) => {
   if (!member.includes('@')) return res.status(400).json({ error: 'invalid_email' })
   const skills = ACCESS.includes(c.skills) ? c.skills : 'view'
   const references = ACCESS.includes(c.references) ? c.references : 'none'
-  const videos = ['none', 'edit'].includes(c.videos) ? c.videos : 'edit'
+  const videos = ACCESS.includes(c.videos) ? c.videos : 'view'
   const row = { owner_email: viewer.email, member_email: member, skills, references_access: references, videos_access: videos }
   // upsert por (owner_email, member_email)
   const { data, error } = await supa

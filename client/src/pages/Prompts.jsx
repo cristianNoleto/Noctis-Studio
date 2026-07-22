@@ -1073,10 +1073,16 @@ function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   }
 
   async function setAccess(c, field, value) {
-    if (isLocalMode) db.update('collaborators', c.id, { [field]: value })
-    else {
-      const merged = { memberEmail: c.memberEmail, skills: c.skills, references: c.references, videos: c.videos, [field]: value }
-      await api.collaborators.save(merged)
+    if (isLocalMode) {
+      db.update('collaborators', c.id, { [field]: value })
+      return
+    }
+    // Otimista: atualiza a UI na hora e persiste em seguida (se falhar, reverte).
+    setRemote((list) => list.map((x) => (x.id === c.id ? { ...x, [field]: value } : x)))
+    try {
+      await api.collaborators.save({ memberEmail: c.memberEmail, skills: c.skills, references: c.references, videos: c.videos, [field]: value })
+    } catch (e) {
+      setError(e?.message || 'Erro ao salvar acesso.')
       refresh()
     }
   }
