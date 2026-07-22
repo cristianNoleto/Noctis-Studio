@@ -142,7 +142,12 @@ async function pullSnapshot() {
   try {
     const { migrated, snapshot } = await api.workspace.snapshot()
     if (migrated && snapshot) {
-      for (const k of MANAGED) if (Array.isArray(snapshot[k])) state[k] = snapshot[k]
+      for (const k of MANAGED) {
+        // SEGURANÇA: só adota a coleção do servidor se ela vier com dados.
+        // Se o servidor devolver vazio, mantém o que já existe local — nunca
+        // apaga dado local por causa de um snapshot vazio/incompleto.
+        if (Array.isArray(snapshot[k]) && snapshot[k].length) state[k] = snapshot[k]
+      }
       cloudActive = true
       writeLocal() // atualiza o cache local sem re-subir
     }
