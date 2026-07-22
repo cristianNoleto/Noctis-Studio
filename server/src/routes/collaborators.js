@@ -34,6 +34,13 @@ function canManage(v) {
   return v.isFounder || v.plan === 'MASTER'
 }
 
+// Já existe conta com esse e-mail? (base pequena → listUsers)
+async function userExists(supa, email) {
+  const e = (email || '').toLowerCase()
+  const { data } = await supa.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  return (data?.users || []).some((u) => (u.email || '').toLowerCase() === e)
+}
+
 const ACCESS = ['none', 'view', 'edit']
 
 function toClient(r) {
@@ -72,7 +79,20 @@ router.post('/save', async (req, res) => {
     .select()
     .single()
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
-  res.json({ collaborator: toClient(data) })
+
+  // Se a pessoa ainda não tem conta, envia o convite por e-mail (link de aceite
+  // → tela de criar senha). Não bloqueia o salvamento se o e-mail falhar.
+  let invited = false
+  try {
+    if (!(await userExists(supa, member))) {
+      const origin = req.headers.origin || process.env.APP_URL || ''
+      await supa.auth.admin.inviteUserByEmail(member, origin ? { redirectTo: `${origin}/aceitar-convite` } : undefined)
+      invited = true
+    }
+  } catch {
+    /* e-mail não configurado / limite atingido → segue sem travar */
+  }
+  res.json({ collaborator: toClient(data), invited })
 })
 
 // DELETE /collaborators/:id — remove (só o dono)

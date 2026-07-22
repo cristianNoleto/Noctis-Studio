@@ -3,6 +3,7 @@ import { useAuth } from './auth/AuthContext'
 import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
+import AcceptInvite from './pages/auth/AcceptInvite'
 import Dashboard from './pages/Dashboard'
 import ChannelsList from './pages/channels/ChannelsList'
 import ChannelDetail from './pages/channels/ChannelDetail'
@@ -41,6 +42,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/aceitar-convite" element={<AcceptInvite />} />
       <Route
         element={
           <Protected>
