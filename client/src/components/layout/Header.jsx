@@ -7,6 +7,7 @@ import { useDb } from '../../lib/db'
 import { api } from '../../lib/api'
 import { usePrivacy, togglePrivacyGlobal } from '../privacy'
 import { AnchoredMenu } from '../AnchoredMenu'
+import { CollaboratorsModal } from '../CollaboratorsModal'
 
 const planStyles = {
   // FUNDADOR = criador do sistema (admin) — acima de qualquer plano
@@ -29,12 +30,14 @@ function useClickOutside(onClose) {
 }
 
 export default function Header() {
-  const { user, signOut, isAdmin } = useAuth()
+  const { user, signOut, isAdmin, isFounder, isLocalMode } = useAuth()
   const { t, lang, setLang } = useI18n()
   const db = useDb()
   const location = useLocation()
   const navigate = useNavigate()
 
+  const canManageCollab = isFounder || user?.plan === 'MASTER'
+  const [collabOpen, setCollabOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
@@ -212,6 +215,18 @@ export default function Header() {
                 <HelpCircle size={15} />
                 {t('header.helpCenter')}
               </Link>
+              {canManageCollab && (
+                <button
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setCollabOpen(true)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
+                >
+                  <Users size={15} />
+                  {t('header.collaborators')}
+                </button>
+              )}
               {isAdmin && (
                 <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-amber-400 hover:bg-slate-800">
                   <ShieldCheck size={15} />
@@ -226,6 +241,8 @@ export default function Header() {
           )}
         </div>
       </div>
+
+      <CollaboratorsModal open={collabOpen} onClose={() => setCollabOpen(false)} ownerEmail={user?.email} isLocalMode={isLocalMode} />
     </header>
   )
 }

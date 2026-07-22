@@ -108,6 +108,7 @@ export default {
     founder: 'FUNDADOR',
     workspace: 'Workspace ativo',
     workspaceMine: 'Meu workspace',
+    collaborators: 'Colaboradores',
     breadcrumb: {
       '/': ['Visão Geral', 'Dashboard'],
       '/canais': ['Meus Canais', 'Gestão de Canais'],
