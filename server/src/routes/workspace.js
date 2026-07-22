@@ -275,40 +275,62 @@ router.get('/snapshot', async (req, res) => {
   }
   const byOwner = async (table, col = 'user_id') => (await supa.from(table).select('*').eq(col, ownerId)).data || []
 
-  // Vídeos: dono, ou colaborador com acesso a vídeos.
-  if (access.self || access.videos !== 'none') {
-    const { data: channels = [] } = await supa.from('channels').select('*').eq('owner_id', ownerId)
-    const channelIds = channels.map((c) => c.id)
-    out.channels = channels
-    out.channelButtons = await fetchBy('channel_custom_buttons', 'channel_id', channelIds)
-    const videos = await fetchBy('channel_videos', 'channel_id', channelIds)
-    out.videos = videos
-    const videoIds = videos.map((v) => v.id)
-    out.scripts = await fetchBy('video_scripts', 'video_id', videoIds)
-    out.seoReports = await fetchBy('video_seo_reports', 'video_id', videoIds)
-  }
-  // Referências: dono, ou colaborador com acesso a referências.
-  if (access.self || access.references !== 'none') {
-    const folders = await byOwner('reference_folders')
-    out.referenceFolders = folders
-    out.referenceChannels = await fetchBy('reference_channels', 'folder_id', folders.map((f) => f.id))
-  }
-  // Quadro de Ideias: dono, ou colaborador com acesso ao quadro.
-  if (access.self || access.board !== 'none') {
-    out.boardSpaces = await byOwner('board_spaces')
-    const columns = await byOwner('board_columns')
-    out.boardColumns = columns
-    const cards = await fetchBy('board_cards', 'column_id', columns.map((c) => c.id))
-    out.boardCards = cards
-    out.checklistItems = await fetchBy('board_card_checklist_items', 'card_id', cards.map((c) => c.id))
-  }
-  // Coleções privadas do dono (prompts, transcrições, análises): só no próprio workspace.
-  if (access.self) {
-    out.promptCategories = await byOwner('prompt_categories')
-    out.prompts = await byOwner('prompts')
-    out.transcriptions = await byOwner('transcriptions')
-    out.nicheAnalyses = await byOwner('niche_doubling_analyses')
-  }
+  // Os quatro ramos são independentes entre si → rodam em PARALELO (cada um
+  // mantém a ordem interna que a dependência de FK exige). Corta bastante a
+  // latência do 1º carregamento (antes eram ~10 consultas em série).
+  await Promise.all([
+    // Vídeos: dono, ou colaborador com acesso a vídeos.
+    (async () => {
+      if (!(access.self || access.videos !== 'none')) return
+      const { data: channels = [] } = await supa.from('channels').select('*').eq('owner_id', ownerId)
+      const channelIds = channels.map((c) => c.id)
+      out.channels = channels
+      const [buttons, videos] = await Promise.all([
+        fetchBy('channel_custom_buttons', 'channel_id', channelIds),
+        fetchBy('channel_videos', 'channel_id', channelIds),
+      ])
+      out.channelButtons = buttons
+      out.videos = videos
+      const videoIds = videos.map((v) => v.id)
+      const [scripts, seo] = await Promise.all([
+        fetchBy('video_scripts', 'video_id', videoIds),
+        fetchBy('video_seo_reports', 'video_id', videoIds),
+      ])
+      out.scripts = scripts
+      out.seoReports = seo
+    })(),
+    // Referências: dono, ou colaborador com acesso a referências.
+    (async () => {
+      if (!(access.self || access.references !== 'none')) return
+      const folders = await byOwner('reference_folders')
+      out.referenceFolders = folders
+      out.referenceChannels = await fetchBy('reference_channels', 'folder_id', folders.map((f) => f.id))
+    })(),
+    // Quadro de Ideias: dono, ou colaborador com acesso ao quadro.
+    (async () => {
+      if (!(access.self || access.board !== 'none')) return
+      const [spaces, columns] = await Promise.all([byOwner('board_spaces'), byOwner('board_columns')])
+      out.boardSpaces = spaces
+      out.boardColumns = columns
+      const cards = await fetchBy('board_cards', 'column_id', columns.map((c) => c.id))
+      out.boardCards = cards
+      out.checklistItems = await fetchBy('board_card_checklist_items', 'card_id', cards.map((c) => c.id))
+    })(),
+    // Coleções privadas do dono (prompts, transcrições, análises): só no próprio workspace.
+    (async () => {
+      if (!access.self) return
+      const [cats, prompts, transcriptions, niche] = await Promise.all([
+        byOwner('prompt_categories'),
+        byOwner('prompts'),
+        byOwner('transcriptions'),
+        byOwner('niche_doubling_analyses'),
+      ])
+      out.promptCategories = cats
+      out.prompts = prompts
+      out.transcriptions = transcriptions
+      out.nicheAnalyses = niche
+    })(),
+  ])
 
   const byKey = Object.fromEntries(CONFIG.map((c) => [c.key, c]))
   const snapshot = {}
