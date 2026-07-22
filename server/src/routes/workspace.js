@@ -148,15 +148,42 @@ router.post('/migrate', async (req, res) => {
   const user = await getUser(req, supa)
   if (!user) return res.status(401).json({ error: 'unauthorized' })
   await ensureProfile(supa, user)
-  const data = req.body?.data || {}
+  const data = { ...(req.body?.data || {}) }
+
+  // Referências sem pasta (folderId ausente) ganham uma pasta padrão do dono,
+  // senão violariam a FK/são perdidas na leitura.
+  const refs = Array.isArray(data.referenceChannels) ? data.referenceChannels : []
+  if (refs.some((r) => !r.folderId)) {
+    const defId = `noctis-default-folder-${user.id}`
+    data.referenceFolders = [...(data.referenceFolders || []), { id: defId, name: 'Referências' }]
+    data.referenceChannels = refs.map((r) => (r.folderId ? r : { ...r, folderId: defId }))
+  }
+
+  // Qual tabela é o pai de cada coluna-FK (p/ descartar órfãos e não derrubar o lote).
+  const PARENT_TABLE = {
+    channel_id: 'channels', video_id: 'channel_videos', column_id: 'board_columns',
+    card_id: 'board_cards', folder_id: 'reference_folders',
+  }
+  const inserted = {} // tabela -> Set de ids inseridos
+
   const summary = {}
   for (const cfg of CONFIG) {
     const list = Array.isArray(data[cfg.key]) ? data[cfg.key] : []
-    if (!list.length) { summary[cfg.key] = 0; continue }
-    const rows = list.map((rec) => toRow(rec, cfg, user.id)).filter((r) => r.id) // precisa de id p/ upsert
+    let rows = list.map((rec) => toRow(rec, cfg, user.id)).filter((r) => r.id)
+    // Descarta filhos cujo pai não está sendo inserido (evita erro de FK no lote).
+    if (cfg.parent) {
+      const parentSet = inserted[PARENT_TABLE[cfg.parent.col]]
+      const before = rows.length
+      rows = rows.filter((r) => r[cfg.parent.col] && (!parentSet || parentSet.has(r[cfg.parent.col])))
+      summary[`${cfg.key}_orfaos`] = before - rows.length || undefined
+    }
+    if (!rows.length) { summary[cfg.key] = 0; inserted[cfg.table] = new Set(); continue }
     const { error } = await supa.from(cfg.table).upsert(rows, { onConflict: 'id' })
+    inserted[cfg.table] = new Set(error ? [] : rows.map((r) => r.id))
     summary[cfg.key] = error ? `erro: ${error.message}` : rows.length
   }
+  // limpa chaves _orfaos vazias
+  for (const k of Object.keys(summary)) if (summary[k] === undefined) delete summary[k]
   res.json({ ok: true, owner: user.email, summary })
 })
 
