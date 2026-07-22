@@ -202,8 +202,16 @@ export default function Prompts() {
   // Catálogo de skills do sistema (global via servidor; local no dev)
   // ------------------------------------------------------------------
   const localSkills = db.all('systemSkills')
-  const [remoteSkills, setRemoteSkills] = useState([])
-  const [loadingSkills, setLoadingSkills] = useState(!isLocalMode)
+  // Cache do catálogo: renderiza na hora o que já foi baixado antes e atualiza
+  // em segundo plano (evita a tela vazia "carregando" a cada visita/refresh).
+  const [remoteSkills, setRemoteSkills] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('noctis_skills_cache')) || []
+    } catch {
+      return []
+    }
+  })
+  const [loadingSkills, setLoadingSkills] = useState(!isLocalMode && remoteSkills.length === 0)
   const [skillsError, setSkillsError] = useState('')
   const [detail, setDetail] = useState(null) // skill aberta no modal
   const [editingSystem, setEditingSystem] = useState(null) // null | 'new:<cat>' | skill
@@ -230,6 +238,11 @@ export default function Prompts() {
       const { skills } = await api.skills.list()
       setRemoteSkills(skills)
       setSkillsError('')
+      try {
+        localStorage.setItem('noctis_skills_cache', JSON.stringify(skills))
+      } catch {
+        /* quota (catálogo com muita mídia) — segue sem cache */
+      }
     } catch {
       setSkillsError(t('skillsLib.loadError'))
     } finally {
