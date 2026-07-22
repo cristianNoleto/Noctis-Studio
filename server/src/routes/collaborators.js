@@ -37,7 +37,7 @@ function canManage(v) {
 const ACCESS = ['none', 'view', 'edit']
 
 function toClient(r) {
-  return { id: r.id, memberEmail: r.member_email, skills: r.skills || 'none', references: r.references_access || 'none' }
+  return { id: r.id, memberEmail: r.member_email, skills: r.skills || 'none', references: r.references_access || 'none', videos: r.videos_access || 'none' }
 }
 
 // GET /collaborators — os colaboradores do usuário logado (como dono)
@@ -63,7 +63,8 @@ router.post('/save', async (req, res) => {
   if (!member.includes('@')) return res.status(400).json({ error: 'invalid_email' })
   const skills = ACCESS.includes(c.skills) ? c.skills : 'view'
   const references = ACCESS.includes(c.references) ? c.references : 'none'
-  const row = { owner_email: viewer.email, member_email: member, skills, references_access: references }
+  const videos = ['none', 'edit'].includes(c.videos) ? c.videos : 'edit'
+  const row = { owner_email: viewer.email, member_email: member, skills, references_access: references, videos_access: videos }
   // upsert por (owner_email, member_email)
   const { data, error } = await supa
     .from('workspace_collaborators')

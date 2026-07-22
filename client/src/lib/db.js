@@ -19,6 +19,8 @@ const subscribers = new Set()
 let cloud = false
 let cloudActive = false
 let pushTimer = null
+let selfEmail = null // e-mail do usuário logado
+let activeOwner = null // dono do workspace ativo (null = próprio)
 const MANAGED = [
   'channels', 'channelButtons', 'videos', 'scripts', 'seoReports', 'boardSpaces', 'boardColumns',
   'boardCards', 'checklistItems', 'referenceFolders', 'referenceChannels', 'promptCategories',
@@ -123,10 +125,12 @@ function writeLocal() {
 }
 
 // Após migrado, cada mutação sobe o estado para o banco (debounce).
+// Se estiver num workspace de outro dono (colaborador), grava lá (owner).
 function schedulePush() {
   clearTimeout(pushTimer)
+  const owner = activeOwner || undefined
   pushTimer = setTimeout(() => {
-    api.workspace.migrate(state).catch(() => {
+    api.workspace.migrate(state, owner).catch(() => {
       /* offline/erro → tenta de novo na próxima mutação */
     })
   }, 2500)
@@ -137,50 +141,87 @@ function persist() {
   if (cloud && cloudActive) schedulePush()
 }
 
-// Puxa o snapshot do banco no login; se já migrado, adota como fonte da verdade.
+// Puxa o snapshot do workspace ativo; se já migrado, adota como fonte da verdade.
 async function pullSnapshot() {
+  const owner = activeOwner || undefined
   try {
-    const { migrated, snapshot } = await api.workspace.snapshot()
+    const { migrated, snapshot } = await api.workspace.snapshot(owner)
+    if (owner !== (activeOwner || undefined)) return // trocou de workspace no meio
     if (migrated && snapshot) {
       for (const k of MANAGED) {
         // SEGURANÇA: só adota a coleção do servidor se ela vier com dados.
-        // Se o servidor devolver vazio, mantém o que já existe local — nunca
-        // apaga dado local por causa de um snapshot vazio/incompleto.
+        // Snapshot vazio NUNCA apaga o que já existe local.
         if (Array.isArray(snapshot[k]) && snapshot[k].length) state[k] = snapshot[k]
       }
       cloudActive = true
-      writeLocal() // atualiza o cache local sem re-subir
+      writeLocal()
     }
   } catch {
     /* sem conexão → segue no cache local */
   }
 }
 
+// Chave de cache: próprio workspace vs. de um colaborador (dono diferente).
+function wsStorageKey() {
+  return activeOwner ? `noctis_ws_${activeOwner}` : `noctis_data_${selfEmail}`
+}
+
+// Carrega o estado do workspace ativo (cache local) e puxa o snapshot.
+function loadWorkspace() {
+  storageKey = wsStorageKey()
+  cloudActive = false
+  clearTimeout(pushTimer)
+  let saved = null
+  try {
+    saved = JSON.parse(localStorage.getItem(storageKey))
+  } catch {
+    saved = null
+  }
+  // Workspace de outro dono NÃO semeia coleções globais (o colaborador só
+  // recebe vídeos/referências via snapshot).
+  state = activeOwner ? { ...emptyState(), ...(saved || {}) } : seed(saved || {})
+  writeLocal()
+  if (cloud) pullSnapshot()
+}
+
 export const db = {
   init(email, opts = {}) {
-    const key = `noctis_data_${email}`
+    const first = selfEmail !== email
+    selfEmail = email
     cloud = !!opts.cloud
-    if (storageKey === key && state) return
-    storageKey = key
-    cloudActive = false
-    let saved = null
+    if (!first && state) return // já inicializado para este usuário
     try {
-      saved = JSON.parse(localStorage.getItem(key))
+      activeOwner = localStorage.getItem(`noctis_active_ws_${email}`) || null
     } catch {
-      saved = null
+      activeOwner = null
     }
-    state = seed(saved || {})
-    writeLocal()
-    // Em produção, tenta adotar o que já está no banco (fonte da verdade).
-    if (cloud) pullSnapshot()
+    if (activeOwner === email) activeOwner = null
+    loadWorkspace()
   },
   // Estado da nuvem para a UI (botão de migração em Configurações).
   cloudStatus() {
     return { cloud, cloudActive }
   },
+  // Workspace ativo (null = próprio) — usado pelo seletor de workspace.
+  activeWorkspace() {
+    return activeOwner
+  },
+  // Troca o workspace ativo (próprio ou de um dono que me deu acesso).
+  switchWorkspace(owner) {
+    const next = owner && owner !== selfEmail ? owner : null
+    if (next === activeOwner) return
+    activeOwner = next
+    try {
+      if (next) localStorage.setItem(`noctis_active_ws_${selfEmail}`, next)
+      else localStorage.removeItem(`noctis_active_ws_${selfEmail}`)
+    } catch {
+      /* ignora */
+    }
+    loadWorkspace()
+  },
   // Sobe TODO o estado local para o banco (botão "Migrar para a nuvem").
   async migrateToCloud() {
-    const result = await api.workspace.migrate(state)
+    const result = await api.workspace.migrate(state, activeOwner || undefined)
     cloudActive = true
     return result // { ok, owner, summary }
   },

@@ -147,16 +147,32 @@ router.post('/migrate', async (req, res) => {
   if (!supa) return
   const user = await getUser(req, supa)
   if (!user) return res.status(401).json({ error: 'unauthorized' })
-  await ensureProfile(supa, user)
+  const access = await resolveAccess(supa, user, req.query.owner)
+  if (!access) return res.status(403).json({ error: 'forbidden', message: 'Sem acesso a este workspace.' })
+  const ownerId = access.self ? user.id : await userIdByEmail(supa, access.owner)
+  if (!ownerId) return res.status(404).json({ error: 'owner_not_found' })
+  if (access.self) await ensureProfile(supa, user)
+
+  // Coleções que o requester pode ESCREVER neste workspace.
+  // Colaborador: só vídeos (e filhos) e/ou referências, conforme a permissão.
+  let writable = null
+  if (!access.self) {
+    writable = new Set()
+    if (access.videos === 'edit') ['videos', 'scripts', 'seoReports'].forEach((k) => writable.add(k))
+    if (access.references === 'edit') ['referenceFolders', 'referenceChannels'].forEach((k) => writable.add(k))
+    if (!writable.size) return res.status(403).json({ error: 'forbidden', message: 'Sem permissão de edição.' })
+  }
+
   const data = { ...(req.body?.data || {}) }
 
   // Referências sem pasta (folderId ausente) ganham uma pasta padrão do dono,
   // senão violariam a FK/são perdidas na leitura.
   const refs = Array.isArray(data.referenceChannels) ? data.referenceChannels : []
   if (refs.some((r) => !r.folderId)) {
-    const defId = `noctis-default-folder-${user.id}`
+    const defId = `noctis-default-folder-${ownerId}`
     data.referenceFolders = [...(data.referenceFolders || []), { id: defId, name: 'Referências' }]
     data.referenceChannels = refs.map((r) => (r.folderId ? r : { ...r, folderId: defId }))
+    if (writable) writable.add('referenceFolders')
   }
 
   // Qual tabela é o pai de cada coluna-FK (p/ descartar órfãos e não derrubar o lote).
@@ -164,12 +180,26 @@ router.post('/migrate', async (req, res) => {
     channel_id: 'channels', video_id: 'channel_videos', column_id: 'board_columns',
     card_id: 'board_cards', folder_id: 'reference_folders',
   }
-  const inserted = {} // tabela -> Set de ids inseridos
+  const inserted = {} // tabela -> Set de ids inseridos/válidos
+
+  // Colaborador não insere canais/vídeos-pais — pré-carrega os ids do dono
+  // para que os filhos (vídeos/roteiros/refs) passem no filtro de órfão e não
+  // possam apontar para canais de outro dono.
+  if (!access.self) {
+    const ownChannels = (await supa.from('channels').select('id').eq('owner_id', ownerId)).data || []
+    inserted['channels'] = new Set(ownChannels.map((c) => c.id))
+    const chIds = ownChannels.map((c) => c.id)
+    const ownVideos = chIds.length ? (await supa.from('channel_videos').select('id').in('channel_id', chIds)).data || [] : []
+    inserted['channel_videos'] = new Set(ownVideos.map((v) => v.id))
+    const ownFolders = (await supa.from('reference_folders').select('id').eq('user_id', ownerId)).data || []
+    inserted['reference_folders'] = new Set(ownFolders.map((f) => f.id))
+  }
 
   const summary = {}
   for (const cfg of CONFIG) {
+    if (writable && !writable.has(cfg.key)) continue // colaborador só grava o permitido
     const list = Array.isArray(data[cfg.key]) ? data[cfg.key] : []
-    let rows = list.map((rec) => toRow(rec, cfg, user.id)).filter((r) => r.id)
+    let rows = list.map((rec) => toRow(rec, cfg, ownerId)).filter((r) => r.id)
     // Descarta filhos cujo pai não está sendo inserido (evita erro de FK no lote).
     if (cfg.parent) {
       const parentSet = inserted[PARENT_TABLE[cfg.parent.col]]
@@ -177,65 +207,108 @@ router.post('/migrate', async (req, res) => {
       rows = rows.filter((r) => r[cfg.parent.col] && (!parentSet || parentSet.has(r[cfg.parent.col])))
       summary[`${cfg.key}_orfaos`] = before - rows.length || undefined
     }
-    if (!rows.length) { summary[cfg.key] = 0; inserted[cfg.table] = new Set(); continue }
+    const prev = inserted[cfg.table] || new Set()
+    if (!rows.length) { summary[cfg.key] = 0; inserted[cfg.table] = prev; continue }
     const { error } = await supa.from(cfg.table).upsert(rows, { onConflict: 'id' })
-    inserted[cfg.table] = new Set(error ? [] : rows.map((r) => r.id))
+    if (!error) for (const r of rows) prev.add(r.id)
+    inserted[cfg.table] = prev
     summary[cfg.key] = error ? `erro: ${error.message}` : rows.length
   }
   // limpa chaves _orfaos vazias
   for (const k of Object.keys(summary)) if (summary[k] === undefined) delete summary[k]
-  res.json({ ok: true, owner: user.email, summary })
+  res.json({ ok: true, owner: access.owner, self: access.self, summary })
 })
 
-// GET /workspace/snapshot — lê os dados do dono no formato do client
+// Resolve o id (auth) de um e-mail. Base pequena → listUsers.
+async function userIdByEmail(supa, email) {
+  const e = (email || '').toLowerCase()
+  const { data } = await supa.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  return (data?.users || []).find((x) => (x.email || '').toLowerCase() === e)?.id || null
+}
+
+// Acesso do requester ao workspace de ownerEmail (self = próprio).
+async function resolveAccess(supa, requester, ownerEmail) {
+  const me = (requester.email || '').toLowerCase()
+  const owner = (ownerEmail || me).toLowerCase()
+  if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit' }
+  const { data } = await supa.from('workspace_collaborators').select('*').eq('owner_email', owner).eq('member_email', me).maybeSingle()
+  if (!data) return null
+  return { owner, self: false, videos: data.videos_access || 'none', skills: data.skills || 'none', references: data.references_access || 'none' }
+}
+
+// GET /workspace/workspaces — workspaces que o usuário pode acessar (próprio + convidados)
+router.get('/workspaces', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const list = [{ ownerEmail: user.email, self: true, videos: 'edit', skills: 'edit', references: 'edit' }]
+  const { data } = await supa.from('workspace_collaborators').select('*').eq('member_email', (user.email || '').toLowerCase())
+  for (const c of data || []) {
+    const any = (c.videos_access && c.videos_access !== 'none') || (c.skills && c.skills !== 'none') || (c.references_access && c.references_access !== 'none')
+    if (any) list.push({ ownerEmail: c.owner_email, self: false, videos: c.videos_access || 'none', skills: c.skills || 'none', references: c.references_access || 'none' })
+  }
+  res.json({ workspaces: list })
+})
+
+// GET /workspace/snapshot[?owner=] — lê os dados do workspace (com permissão)
 router.get('/snapshot', async (req, res) => {
   const supa = requireSupabase(res)
   if (!supa) return
   const user = await getUser(req, supa)
   if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const access = await resolveAccess(supa, user, req.query.owner)
+  if (!access) return res.status(403).json({ error: 'forbidden', message: 'Sem acesso a este workspace.' })
+  const ownerId = access.self ? user.id : await userIdByEmail(supa, access.owner)
+  if (!ownerId) return res.status(404).json({ error: 'owner_not_found' })
 
-  // Ids dos filhos dependem dos pais do dono — resolvemos em cascata.
   const out = {}
-  const { data: channels = [] } = await supa.from('channels').select('*').eq('owner_id', user.id)
-  const channelIds = channels.map((c) => c.id)
-
   const fetchBy = async (table, col, ids) => {
     if (!ids.length) return []
     const { data = [] } = await supa.from(table).select('*').in(col, ids)
     return data
   }
+  const byOwner = async (table, col = 'user_id') => (await supa.from(table).select('*').eq(col, ownerId)).data || []
 
-  out.channels = channels
-  out.channelButtons = await fetchBy('channel_custom_buttons', 'channel_id', channelIds)
-  const videos = await fetchBy('channel_videos', 'channel_id', channelIds)
-  out.videos = videos
-  const videoIds = videos.map((v) => v.id)
-  out.scripts = await fetchBy('video_scripts', 'video_id', videoIds)
-  out.seoReports = await fetchBy('video_seo_reports', 'video_id', videoIds)
+  // Vídeos: dono, ou colaborador com acesso a vídeos.
+  if (access.self || access.videos !== 'none') {
+    const { data: channels = [] } = await supa.from('channels').select('*').eq('owner_id', ownerId)
+    const channelIds = channels.map((c) => c.id)
+    out.channels = channels
+    out.channelButtons = await fetchBy('channel_custom_buttons', 'channel_id', channelIds)
+    const videos = await fetchBy('channel_videos', 'channel_id', channelIds)
+    out.videos = videos
+    const videoIds = videos.map((v) => v.id)
+    out.scripts = await fetchBy('video_scripts', 'video_id', videoIds)
+    out.seoReports = await fetchBy('video_seo_reports', 'video_id', videoIds)
+  }
+  // Referências: dono, ou colaborador com acesso a referências.
+  if (access.self || access.references !== 'none') {
+    const folders = await byOwner('reference_folders')
+    out.referenceFolders = folders
+    out.referenceChannels = await fetchBy('reference_channels', 'folder_id', folders.map((f) => f.id))
+  }
+  // Coleções privadas do dono (quadro, prompts, transcrições, análises): só no próprio workspace.
+  if (access.self) {
+    out.boardSpaces = await byOwner('board_spaces')
+    const columns = await byOwner('board_columns')
+    out.boardColumns = columns
+    const cards = await fetchBy('board_cards', 'column_id', columns.map((c) => c.id))
+    out.boardCards = cards
+    out.checklistItems = await fetchBy('board_card_checklist_items', 'card_id', cards.map((c) => c.id))
+    out.promptCategories = await byOwner('prompt_categories')
+    out.prompts = await byOwner('prompts')
+    out.transcriptions = await byOwner('transcriptions')
+    out.nicheAnalyses = await byOwner('niche_doubling_analyses')
+  }
 
-  const byOwner = async (table, col = 'user_id') => (await supa.from(table).select('*').eq(col, user.id)).data || []
-  out.boardSpaces = await byOwner('board_spaces')
-  const columns = await byOwner('board_columns')
-  out.boardColumns = columns
-  const cards = await fetchBy('board_cards', 'column_id', columns.map((c) => c.id))
-  out.boardCards = cards
-  out.checklistItems = await fetchBy('board_card_checklist_items', 'card_id', cards.map((c) => c.id))
-  const folders = await byOwner('reference_folders')
-  out.referenceFolders = folders
-  out.referenceChannels = await fetchBy('reference_channels', 'folder_id', folders.map((f) => f.id))
-  out.promptCategories = await byOwner('prompt_categories')
-  out.prompts = await byOwner('prompts')
-  out.transcriptions = await byOwner('transcriptions')
-  out.nicheAnalyses = await byOwner('niche_doubling_analyses')
-
-  // Mapeia cada tabela de volta para o shape do client
   const byKey = Object.fromEntries(CONFIG.map((c) => [c.key, c]))
   const snapshot = {}
   for (const [key, rows] of Object.entries(out)) {
     const cfg = byKey[key]
     snapshot[key] = cfg ? rows.map((r) => toRec(r, cfg)) : rows
   }
-  res.json({ migrated: channels.length > 0 || (out.prompts || []).length > 0, snapshot })
+  res.json({ migrated: (out.channels?.length || 0) > 0 || (out.prompts?.length || 0) > 0 || !access.self, owner: access.owner, self: access.self, access, snapshot })
 })
 
 export default router

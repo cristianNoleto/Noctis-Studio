@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { Bell, BookOpen, ChevronRight, Crown, Eye, EyeOff, HelpCircle, KeyRound, LogOut, Moon, Settings, ShieldCheck, Sun, Sparkles } from 'lucide-react'
+import { Bell, BookOpen, ChevronRight, ChevronDown, Crown, Eye, EyeOff, HelpCircle, KeyRound, LogOut, Moon, Settings, ShieldCheck, Sun, Sparkles, Users } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n, LANGUAGES } from '../../i18n'
 import { useDb } from '../../lib/db'
@@ -85,10 +85,13 @@ export default function Header() {
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800/70 bg-slate-950 px-6">
-      <div className="flex items-center gap-1.5 text-sm">
-        <span className="text-slate-500">{group}</span>
-        <ChevronRight size={14} className="text-slate-600" />
-        <span className="font-semibold text-slate-200">{page}</span>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="text-slate-500">{group}</span>
+          <ChevronRight size={14} className="text-slate-600" />
+          <span className="font-semibold text-slate-200">{page}</span>
+        </div>
+        <WorkspaceSwitcher />
       </div>
 
       <div className="flex items-center gap-2.5">
@@ -224,6 +227,68 @@ export default function Header() {
         </div>
       </div>
     </header>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Seletor de workspace: aparece quando o usuário é colaborador de outro(s)
+// dono(s). Troca entre o próprio workspace e o de quem lhe deu acesso.
+// ---------------------------------------------------------------------------
+function WorkspaceSwitcher() {
+  const db = useDb()
+  const { t } = useI18n()
+  const [list, setList] = useState([])
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef(null)
+  const active = db.activeWorkspace()
+
+  useEffect(() => {
+    let alive = true
+    api.workspace
+      .workspaces()
+      .then(({ workspaces }) => alive && setList(workspaces || []))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  if (list.length <= 1) return null
+  const current = list.find((w) => (active ? w.ownerEmail === active : w.self)) || list[0]
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((v) => !v)}
+        title={t('header.workspace')}
+        className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors ${
+          active ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+        }`}
+      >
+        <Users size={13} className={active ? 'text-cyan-400' : 'text-slate-500'} />
+        <span className="max-w-[160px] truncate">{current.self ? t('header.workspaceMine') : current.ownerEmail}</span>
+        <ChevronDown size={12} className="text-slate-500" />
+      </button>
+      <AnchoredMenu open={open} anchorRef={btnRef} onClose={() => setOpen(false)} width={240}>
+        {list.map((w) => {
+          const isCurrent = active ? w.ownerEmail === active : w.self
+          return (
+            <button
+              key={w.ownerEmail}
+              onClick={() => {
+                db.switchWorkspace(w.self ? null : w.ownerEmail)
+                setOpen(false)
+              }}
+              className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm ${isCurrent ? 'bg-slate-800 text-cyan-300' : 'text-slate-300 hover:bg-slate-800'}`}
+            >
+              <Users size={13} />
+              <span className="truncate">{w.self ? t('header.workspaceMine') : w.ownerEmail}</span>
+            </button>
+          )
+        })}
+      </AnchoredMenu>
+    </>
   )
 }
 

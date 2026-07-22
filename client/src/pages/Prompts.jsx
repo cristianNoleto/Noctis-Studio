@@ -1028,6 +1028,7 @@ function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   const [email, setEmail] = useState('')
   const [skills, setSkills] = useState('view')
   const [references, setReferences] = useState('none')
+  const [videos, setVideos] = useState('edit')
   const [error, setError] = useState('')
   const [remote, setRemote] = useState([])
   const owner = (ownerEmail || '').toLowerCase()
@@ -1054,10 +1055,10 @@ function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
       setError(t('skillsLib.collab.dupe'))
       return
     }
-    if (isLocalMode) db.insert('collaborators', { ownerEmail: owner, memberEmail: m, skills, references })
+    if (isLocalMode) db.insert('collaborators', { ownerEmail: owner, memberEmail: m, skills, references, videos })
     else {
       try {
-        await api.collaborators.save({ memberEmail: m, skills, references })
+        await api.collaborators.save({ memberEmail: m, skills, references, videos })
         refresh()
       } catch (err) {
         setError(err?.message || 'Erro')
@@ -1067,13 +1068,15 @@ function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
     setEmail('')
     setSkills('view')
     setReferences('none')
+    setVideos('edit')
     setError('')
   }
 
   async function setAccess(c, field, value) {
     if (isLocalMode) db.update('collaborators', c.id, { [field]: value })
     else {
-      await api.collaborators.save({ memberEmail: c.memberEmail, skills: field === 'skills' ? value : c.skills, references: field === 'references' ? value : c.references })
+      const merged = { memberEmail: c.memberEmail, skills: c.skills, references: c.references, videos: c.videos, [field]: value }
+      await api.collaborators.save(merged)
       refresh()
     }
   }
@@ -1094,6 +1097,7 @@ function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
           <label className="mb-1 block text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.email')}</label>
           <input className={inputCls} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="pessoa@email.com" />
         </div>
+        <AccessSelect label={t('skillsLib.collab.videos')} value={videos} onChange={setVideos} />
         <AccessSelect label={t('skillsLib.collab.skills')} value={skills} onChange={setSkills} />
         <AccessSelect label={t('skillsLib.collab.references')} value={references} onChange={setReferences} />
         <button type="submit" className={`${btnPrimary} flex items-center gap-1.5`}>
@@ -1111,6 +1115,7 @@ function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
           mine.map((c) => (
             <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 p-2.5">
               <span className="min-w-40 flex-1 truncate text-sm text-slate-200">{c.memberEmail}</span>
+              <AccessSelect label={t('skillsLib.collab.videos')} value={c.videos || 'none'} onChange={(v) => setAccess(c, 'videos', v)} compact />
               <AccessSelect label={t('skillsLib.collab.skills')} value={c.skills || 'none'} onChange={(v) => setAccess(c, 'skills', v)} compact />
               <AccessSelect label={t('skillsLib.collab.references')} value={c.references || 'none'} onChange={(v) => setAccess(c, 'references', v)} compact />
               <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 text-slate-500 hover:text-red-400">

@@ -106,6 +106,8 @@ export default {
     admin: 'Administração',
     logout: 'Encerrar sessão',
     founder: 'FUNDADOR',
+    workspace: 'Workspace ativo',
+    workspaceMine: 'Meu workspace',
     breadcrumb: {
       '/': ['Visão Geral', 'Dashboard'],
       '/canais': ['Meus Canais', 'Gestão de Canais'],
@@ -238,6 +240,7 @@ export default {
       add: 'Convidar',
       skills: 'Skills',
       references: 'Referências',
+      videos: 'Vídeos dos canais',
       none: 'Sem acesso',
       view: 'Ver',
       edit: 'Editar',

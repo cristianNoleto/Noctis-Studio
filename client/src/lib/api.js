@@ -194,9 +194,11 @@ export const api = {
     remove: (id) => authRequest(`/collaborators/${id}`, { method: 'DELETE' }),
   },
   workspace: {
-    // Migração localStorage -> banco e leitura do snapshot no formato do client.
-    migrate: (data) => authRequest('/workspace/migrate', { method: 'POST', body: { data } }),
-    snapshot: () => authRequest('/workspace/snapshot'),
+    // Migração/sync e leitura do snapshot; owner opcional (colaborador acessando
+    // o workspace de outro dono, com permissão validada no servidor).
+    migrate: (data, owner) => authRequest(`/workspace/migrate${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`, { method: 'POST', body: { data } }),
+    snapshot: (owner) => authRequestOptional(`/workspace/snapshot${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`),
+    workspaces: () => authRequest('/workspace/workspaces'),
   },
   transcription: {
     // Envia o arquivo de áudio direto para a AssemblyAI e abre o job.
