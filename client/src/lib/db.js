@@ -180,10 +180,13 @@ async function pullSnapshot() {
       activeAccess = { self: !!access.self, videos: access.videos, skills: access.skills, references: access.references, board: access.board }
     }
     if (migrated && snapshot) {
+      // Workspace de OUTRO dono (colaborador): o snapshot é a fonte da verdade
+      // ABSOLUTA — inclusive coleções vazias (ex.: itens filtrados por
+      // visibilidade "só eu" devem SUMIR do colaborador). No PRÓPRIO workspace
+      // mantemos a trava anti-perda: snapshot vazio nunca apaga o local.
+      const foreign = !!activeOwner
       for (const k of MANAGED) {
-        // SEGURANÇA: só adota a coleção do servidor se ela vier com dados.
-        // Snapshot vazio NUNCA apaga o que já existe local.
-        if (Array.isArray(snapshot[k]) && snapshot[k].length) state[k] = snapshot[k]
+        if (Array.isArray(snapshot[k]) && (foreign || snapshot[k].length)) state[k] = snapshot[k]
       }
       cloudActive = true
       writeLocal()
