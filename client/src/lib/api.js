@@ -106,7 +106,7 @@ async function adminRequest(path, { method = 'GET', body } = {}) {
 
 // Requisição autenticada às rotas normais (/api/*) — manda o token JWT do
 // Supabase; o servidor valida (ex.: escrita nas skills do sistema = fundador).
-async function authRequest(path, { method = 'GET', body } = {}) {
+async function authRequest(path, { method = 'GET', body, keepalive = false } = {}) {
   if (!supabase) throw new ApiError('local_mode', 'Disponível apenas no site publicado (Supabase).')
   const { data } = await supabase.auth.getSession()
   const token = data?.session?.access_token
@@ -117,6 +117,7 @@ async function authRequest(path, { method = 'GET', body } = {}) {
       method,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: body ? JSON.stringify(body) : undefined,
+      keepalive, // permite que a requisição sobreviva ao fechamento/refresh da página
     })
   } catch {
     throw new ApiError('server_offline')
@@ -196,7 +197,7 @@ export const api = {
   workspace: {
     // Migração/sync e leitura do snapshot; owner opcional (colaborador acessando
     // o workspace de outro dono, com permissão validada no servidor).
-    migrate: (data, owner) => authRequest(`/workspace/migrate${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`, { method: 'POST', body: { data } }),
+    migrate: (data, owner, keepalive = false) => authRequest(`/workspace/migrate${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`, { method: 'POST', body: { data }, keepalive }),
     snapshot: (owner) => authRequestOptional(`/workspace/snapshot${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`),
     workspaces: () => authRequest('/workspace/workspaces'),
   },

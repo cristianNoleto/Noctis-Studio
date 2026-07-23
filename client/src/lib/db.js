@@ -129,14 +129,40 @@ function writeLocal() {
 
 // Após migrado, cada mutação sobe o estado para o banco (debounce).
 // Se estiver num workspace de outro dono (colaborador), grava lá (owner).
+let pushPending = false
 function schedulePush() {
   clearTimeout(pushTimer)
+  pushPending = true
   const owner = activeOwner || undefined
   pushTimer = setTimeout(() => {
+    pushPending = false
     api.workspace.migrate(state, owner).catch(() => {
       /* offline/erro → tenta de novo na próxima mutação */
     })
   }, 2500)
+}
+
+// Descarrega o push pendente IMEDIATAMENTE (com keepalive, p/ sobreviver ao
+// refresh/fechamento da página). Sem isso, uma mutação seguida de F5 rápido
+// perdia a alteração: o push (debounce 2,5s) nunca disparava e o reload
+// sobrescrevia o estado local com o snapshot do servidor.
+function flushPush() {
+  if (!pushPending) return
+  clearTimeout(pushTimer)
+  pushPending = false
+  const owner = activeOwner || undefined
+  try {
+    api.workspace.migrate(state, owner, true).catch(() => {})
+  } catch {
+    /* ignora */
+  }
+}
+if (typeof window !== 'undefined') {
+  // pagehide cobre refresh/navegação; visibilitychange(hidden) cobre troca de aba/app.
+  window.addEventListener('pagehide', flushPush)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPush()
+  })
 }
 
 function persist() {
@@ -177,6 +203,7 @@ function loadWorkspace() {
   storageKey = wsStorageKey()
   cloudActive = false
   clearTimeout(pushTimer)
+  pushPending = false
   let saved = null
   try {
     saved = JSON.parse(localStorage.getItem(storageKey))
@@ -228,6 +255,7 @@ export const db = {
   switchWorkspace(owner) {
     const next = owner && owner !== selfEmail ? owner : null
     if (next === activeOwner) return
+    flushPush() // sobe a mudança pendente do workspace ATUAL antes de trocar de dono
     activeOwner = next
     try {
       if (next) localStorage.setItem(`noctis_active_ws_${selfEmail}`, next)
