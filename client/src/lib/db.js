@@ -129,33 +129,41 @@ function writeLocal() {
 
 // Após migrado, cada mutação sobe o estado para o banco (debounce).
 // Se estiver num workspace de outro dono (colaborador), grava lá (owner).
-let pushPending = false
-function schedulePush() {
-  clearTimeout(pushTimer)
-  pushPending = true
-  const owner = activeOwner || undefined
-  pushTimer = setTimeout(() => {
-    pushPending = false
-    api.workspace.migrate(state, owner).catch(() => {
-      /* offline/erro → tenta de novo na próxima mutação */
-    })
-  }, 2500)
-}
+let pushPending = false // há mutação aguardando o debounce
+let pushing = false // há um migrate em VOO agora
+let pushDirty = false // mudou algo enquanto um migrate estava em voo
 
-// Descarrega o push pendente IMEDIATAMENTE (com keepalive, p/ sobreviver ao
-// refresh/fechamento da página). Sem isso, uma mutação seguida de F5 rápido
-// perdia a alteração: o push (debounce 2,5s) nunca disparava e o reload
-// sobrescrevia o estado local com o snapshot do servidor.
-function flushPush() {
-  if (!pushPending) return
-  clearTimeout(pushTimer)
+// Envia o estado ATUAL, SERIALIZADO: nunca há dois migrates concorrentes.
+// Isso evita gravações fora de ordem (um push antigo chegando depois do novo e
+// revertendo o valor). Se algo mudar durante o envio, reenvia ao terminar.
+async function doPush(keepalive = false) {
+  if (pushing) { pushDirty = true; return }
+  pushing = true
   pushPending = false
   const owner = activeOwner || undefined
   try {
-    api.workspace.migrate(state, owner, true).catch(() => {})
+    await api.workspace.migrate(state, owner, keepalive)
   } catch {
-    /* ignora */
+    pushDirty = true // falhou → tenta de novo
+  } finally {
+    pushing = false
+    if (pushDirty) { pushDirty = false; doPush() }
   }
+}
+
+function schedulePush() {
+  clearTimeout(pushTimer)
+  pushPending = true
+  pushTimer = setTimeout(() => doPush(), 2500)
+}
+
+// Descarrega IMEDIATAMENTE (keepalive, p/ sobreviver ao refresh/fechamento).
+// Sem isso, mutação + F5 rápido perdia a alteração (o push do debounce nunca
+// disparava e o reload sobrescrevia o local com o snapshot do servidor).
+function flushPush() {
+  if (!pushPending && !pushing) return
+  clearTimeout(pushTimer)
+  doPush(true)
 }
 if (typeof window !== 'undefined') {
   // pagehide cobre refresh/navegação; visibilitychange(hidden) cobre troca de aba/app.
@@ -207,6 +215,7 @@ function loadWorkspace() {
   cloudActive = false
   clearTimeout(pushTimer)
   pushPending = false
+  pushDirty = false
   let saved = null
   try {
     saved = JSON.parse(localStorage.getItem(storageKey))
