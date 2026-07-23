@@ -705,15 +705,32 @@ function KanbanCard({ video: v, readOnly, onOpenScript }) {
       <p className="line-clamp-2 text-xs font-medium leading-snug text-slate-200"><Masked mask="•••••••••••">{v.title}</Masked></p>
       <div className="mt-1.5 flex items-center justify-between">
         {v.videoNumber != null && <span className="text-[9px] text-slate-600">{t('videos.videoNum', { n: v.videoNumber })}</span>}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpenScript(v)
-          }}
-          className="text-[10px] text-cyan-400 hover:underline"
-        >
-          {t('videos.roteiro')}
-        </button>
+        <div className="flex items-center gap-2">
+          {v.youtubeUrl && (
+            <a
+              href={v.youtubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              title={t('videos.openYoutube')}
+              className="flex items-center gap-1 text-[10px] text-red-400 hover:underline"
+            >
+              <PlaySquare size={12} />
+              YouTube
+            </a>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenScript(v)
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="text-[10px] text-cyan-400 hover:underline"
+          >
+            {t('videos.roteiro')}
+          </button>
+        </div>
       </div>
     </div>
   )

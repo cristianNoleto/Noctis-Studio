@@ -6,19 +6,19 @@ import { api } from '../lib/api'
 import { Modal, inputCls, btnPrimary } from './ui'
 
 // Seletor de nível de acesso (Sem acesso / Ver / Editar).
-export function AccessSelect({ label, value, onChange, compact }) {
+export function AccessSelect({ label, value, onChange }) {
   const { t } = useI18n()
   return (
-    <div>
-      {!compact && <label className="mb-1 block text-[11px] font-semibold text-slate-400">{label}</label>}
-      <select className={`${inputCls} !w-28 !py-2 text-xs`} title={label} value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="none">{t('skillsLib.collab.none')}</option>
-        <option value="view">{t('skillsLib.collab.view')}</option>
-        <option value="edit">{t('skillsLib.collab.edit')}</option>
-      </select>
-    </div>
+    <select className={`${inputCls} !w-full !py-2 text-xs`} title={label} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="none">{t('skillsLib.collab.none')}</option>
+      <option value="view">{t('skillsLib.collab.view')}</option>
+      <option value="edit">{t('skillsLib.collab.edit')}</option>
+    </select>
   )
 }
+
+// Grid comum ao cabeçalho, ao form e às linhas — mantém tudo alinhado em colunas.
+const ROW = 'grid grid-cols-[minmax(9rem,1fr)_repeat(4,6.5rem)_2.25rem] items-center gap-2'
 
 // Gerenciador de colaboradores do workspace: convida por e-mail e define o
 // acesso a Vídeos / Skills / Referências por pessoa. Usado no menu do perfil
@@ -103,18 +103,23 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   return (
     <Modal open={open} onClose={onClose} title={t('skillsLib.collab.title')} wide>
       <p className="-mt-2 mb-4 text-xs leading-relaxed text-slate-500">{t('skillsLib.collab.subtitle')}</p>
-      <form onSubmit={add} className="flex flex-wrap items-end gap-2">
-        <div className="min-w-52 flex-1">
-          <label className="mb-1 block text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.email')}</label>
-          <input className={inputCls} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="pessoa@email.com" />
-        </div>
+      {/* Cabeçalho de colunas — rótulos aparecem só uma vez, alinhados ao grid */}
+      <div className={`${ROW} px-1 pb-1.5`}>
+        <span className="text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.email')}</span>
+        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.videos')}</span>
+        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.references')}</span>
+        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.board')}</span>
+        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.skills')}</span>
+        <span />
+      </div>
+      <form onSubmit={add} className={`${ROW} rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] p-2`}>
+        <input className={`${inputCls} !py-2`} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="pessoa@email.com" />
         <AccessSelect label={t('skillsLib.collab.videos')} value={videos} onChange={setVideos} />
         <AccessSelect label={t('skillsLib.collab.references')} value={references} onChange={setReferences} />
         <AccessSelect label={t('skillsLib.collab.board')} value={board} onChange={setBoard} />
         <AccessSelect label={t('skillsLib.collab.skills')} value={skills} onChange={setSkills} />
-        <button type="submit" className={`${btnPrimary} flex items-center gap-1.5`}>
-          <UserPlus size={14} />
-          {t('skillsLib.collab.add')}
+        <button type="submit" title={t('skillsLib.collab.add')} className={`${btnPrimary} flex h-9 w-9 items-center justify-center !p-0`}>
+          <UserPlus size={15} />
         </button>
       </form>
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
@@ -126,13 +131,13 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
           <p className="py-6 text-center text-xs text-slate-600">{t('skillsLib.collab.empty')}</p>
         ) : (
           mine.map((c) => (
-            <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 p-2.5">
-              <span className="min-w-40 flex-1 truncate text-sm text-slate-200">{c.memberEmail}</span>
-              <AccessSelect label={t('skillsLib.collab.videos')} value={c.videos || 'none'} onChange={(v) => setAccess(c, 'videos', v)} compact />
-              <AccessSelect label={t('skillsLib.collab.references')} value={c.references || 'none'} onChange={(v) => setAccess(c, 'references', v)} compact />
-              <AccessSelect label={t('skillsLib.collab.board')} value={c.board || 'none'} onChange={(v) => setAccess(c, 'board', v)} compact />
-              <AccessSelect label={t('skillsLib.collab.skills')} value={c.skills || 'none'} onChange={(v) => setAccess(c, 'skills', v)} compact />
-              <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 text-slate-500 hover:text-red-400">
+            <div key={c.id} className={`${ROW} rounded-lg border border-slate-800 bg-slate-950 p-2`}>
+              <span className="truncate px-1 text-sm text-slate-200" title={c.memberEmail}>{c.memberEmail}</span>
+              <AccessSelect label={t('skillsLib.collab.videos')} value={c.videos || 'none'} onChange={(v) => setAccess(c, 'videos', v)} />
+              <AccessSelect label={t('skillsLib.collab.references')} value={c.references || 'none'} onChange={(v) => setAccess(c, 'references', v)} />
+              <AccessSelect label={t('skillsLib.collab.board')} value={c.board || 'none'} onChange={(v) => setAccess(c, 'board', v)} />
+              <AccessSelect label={t('skillsLib.collab.skills')} value={c.skills || 'none'} onChange={(v) => setAccess(c, 'skills', v)} />
+              <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 text-slate-500 transition-colors hover:border-red-500/40 hover:text-red-400">
                 <Trash2 size={13} />
               </button>
             </div>
