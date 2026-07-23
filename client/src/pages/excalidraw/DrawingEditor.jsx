@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
-import { ArrowLeft, Loader2, Check, CloudUpload } from 'lucide-react'
+import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useI18n } from '../../i18n'
 
@@ -20,6 +20,23 @@ export default function DrawingEditor() {
   const apiRef = useRef(null)
   const saveTimer = useRef(null)
   const lastSaved = useRef('')
+  const rootRef = useRef(null)
+  const [fs, setFs] = useState(false)
+
+  // Fullscreen imersivo do navegador (Esc sai). Botão liga/desliga.
+  async function toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) await rootRef.current?.requestFullscreen()
+      else await document.exitFullscreen()
+    } catch {
+      /* navegador pode bloquear */
+    }
+  }
+  useEffect(() => {
+    const onFs = () => setFs(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -121,14 +138,14 @@ export default function DrawingEditor() {
 
   if (initial === null) {
     return (
-      <div className="flex h-[70vh] items-center justify-center">
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-950">
         <Loader2 size={26} className="animate-spin text-cyan-400" />
       </div>
     )
   }
   if (initial === false) {
     return (
-      <div className="mx-auto max-w-md py-20 text-center">
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-950 text-center">
         <p className="text-sm text-slate-400">{error}</p>
         <button onClick={() => navigate('/desenhos')} className="mt-4 text-sm text-cyan-400 hover:underline">
           ← {t('drawings.backToGallery')}
@@ -138,10 +155,10 @@ export default function DrawingEditor() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7.5rem)] flex-col">
-      {/* Barra do editor */}
-      <div className="mb-2 flex items-center gap-3">
-        <button onClick={() => navigate('/desenhos')} className="flex items-center gap-1.5 rounded-lg border border-slate-800 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200" title={t('drawings.backToGallery')}>
+    <div ref={rootRef} className="flex h-screen w-screen flex-col bg-slate-950">
+      {/* Barra flutuante compacta do editor (fora do canvas do Excalidraw) */}
+      <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-950 px-3 py-1.5">
+        <button onClick={() => navigate('/desenhos')} className="flex items-center gap-1.5 rounded-lg border border-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:border-slate-700 hover:text-slate-100" title={t('drawings.backToGallery')}>
           <ArrowLeft size={14} />
           {t('drawings.gallery')}
         </button>
@@ -150,7 +167,7 @@ export default function DrawingEditor() {
           onChange={(e) => saveName(e.target.value)}
           className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-100 hover:border-slate-800 focus:border-cyan-500/50 focus:outline-none"
         />
-        <span className="flex items-center gap-1.5 text-[11px] text-slate-500">
+        <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-slate-500">
           {status === 'saving' ? (
             <>
               <CloudUpload size={13} className="text-cyan-400" /> {t('drawings.saving')}
@@ -163,10 +180,13 @@ export default function DrawingEditor() {
             t('drawings.autosaveHint')
           )}
         </span>
+        <button onClick={toggleFullscreen} title={fs ? t('drawings.exitFullscreen') : t('drawings.fullscreen')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-100">
+          {fs ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+        </button>
       </div>
 
-      {/* Canvas */}
-      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-800">
+      {/* Canvas ocupa todo o resto */}
+      <div className="min-h-0 flex-1">
         <Excalidraw
           excalidrawAPI={(a) => (apiRef.current = a)}
           initialData={initial}

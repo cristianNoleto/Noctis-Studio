@@ -777,6 +777,8 @@ export default {
     saving: 'Salvando…',
     saved: 'Salvo',
     autosaveHint: 'Salva automaticamente',
+    fullscreen: 'Tela cheia',
+    exitFullscreen: 'Sair da tela cheia',
     notFound: 'Desenho não encontrado.',
   },
   ideaBoard: {

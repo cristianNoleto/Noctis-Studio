@@ -777,6 +777,8 @@ export default {
     saving: 'Guardando…',
     saved: 'Guardado',
     autosaveHint: 'Guardado automático',
+    fullscreen: 'Pantalla completa',
+    exitFullscreen: 'Salir de pantalla completa',
     notFound: 'Dibujo no encontrado.',
   },
   ideaBoard: {

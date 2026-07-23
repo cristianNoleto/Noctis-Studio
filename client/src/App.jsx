@@ -67,7 +67,6 @@ export default function App() {
         <Route path="/canais/:id" element={<ChannelDetail />} />
         <Route path="/quadro-ideias" element={<IdeaBoard />} />
         <Route path="/desenhos" element={<Suspense fallback={<LazyFallback />}><DrawingsGallery /></Suspense>} />
-        <Route path="/desenhos/:id" element={<Suspense fallback={<LazyFallback />}><DrawingEditor /></Suspense>} />
         <Route path="/referencias" element={<References />} />
         <Route path="/prompts" element={<Prompts />} />
         <Route path="/perfil" element={<Profile />} />
@@ -84,6 +83,17 @@ export default function App() {
         <Route path="/suporte" element={<Support />} />
         <Route path="/meu-plano" element={<MyPlan />} />
       </Route>
+      {/* Editor de desenho em TELA CHEIA (fora do Layout: sem sidebar/header) */}
+      <Route
+        path="/desenhos/:id"
+        element={
+          <Protected>
+            <Suspense fallback={<LazyFallback />}>
+              <DrawingEditor />
+            </Suspense>
+          </Protected>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

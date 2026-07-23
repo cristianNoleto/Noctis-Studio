@@ -777,6 +777,8 @@ export default {
     saving: 'Saving…',
     saved: 'Saved',
     autosaveHint: 'Autosaves',
+    fullscreen: 'Fullscreen',
+    exitFullscreen: 'Exit fullscreen',
     notFound: 'Drawing not found.',
   },
   ideaBoard: {
