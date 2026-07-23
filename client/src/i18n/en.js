@@ -52,6 +52,8 @@ export default {
     signUp: 'Sign up',
     hasAccount: 'Already have an account?',
     legal: 'By continuing, you agree to our Terms of Use and Privacy Policy.',
+    privacy: 'Privacy',
+    terms: 'Terms',
     recoveryTitle: 'Recover password',
     recoveryDesc: "Enter your email and we'll send you a link to reset your password.",
     recoverySend: 'Send recovery link',

@@ -52,6 +52,8 @@ export default {
     signUp: 'Criar conta',
     hasAccount: 'Já tem conta?',
     legal: 'Ao continuar, você concorda com nossos Termos de Uso e Política de Privacidade.',
+    privacy: 'Privacidade',
+    terms: 'Termos',
     recoveryTitle: 'Recuperar senha',
     recoveryDesc: 'Informe seu e-mail e enviaremos um link para redefinir sua senha.',
     recoverySend: 'Enviar link de recuperação',

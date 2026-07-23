@@ -24,6 +24,8 @@ import Support from './pages/Support'
 import Help from './pages/Help'
 import Admin from './pages/Admin'
 import MyPlan from './pages/MyPlan'
+import PrivacyPolicy from './pages/legal/PrivacyPolicy'
+import TermsOfService from './pages/legal/TermsOfService'
 // Excalidraw é um pacote grande → carregado sob demanda (só nestas rotas).
 const DrawingsGallery = lazy(() => import('./pages/excalidraw/DrawingsGallery'))
 const DrawingEditor = lazy(() => import('./pages/excalidraw/DrawingEditor'))
@@ -55,6 +57,9 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/aceitar-convite" element={<AcceptInvite />} />
+      {/* Páginas legais públicas (acessíveis sem login — exigidas p/ o Google) */}
+      <Route path="/privacidade" element={<PrivacyPolicy />} />
+      <Route path="/termos" element={<TermsOfService />} />
       <Route
         element={
           <Protected>

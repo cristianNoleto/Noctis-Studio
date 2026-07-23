@@ -196,6 +196,11 @@ export default function Login() {
         </Link>
       </p>
       <p className="mt-4 text-center text-xs text-slate-600">{t('auth.legal')}</p>
+      <p className="mt-2 flex justify-center gap-3 text-[11px] text-slate-600">
+        <Link to="/privacidade" className="hover:text-cyan-400">{t('auth.privacy')}</Link>
+        <span>·</span>
+        <Link to="/termos" className="hover:text-cyan-400">{t('auth.terms')}</Link>
+      </p>
 
       {recoveryOpen && <RecoveryModal onClose={() => setRecoveryOpen(false)} resetPassword={resetPassword} />}
     </AuthShell>
