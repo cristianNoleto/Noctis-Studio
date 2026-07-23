@@ -18,7 +18,8 @@ export function AccessSelect({ label, value, onChange }) {
 }
 
 // Grid comum ao cabeçalho, ao form e às linhas — mantém tudo alinhado em colunas.
-const ROW = 'grid grid-cols-[minmax(9rem,1fr)_repeat(4,6.5rem)_2.25rem] items-center gap-2'
+// Email ocupa o espaço flexível; os 4 seletores e o botão têm largura fixa.
+const ROW = 'grid grid-cols-[minmax(14rem,1fr)_repeat(4,7.5rem)_2.5rem] items-center gap-3'
 
 // Gerenciador de colaboradores do workspace: convida por e-mail e define o
 // acesso a Vídeos / Skills / Referências por pessoa. Usado no menu do perfil
@@ -101,7 +102,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t('skillsLib.collab.title')} wide>
+    <Modal open={open} onClose={onClose} title={t('skillsLib.collab.title')} size="xl">
       <p className="-mt-2 mb-4 text-xs leading-relaxed text-slate-500">{t('skillsLib.collab.subtitle')}</p>
       {/* Cabeçalho de colunas — rótulos aparecem só uma vez, alinhados ao grid */}
       <div className={`${ROW} px-1 pb-1.5`}>

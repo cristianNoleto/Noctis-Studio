@@ -15,7 +15,8 @@ export const btnGhost =
 export const btnDanger =
   'rounded-lg bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/20'
 
-export function Modal({ open, onClose, title, children, wide }) {
+export function Modal({ open, onClose, title, children, wide, size }) {
+  const maxW = size === 'xl' ? 'max-w-4xl' : wide ? 'max-w-2xl' : 'max-w-md'
   const { t } = useI18n()
   useEffect(() => {
     if (!open) return
@@ -39,7 +40,7 @@ export function Modal({ open, onClose, title, children, wide }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.15 }}
-            className={`max-h-[85vh] w-full ${wide ? 'max-w-2xl' : 'max-w-md'} overflow-y-auto rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl`}
+            className={`max-h-[85vh] w-full ${maxW} overflow-y-auto rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl`}
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-start justify-between">
