@@ -171,7 +171,7 @@ router.post('/migrate', async (req, res) => {
   const refs = Array.isArray(data.referenceChannels) ? data.referenceChannels : []
   if (refs.some((r) => !r.folderId)) {
     const defId = `noctis-default-folder-${ownerId}`
-    data.referenceFolders = [...(data.referenceFolders || []), { id: defId, name: 'Referências' }]
+    data.referenceFolders = [...(data.referenceFolders || []), { id: defId, name: 'Referências', createdAt: Date.now() }]
     data.referenceChannels = refs.map((r) => (r.folderId ? r : { ...r, folderId: defId }))
     if (writable) writable.add('referenceFolders')
   }
@@ -201,12 +201,6 @@ router.post('/migrate', async (req, res) => {
     if (writable && !writable.has(cfg.key)) continue // colaborador só grava o permitido
     const list = Array.isArray(data[cfg.key]) ? data[cfg.key] : []
     let rows = list.map((rec) => toRow(rec, cfg, ownerId)).filter((r) => r.id)
-    // DEBUG temporário: rastrear visibilidade recebida em refs/cards.
-    if (cfg.key === 'referenceChannels' || cfg.key === 'boardCards') {
-      console.log(`[VISDBG] ${cfg.key} recv=${list.length}`,
-        JSON.stringify(list.map((r) => ({ id: r.id, vis: r.visibility, ae: r.allowedEmails }))),
-        'rows=', JSON.stringify(rows.map((r) => ({ id: r.id, visibility: r.visibility, allowed_emails: r.allowed_emails }))))
-    }
     // Descarta filhos cujo pai não está sendo inserido (evita erro de FK no lote).
     if (cfg.parent) {
       const parentSet = inserted[PARENT_TABLE[cfg.parent.col]]
@@ -223,7 +217,6 @@ router.post('/migrate', async (req, res) => {
   }
   // limpa chaves _orfaos vazias
   for (const k of Object.keys(summary)) if (summary[k] === undefined) delete summary[k]
-  console.log('[VISDBG] summary', JSON.stringify(summary)) // DEBUG temporário
   res.json({ ok: true, owner: access.owner, self: access.self, summary })
 })
 
