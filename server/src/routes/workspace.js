@@ -217,6 +217,7 @@ router.post('/migrate', async (req, res) => {
   }
   // limpa chaves _orfaos vazias
   for (const k of Object.keys(summary)) if (summary[k] === undefined) delete summary[k]
+  console.log('[VISDBG2] refs=', JSON.stringify((data.referenceChannels || []).map((r) => ({ id: r.id, vis: r.visibility, folderId: r.folderId }))), 'summary=', JSON.stringify(summary))
   res.json({ ok: true, owner: access.owner, self: access.self, summary })
 })
 
