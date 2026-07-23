@@ -9,6 +9,7 @@ import {
   Mic,
   FileText,
   Kanban,
+  PenTool,
   Compass,
   GitBranch,
   TrendingUp,
@@ -40,6 +41,7 @@ const groups = [
       { to: '/transcricao', label: 'transcription', Icon: Mic },
       { to: '/ferramentas-texto', label: 'textTools', Icon: FileText },
       { to: '/quadro-ideias', label: 'ideaBoard', Icon: Kanban },
+      { to: '/desenhos', label: 'drawings', Icon: PenTool },
     ],
   },
   {

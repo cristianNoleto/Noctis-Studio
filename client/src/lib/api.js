@@ -201,6 +201,15 @@ export const api = {
     snapshot: (owner) => authRequestOptional(`/workspace/snapshot${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`),
     workspaces: () => authRequest('/workspace/workspaces'),
   },
+  // Projetos do Excalidraw (quadro de desenho) — tabela dedicada, salvamento
+  // próprio (separado do write-through do workspace).
+  excalidraw: {
+    list: () => authRequest('/excalidraw'),
+    get: (id) => authRequest(`/excalidraw/${id}`),
+    create: (name, scene) => authRequest('/excalidraw', { method: 'POST', body: { name, scene } }),
+    save: (id, patch, keepalive = false) => authRequest(`/excalidraw/${id}`, { method: 'PUT', body: patch, keepalive }),
+    remove: (id) => authRequest(`/excalidraw/${id}`, { method: 'DELETE' }),
+  },
   transcription: {
     // Envia o arquivo de áudio direto para a AssemblyAI e abre o job.
     // language_detection: o idioma é detectado sozinho (pt, en, es...) — com

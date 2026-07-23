@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import Layout from './components/layout/Layout'
@@ -23,6 +24,17 @@ import Support from './pages/Support'
 import Help from './pages/Help'
 import Admin from './pages/Admin'
 import MyPlan from './pages/MyPlan'
+// Excalidraw é um pacote grande → carregado sob demanda (só nestas rotas).
+const DrawingsGallery = lazy(() => import('./pages/excalidraw/DrawingsGallery'))
+const DrawingEditor = lazy(() => import('./pages/excalidraw/DrawingEditor'))
+
+function LazyFallback() {
+  return (
+    <div className="flex h-[60vh] items-center justify-center">
+      <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-700 border-t-cyan-500" />
+    </div>
+  )
+}
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -54,6 +66,8 @@ export default function App() {
         <Route path="/canais" element={<ChannelsList />} />
         <Route path="/canais/:id" element={<ChannelDetail />} />
         <Route path="/quadro-ideias" element={<IdeaBoard />} />
+        <Route path="/desenhos" element={<Suspense fallback={<LazyFallback />}><DrawingsGallery /></Suspense>} />
+        <Route path="/desenhos/:id" element={<Suspense fallback={<LazyFallback />}><DrawingEditor /></Suspense>} />
         <Route path="/referencias" element={<References />} />
         <Route path="/prompts" element={<Prompts />} />
         <Route path="/perfil" element={<Profile />} />
