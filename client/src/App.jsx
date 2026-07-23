@@ -24,6 +24,7 @@ import Support from './pages/Support'
 import Help from './pages/Help'
 import Admin from './pages/Admin'
 import MyPlan from './pages/MyPlan'
+import Landing from './pages/Landing'
 import PrivacyPolicy from './pages/legal/PrivacyPolicy'
 import TermsOfService from './pages/legal/TermsOfService'
 // Excalidraw é um pacote grande → carregado sob demanda (só nestas rotas).
@@ -38,17 +39,28 @@ function LazyFallback() {
   )
 }
 
+function Spinner() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-slate-950">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-cyan-500" />
+    </div>
+  )
+}
+
 function Protected({ children }) {
   const { user, loading } = useAuth()
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-cyan-500" />
-      </div>
-    )
-  }
+  if (loading) return <Spinner />
   if (!user) return <Navigate to="/login" replace />
   return children
+}
+
+// Raiz: visitante não logado vê a página inicial pública (explica o app, exigida
+// pelo Google); usuário logado entra no app (Layout + Dashboard).
+function RootRoute() {
+  const { user, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!user) return <Landing />
+  return <Layout />
 }
 
 export default function App() {
@@ -60,6 +72,10 @@ export default function App() {
       {/* Páginas legais públicas (acessíveis sem login — exigidas p/ o Google) */}
       <Route path="/privacidade" element={<PrivacyPolicy />} />
       <Route path="/termos" element={<TermsOfService />} />
+      {/* Raiz: landing pública (deslogado) ou Dashboard dentro do Layout (logado) */}
+      <Route path="/" element={<RootRoute />}>
+        <Route index element={<Dashboard />} />
+      </Route>
       <Route
         element={
           <Protected>
@@ -67,7 +83,6 @@ export default function App() {
           </Protected>
         }
       >
-        <Route path="/" element={<Dashboard />} />
         <Route path="/canais" element={<ChannelsList />} />
         <Route path="/canais/:id" element={<ChannelDetail />} />
         <Route path="/quadro-ideias" element={<IdeaBoard />} />

@@ -8,7 +8,7 @@ export default function PrivacyPolicy() {
     <LegalShell title="Política de Privacidade">
       <p>
         Esta Política de Privacidade descreve como o <strong>Noctis Studio</strong> ("nós", "plataforma") coleta, usa,
-        armazena e protege os seus dados quando você usa o site e os serviços disponíveis em noctis-studio.vercel.app.
+        armazena e protege os seus dados quando você usa o site e os serviços disponíveis em noctis-studio.online.
         Ao usar a plataforma, você concorda com as práticas descritas aqui.
       </p>
 
