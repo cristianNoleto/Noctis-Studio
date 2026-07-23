@@ -201,6 +201,14 @@ router.post('/migrate', async (req, res) => {
     if (writable && !writable.has(cfg.key)) continue // colaborador só grava o permitido
     const list = Array.isArray(data[cfg.key]) ? data[cfg.key] : []
     let rows = list.map((rec) => toRow(rec, cfg, ownerId)).filter((r) => r.id)
+    // Dedup por id: ids diferentes do client podem colidir no mesmo UUID (ex.: a
+    // pasta padrão criada aqui vira o mesmo UUID de uma pasta já existente no lote).
+    // Sem isso o upsert quebra com "ON CONFLICT cannot affect row a second time".
+    if (rows.length) {
+      const byId = new Map()
+      for (const r of rows) byId.set(r.id, r)
+      rows = [...byId.values()]
+    }
     // Descarta filhos cujo pai não está sendo inserido (evita erro de FK no lote).
     if (cfg.parent) {
       const parentSet = inserted[PARENT_TABLE[cfg.parent.col]]
@@ -217,7 +225,6 @@ router.post('/migrate', async (req, res) => {
   }
   // limpa chaves _orfaos vazias
   for (const k of Object.keys(summary)) if (summary[k] === undefined) delete summary[k]
-  console.log('[VISDBG2] refs=', JSON.stringify((data.referenceChannels || []).map((r) => ({ id: r.id, vis: r.visibility, folderId: r.folderId }))), 'summary=', JSON.stringify(summary))
   res.json({ ok: true, owner: access.owner, self: access.self, summary })
 })
 
