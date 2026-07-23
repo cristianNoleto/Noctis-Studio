@@ -253,6 +253,7 @@ export default {
       title: 'Colaboradores del workspace',
       subtitle: 'Da acceso a tu workspace a otra persona para ver o editar tus skills y referencias. Verá las skills marcadas como "Mi workspace".',
       email: 'Correo del colaborador',
+      emailPlaceholder: 'persona@email.com',
       add: 'Invitar',
       skills: 'Skills',
       references: 'Referencias',

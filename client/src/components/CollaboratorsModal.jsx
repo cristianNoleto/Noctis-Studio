@@ -114,7 +114,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
         <span />
       </div>
       <form onSubmit={add} className={`${ROW} rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] p-2`}>
-        <input className={`${inputCls} !py-2`} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="pessoa@email.com" />
+        <input className={`${inputCls} !py-2`} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('skillsLib.collab.emailPlaceholder')} />
         <AccessSelect label={t('skillsLib.collab.videos')} value={videos} onChange={setVideos} />
         <AccessSelect label={t('skillsLib.collab.references')} value={references} onChange={setReferences} />
         <AccessSelect label={t('skillsLib.collab.board')} value={board} onChange={setBoard} />
