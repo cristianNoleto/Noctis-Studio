@@ -1,9 +1,42 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
 import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, GripVertical, LayoutGrid, Minus, ChevronUp, ChevronDown } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
+import { AnchoredMenu } from '../components/AnchoredMenu'
+import { VisibilityControl, visIcon } from '../components/ItemVisibility'
+
+// Botão de visibilidade por card (só o DONO do workspace define quem vê).
+function CardVisibility({ card }) {
+  const db = useDb()
+  const { t } = useI18n()
+  const btnRef = useRef(null)
+  const [open, setOpen] = useState(false)
+  const vis = card.visibility || 'workspace'
+  const Icon = visIcon(vis)
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((v) => !v)}
+        title={t('skillsLib.form.visibility')}
+        className={`transition-colors hover:text-slate-300 ${vis !== 'workspace' ? 'text-cyan-400' : 'text-slate-600 opacity-0 group-hover:opacity-100'}`}
+      >
+        <Icon size={12} />
+      </button>
+      <AnchoredMenu open={open} anchorRef={btnRef} onClose={() => setOpen(false)} width={230}>
+        <div className="p-1.5">
+          <VisibilityControl
+            value={vis}
+            emails={card.allowedEmails || []}
+            onChange={(v, em) => db.update('boardCards', card.id, { visibility: v, allowedEmails: v === 'specific' ? em : [] })}
+          />
+        </div>
+      </AnchoredMenu>
+    </>
+  )
+}
 
 const COLUMN_COLORS = ['#00f2fe', '#f59e0b', '#22c55e', '#00b8cc', '#ef4444', '#ec4899']
 
@@ -229,6 +262,7 @@ function MoveBtns({ onMoveUp, onMoveDown, isFirst, isLast }) {
 function Card({ card, readOnly, onMoveUp, onMoveDown, isFirst, isLast }) {
   const db = useDb()
   const { t } = useI18n()
+  const isOwner = db.access().self // só o dono controla a visibilidade do card
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id, disabled: readOnly })
   const dnd = readOnly ? {} : { ...listeners, ...attributes }
   const [editing, setEditing] = useState(!readOnly && !card.content && card.type === 'nota' && !card.title)
@@ -270,6 +304,7 @@ function Card({ card, readOnly, onMoveUp, onMoveDown, isFirst, isLast }) {
           >
             {card.collapsed ? <Plus size={12} /> : <Minus size={12} />}
           </button>
+          {isOwner && <CardVisibility card={card} />}
           {!readOnly && (
             <button
               onClick={() => db.remove('boardCards', card.id)}
@@ -335,6 +370,7 @@ function Card({ card, readOnly, onMoveUp, onMoveDown, isFirst, isLast }) {
           >
             {card.collapsed ? <Plus size={12} /> : <Minus size={12} />}
           </button>
+          {isOwner && <CardVisibility card={card} />}
           {!readOnly && (
             <>
               <button onClick={() => setChecklistOpen(true)} className="text-slate-600 opacity-0 transition-opacity hover:text-slate-300 group-hover:opacity-100" title={t('ideaBoard.edit')}>

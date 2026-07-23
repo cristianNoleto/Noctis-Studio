@@ -54,13 +54,13 @@ const CONFIG = [
   { key: 'boardColumns', table: 'board_columns', owner: 'user_id',
     cols: { title: 'title', color: 'color', position: 'position', spaceId: 'space_id', channelId: 'channel_id' }, required: { title: 'Coluna' } },
   { key: 'boardCards', table: 'board_cards', parent: { field: 'columnId', col: 'column_id' },
-    cols: { title: 'title', color: 'color', position: 'position', source: 'source', sourceRef: 'source_ref', createdAt: 'created_at' }, required: { title: '' } },
+    cols: { title: 'title', color: 'color', position: 'position', source: 'source', sourceRef: 'source_ref', visibility: 'visibility', allowedEmails: 'allowed_emails', createdAt: 'created_at' }, required: { title: '' } },
   { key: 'checklistItems', table: 'board_card_checklist_items', parent: { field: 'cardId', col: 'card_id' },
     cols: { label: 'label', done: 'done', position: 'position' }, required: { label: '', position: 0 } },
   { key: 'referenceFolders', table: 'reference_folders', owner: 'user_id',
     cols: { name: 'name', channelId: 'channel_id', createdAt: 'created_at' }, required: { name: 'Pasta' } },
   { key: 'referenceChannels', table: 'reference_channels', parent: { field: 'folderId', col: 'folder_id' },
-    cols: { youtubeUrl: 'youtube_url', youtubeChannelId: 'youtube_channel_id', niche: 'niche', notes: 'notes', cachedStats: 'cached_stats', createdAt: 'created_at' }, required: { youtubeUrl: '' } },
+    cols: { youtubeUrl: 'youtube_url', youtubeChannelId: 'youtube_channel_id', niche: 'niche', notes: 'notes', cachedStats: 'cached_stats', visibility: 'visibility', allowedEmails: 'allowed_emails', createdAt: 'created_at' }, required: { youtubeUrl: '' } },
   { key: 'promptCategories', table: 'prompt_categories', owner: 'user_id',
     cols: { name: 'name', position: 'position' }, required: { name: 'Categoria' } },
   { key: 'prompts', table: 'prompts', owner: 'user_id',
@@ -227,6 +227,21 @@ async function userIdByEmail(supa, email) {
   return (data?.users || []).find((x) => (x.email || '').toLowerCase() === e)?.id || null
 }
 
+// Visibilidade por item (referências/cards do quadro): o dono vê tudo; o
+// colaborador só vê itens 'workspace' (padrão) ou 'specific' com o e-mail dele
+// na lista. 'only_me' fica escondido de qualquer colaborador. Coluna ausente/
+// nula = 'workspace' (comportamento antigo: visível).
+function canSeeRow(row, requesterEmail, isSelf) {
+  if (isSelf) return true
+  const vis = row.visibility || 'workspace'
+  if (vis === 'only_me') return false
+  if (vis === 'specific') {
+    const allowed = Array.isArray(row.allowed_emails) ? row.allowed_emails : []
+    return allowed.map((e) => String(e).toLowerCase()).includes((requesterEmail || '').toLowerCase())
+  }
+  return true // 'workspace' (ou desconhecido) → visível
+}
+
 // Acesso do requester ao workspace de ownerEmail (self = próprio).
 async function resolveAccess(supa, requester, ownerEmail) {
   const me = (requester.email || '').toLowerCase()
@@ -304,7 +319,9 @@ router.get('/snapshot', async (req, res) => {
       if (!(access.self || access.references !== 'none')) return
       const folders = await byOwner('reference_folders')
       out.referenceFolders = folders
-      out.referenceChannels = await fetchBy('reference_channels', 'folder_id', folders.map((f) => f.id))
+      const refs = await fetchBy('reference_channels', 'folder_id', folders.map((f) => f.id))
+      // Colaborador só recebe as referências que o dono deixou visíveis pra ele.
+      out.referenceChannels = refs.filter((r) => canSeeRow(r, user.email, access.self))
     })(),
     // Quadro de Ideias: dono, ou colaborador com acesso ao quadro.
     (async () => {
@@ -312,7 +329,9 @@ router.get('/snapshot', async (req, res) => {
       const [spaces, columns] = await Promise.all([byOwner('board_spaces'), byOwner('board_columns')])
       out.boardSpaces = spaces
       out.boardColumns = columns
-      const cards = await fetchBy('board_cards', 'column_id', columns.map((c) => c.id))
+      const allCards = await fetchBy('board_cards', 'column_id', columns.map((c) => c.id))
+      // Colaborador só vê os cards liberados; a checklist segue os cards visíveis.
+      const cards = allCards.filter((c) => canSeeRow(c, user.email, access.self))
       out.boardCards = cards
       out.checklistItems = await fetchBy('board_card_checklist_items', 'card_id', cards.map((c) => c.id))
     })(),

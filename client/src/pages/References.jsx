@@ -6,6 +6,7 @@ import { api, apiErrorMessage } from '../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, EmptyState } from '../components/ui'
 import { AnchoredMenu } from '../components/AnchoredMenu'
 import { Field } from './channels/ChannelsList'
+import { VisibilityControl, VisibilityBadge } from '../components/ItemVisibility'
 
 // Agrupamento por NICHO (como no layout de referência): cada nicho vira um
 // accordion; referências sem nicho caem em "Sem Nicho".
@@ -177,9 +178,12 @@ function ReferenceCard({ reference: r, readOnly, linkedName, onEdit }) {
         {!readOnly && <MenuItem icon={Trash2} label={t('references.menuDelete')} danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />}
       </AnchoredMenu>
 
-      <span className="mt-2.5 inline-block rounded-full bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-300">
-        {t('references.linked')} {linkedName}
-      </span>
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        <span className="inline-block rounded-full bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-300">
+          {t('references.linked')} {linkedName}
+        </span>
+        <VisibilityBadge visibility={r.visibility} />
+      </div>
 
       {r.notes && <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-slate-500">{r.notes}</p>}
     </div>
@@ -208,8 +212,11 @@ export function ReferenceModal({ open, onClose, reference, channels, niches = []
   const [channelId, setChannelId] = useState('')
   const [niche, setNiche] = useState('')
   const [notes, setNotes] = useState('')
+  const [visibility, setVisibility] = useState('workspace')
+  const [allowedEmails, setAllowedEmails] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const isOwner = db.access().self // só o dono do workspace define visibilidade
 
   useEffect(() => {
     if (open) {
@@ -217,6 +224,8 @@ export function ReferenceModal({ open, onClose, reference, channels, niches = []
       setChannelId(reference?.channelId || '')
       setNiche(reference?.niche || '')
       setNotes(reference?.notes || '')
+      setVisibility(reference?.visibility || 'workspace')
+      setAllowedEmails(reference?.allowedEmails || [])
       setError('')
     }
   }, [open, reference, presetUrl])
@@ -245,6 +254,8 @@ export function ReferenceModal({ open, onClose, reference, channels, niches = []
       channelId: channelId || null,
       niche: niche.trim(),
       notes: notes.trim(),
+      visibility,
+      allowedEmails: visibility === 'specific' ? allowedEmails : [],
     }
     if (reference) db.update('referenceChannels', reference.id, payload)
     else db.insert('referenceChannels', payload)
@@ -299,6 +310,10 @@ export function ReferenceModal({ open, onClose, reference, channels, niches = []
         <Field label={t('references.form.notes')}>
           <textarea className={`${inputCls} min-h-20 resize-y`} placeholder={t('references.form.notesPlaceholder')} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
+
+        {isOwner && (
+          <VisibilityControl value={visibility} emails={allowedEmails} onChange={(v, em) => { setVisibility(v); setAllowedEmails(em) }} />
+        )}
 
         {error && <p className="text-xs text-red-400">{error}</p>}
 
