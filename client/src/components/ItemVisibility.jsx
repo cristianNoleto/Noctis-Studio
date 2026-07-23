@@ -43,17 +43,28 @@ export function VisibilityControl({ value = 'workspace', emails = [], onChange }
   return (
     <div className="space-y-1.5">
       <label className="block text-[10px] font-semibold tracking-wide text-slate-500">{t('skillsLib.form.visibility')}</label>
-      <select
-        className={`${inputCls} !py-1.5 text-xs`}
-        value={vis}
-        onChange={(e) => onChange(e.target.value, e.target.value === 'specific' ? emails : [])}
-      >
-        {ITEM_VISIBILITIES.map((v) => (
-          <option key={v} value={v}>
-            {t(`skillsLib.form.vis${v === 'only_me' ? 'OnlyMe' : v.charAt(0).toUpperCase() + v.slice(1)}`)}
-          </option>
-        ))}
-      </select>
+      {/* Botões em vez de <select> nativo: o clique é capturado de forma
+          confiável mesmo dentro de menus que fecham ao clicar fora (o select
+          nativo às vezes fechava o menu antes de registrar a escolha). */}
+      <div className="flex flex-col gap-1">
+        {ITEM_VISIBILITIES.map((v) => {
+          const Icon = visIcon(v)
+          const active = vis === v
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onChange(v, v === 'specific' ? emails : [])}
+              className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
+                active ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+              }`}
+            >
+              <Icon size={12} />
+              {t(`skillsLib.form.vis${v === 'only_me' ? 'OnlyMe' : v.charAt(0).toUpperCase() + v.slice(1)}`)}
+            </button>
+          )
+        })}
+      </div>
       {vis === 'specific' && (
         <input
           className={`${inputCls} !py-1.5 text-xs`}

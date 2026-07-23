@@ -223,6 +223,7 @@ router.post('/migrate', async (req, res) => {
   }
   // limpa chaves _orfaos vazias
   for (const k of Object.keys(summary)) if (summary[k] === undefined) delete summary[k]
+  console.log('[VISDBG] summary', JSON.stringify(summary)) // DEBUG temporário
   res.json({ ok: true, owner: access.owner, self: access.self, summary })
 })
 
