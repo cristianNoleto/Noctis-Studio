@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import { inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
 import { downloadFile } from '../lib/text'
 import { pushUserSettings } from '../lib/userSettings'
+import { persistMedia } from '../lib/storage'
 import { Field } from './channels/ChannelsList'
 import { useI18n } from '../i18n'
 
@@ -94,7 +95,7 @@ function ProfileTab() {
   function handlePhoto(file) {
     if (!file) return
     const img = new Image()
-    img.onload = () => {
+    img.onload = async () => {
       const canvas = document.createElement('canvas')
       const size = 256
       canvas.width = size
@@ -102,7 +103,8 @@ function ProfileTab() {
       const ctx = canvas.getContext('2d')
       const min = Math.min(img.width, img.height)
       ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size)
-      db.setSetting('avatarDataUrl', canvas.toDataURL('image/jpeg', 0.85))
+      const url = await persistMedia(canvas.toDataURL('image/jpeg', 0.85), { folder: 'avatar', ext: 'jpg' })
+      db.setSetting('avatarDataUrl', url)
       URL.revokeObjectURL(img.src)
     }
     img.src = URL.createObjectURL(file)

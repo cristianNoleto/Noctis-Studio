@@ -32,6 +32,7 @@ import { Modal, inputCls, btnPrimary, btnGhost, ScoreRing, ConfirmDialog, EmptyS
 import { Masked, RestrictedThumb } from '../../components/privacy'
 import { Field } from './ChannelsList'
 import ScriptDrawer from './ScriptDrawer'
+import { persistMedia } from '../../lib/storage'
 
 // Comprime a imagem no navegador para caber leve no localStorage (base64):
 // redimensiona para no máx. 320px de largura e salva em JPEG de baixa qualidade
@@ -426,7 +427,8 @@ function VideoRow({ video: v, readOnly, onToggleStep, onEdit, onScript, onReport
     if (!file) return
     try {
       const dataUrl = await compressThumb(file)
-      db.update('videos', v.id, { thumbnailUrl: dataUrl })
+      const url = await persistMedia(dataUrl, { folder: 'thumb', ext: 'jpg' })
+      db.update('videos', v.id, { thumbnailUrl: url })
     } catch {
       /* ignora arquivo inválido */
     }

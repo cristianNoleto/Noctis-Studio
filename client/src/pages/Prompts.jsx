@@ -10,6 +10,7 @@ import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, ConfirmDialog } from
 import { PrivacyScope, PageEye, Masked } from '../components/privacy'
 import { Field } from './channels/ChannelsList'
 import { CollaboratorsModal } from '../components/CollaboratorsModal'
+import { persistMedia } from '../lib/storage'
 
 const SKILL_CATEGORIES = ['generation', 'visual', 'camera']
 const NEW_BADGE_MS = 14 * 86_400_000 // "Nova" nos primeiros 14 dias
@@ -849,7 +850,10 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
     if (!files.length) return
     setProcessing('image')
     try {
-      for (const file of files) addMedia({ type: 'image', url: await compressImage(file), caption: '' })
+      for (const file of files) {
+        const url = await persistMedia(await compressImage(file), { folder: 'skill', ext: 'jpg' })
+        addMedia({ type: 'image', url, caption: '' })
+      }
     } catch {
       setError(t('skillsLib.mediaError'))
     } finally {
@@ -864,7 +868,8 @@ function SystemSkillFormModal({ open, onClose, skill, initialCategory, isLocalMo
     setProcessing('video')
     setError('')
     try {
-      addMedia({ type: 'video', url: await compressVideo(file), caption: '' })
+      const url = await persistMedia(await compressVideo(file), { folder: 'skill', ext: 'webm', contentType: 'video/webm' })
+      addMedia({ type: 'video', url, caption: '' })
     } catch {
       setError(t('skillsLib.mediaError'))
     } finally {
