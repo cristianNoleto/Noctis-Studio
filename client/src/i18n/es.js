@@ -766,6 +766,8 @@ export default {
     title: 'Dibujos',
     subtitle: 'Pizarra estilo Excalidraw — tus proyectos guardados en la nube',
     new: 'Nuevo dibujo',
+    import: 'Importar',
+    importError: 'Archivo .excalidraw inválido.',
     untitled: 'Sin título',
     emptyTitle: 'Aún no hay dibujos',
     emptyDesc: 'Crea tu primera pizarra — diagramas, wireframes, bocetos a mano alzada.',

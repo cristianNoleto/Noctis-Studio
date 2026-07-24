@@ -35,6 +35,7 @@ function toClient(row) {
     storage: row.storage || 'db',
     driveFolderId: row.drive_folder_id || null,
     driveSceneFileId: row.drive_scene_file_id || null,
+    sizeBytes: Number(row.size_bytes || 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -48,7 +49,7 @@ router.get('/', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'unauthorized' })
   const { data = [], error } = await supa
     .from('excalidraw_scenes')
-    .select('id, name, thumbnail, storage, drive_folder_id, drive_scene_file_id, created_at, updated_at')
+    .select('id, name, thumbnail, storage, drive_folder_id, drive_scene_file_id, size_bytes, created_at, updated_at')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
@@ -101,6 +102,7 @@ router.put('/:id', async (req, res) => {
   if (typeof req.body?.name === 'string') patch.name = req.body.name.slice(0, 120)
   if (req.body?.scene !== undefined) patch.scene = req.body.scene
   if (req.body?.thumbnail !== undefined) patch.thumbnail = req.body.thumbnail
+  if (req.body?.sizeBytes !== undefined) patch.size_bytes = Number(req.body.sizeBytes) || 0
   const { data, error } = await supa.from('excalidraw_scenes').update(patch).eq('id', req.params.id).eq('user_id', user.id).select('*').maybeSingle()
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
   if (!data) return res.status(404).json({ error: 'not_found' })

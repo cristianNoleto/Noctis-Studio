@@ -110,13 +110,15 @@ export default function DrawingEditor() {
       try {
         const thumbnail = await makeThumbnail(elements, files)
         const scene = { elements, appState: { viewBackgroundColor: appState?.viewBackgroundColor }, files }
+        const json = JSON.stringify(scene)
+        const sizeBytes = new Blob([json]).size // tamanho do projeto (p/ mostrar em MB)
         if (storageRef.current === 'drive' && driveFileRef.current) {
           // Grava a cena DIRETO no Drive (sem trafegar pelo servidor); só a
-          // miniatura leve vai pro banco (para a galeria).
-          await updateFileContent(driveFileRef.current, new Blob([JSON.stringify(scene)], { type: 'application/json' }), 'application/json')
-          await api.excalidraw.save(id, thumbnail ? { thumbnail } : {})
+          // miniatura leve + o tamanho vão pro banco (para a galeria).
+          await updateFileContent(driveFileRef.current, new Blob([json], { type: 'application/json' }), 'application/json')
+          await api.excalidraw.save(id, { sizeBytes, ...(thumbnail ? { thumbnail } : {}) })
         } else {
-          await api.excalidraw.save(id, thumbnail ? { scene, thumbnail } : { scene })
+          await api.excalidraw.save(id, { scene, sizeBytes, ...(thumbnail ? { thumbnail } : {}) })
         }
         lastSaved.current = JSON.stringify(elements)
         setStatus('saved')

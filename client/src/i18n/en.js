@@ -766,6 +766,8 @@ export default {
     title: 'Drawings',
     subtitle: 'Excalidraw-style whiteboard — your projects saved in the cloud',
     new: 'New drawing',
+    import: 'Import',
+    importError: 'Invalid .excalidraw file.',
     untitled: 'Untitled',
     emptyTitle: 'No drawings yet',
     emptyDesc: 'Create your first whiteboard — flowcharts, wireframes, free-hand sketches.',

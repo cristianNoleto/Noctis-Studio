@@ -766,6 +766,8 @@ export default {
     title: 'Desenhos',
     subtitle: 'Quadro de desenho estilo Excalidraw — seus projetos salvos na nuvem',
     new: 'Novo desenho',
+    import: 'Importar',
+    importError: 'Arquivo .excalidraw inválido.',
     untitled: 'Sem título',
     emptyTitle: 'Nenhum desenho ainda',
     emptyDesc: 'Crie seu primeiro quadro de desenho — fluxogramas, wireframes, rascunhos à mão livre.',

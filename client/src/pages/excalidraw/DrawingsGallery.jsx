@@ -1,12 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical } from 'lucide-react'
-import { useRef } from 'react'
+import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload } from 'lucide-react'
 import { api } from '../../lib/api'
 import { ensureProjectsFolder, createFolder, uploadJson, deleteFile } from '../../lib/drive'
 import { useI18n } from '../../i18n'
-import { btnPrimary, EmptyState, ConfirmDialog } from '../../components/ui'
+import { btnPrimary, btnGhost, EmptyState, ConfirmDialog } from '../../components/ui'
 import { AnchoredMenu } from '../../components/AnchoredMenu'
+
+// Formata bytes em KB/MB/GB para mostrar o tamanho do projeto.
+function formatSize(bytes) {
+  if (!bytes) return null
+  const mb = bytes / (1024 * 1024)
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
+  if (mb >= 1) return `${mb.toFixed(1)} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
 
 // Galeria dos projetos de desenho (Excalidraw). Leve: só metadados; o editor
 // (pacote grande) é carregado sob demanda ao abrir um projeto.
@@ -31,29 +39,57 @@ export default function DrawingsGallery() {
     load()
   }, [])
 
+  const fileRef = useRef(null)
+
+  // Cria um projeto (vazio ou com uma cena importada). Drive conectado → grava a
+  // pasta + scene.json direto no Drive (dentro de "Noctis Studio- Site/Excalidraw-projects").
+  async function createProject(name, sceneData) {
+    const data = sceneData || { elements: [], appState: {}, files: {} }
+    let payload = { name, scene: data }
+    try {
+      const st = await api.drive.status()
+      if (st.connected) {
+        const projects = await ensureProjectsFolder()
+        const folderId = await createFolder(name, projects)
+        const driveSceneFileId = await uploadJson({ name: 'scene.json', data, parentId: folderId })
+        payload = { name, storage: 'drive', driveFolderId: folderId, driveSceneFileId }
+      }
+    } catch {
+      /* Drive indisponível → cai no banco (payload já tem scene) */
+    }
+    const { scene } = await api.excalidraw.create(payload)
+    return scene
+  }
+
   async function create() {
     if (creating) return
     setCreating(true)
     try {
-      const name = t('drawings.untitled')
-      let payload = { name }
-      // Drive conectado → cria a pasta do projeto + scene.json direto no Drive
-      // (dentro de "Noctis Studio- Site/Excalidraw-projects"); o banco guarda só o índice.
-      try {
-        const st = await api.drive.status()
-        if (st.connected) {
-          const projects = await ensureProjectsFolder()
-          const folderId = await createFolder(name, projects)
-          const driveSceneFileId = await uploadJson({ name: 'scene.json', data: { elements: [], appState: {}, files: {} }, parentId: folderId })
-          payload = { name, storage: 'drive', driveFolderId: folderId, driveSceneFileId }
-        }
-      } catch {
-        /* Drive indisponível → cai no armazenamento do banco */
-      }
-      const { scene } = await api.excalidraw.create(payload)
+      const scene = await createProject(t('drawings.untitled'))
       navigate(`/desenhos/${scene.id}`)
     } catch (e) {
       setError(e?.message || 'Erro ao criar')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  // Importa um arquivo .excalidraw (JSON) e cria um projeto a partir dele.
+  async function importFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setCreating(true)
+    setError('')
+    try {
+      const parsed = JSON.parse(await file.text())
+      if (!Array.isArray(parsed.elements)) throw new Error('invalid')
+      const data = { elements: parsed.elements, appState: { viewBackgroundColor: parsed.appState?.viewBackgroundColor }, files: parsed.files || {} }
+      const name = file.name.replace(/\.excalidraw$/i, '').slice(0, 120) || t('drawings.untitled')
+      const scene = await createProject(name, data)
+      navigate(`/desenhos/${scene.id}`)
+    } catch {
+      setError(t('drawings.importError'))
     } finally {
       setCreating(false)
     }
@@ -92,10 +128,17 @@ export default function DrawingsGallery() {
             <p className="text-sm text-slate-500">{t('drawings.subtitle')}</p>
           </div>
         </div>
-        <button className={`${btnPrimary} flex items-center gap-2`} onClick={create} disabled={creating}>
-          {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          {t('drawings.new')}
-        </button>
+        <div className="flex items-center gap-2">
+          <input ref={fileRef} type="file" accept=".excalidraw,application/json" hidden onChange={importFile} />
+          <button className={`${btnGhost} flex items-center gap-2 text-sm`} onClick={() => fileRef.current?.click()} disabled={creating}>
+            <Upload size={15} />
+            {t('drawings.import')}
+          </button>
+          <button className={`${btnPrimary} flex items-center gap-2`} onClick={create} disabled={creating}>
+            {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+            {t('drawings.new')}
+          </button>
+        </div>
       </div>
 
       {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>}
@@ -150,7 +193,15 @@ function SceneCard({ scene: s, onOpen, onRename, onDelete }) {
         </div>
         <div className="p-3">
           <p className="truncate text-sm font-semibold text-slate-100">{s.name}</p>
-          <p className="mt-0.5 text-[11px] text-slate-500">{new Date(s.updatedAt).toLocaleDateString('pt-BR')}</p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+            <span>{new Date(s.updatedAt).toLocaleDateString('pt-BR')}</span>
+            {formatSize(s.sizeBytes) && (
+              <>
+                <span className="text-slate-700">·</span>
+                <span className="text-slate-400">{formatSize(s.sizeBytes)}</span>
+              </>
+            )}
+          </p>
         </div>
       </button>
       <button ref={btnRef} onClick={() => setMenuOpen((v) => !v)} className="absolute right-2 top-2 rounded-md bg-slate-900/80 p-1 text-slate-400 opacity-0 transition-opacity hover:text-slate-200 group-hover:opacity-100">
