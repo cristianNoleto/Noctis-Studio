@@ -785,6 +785,7 @@ export default {
     leavingHint: 'Espera un momento — no cierres la pestaña hasta terminar.',
     optimizing: 'Optimizando imágenes ({done}/{total})',
     welcomeHeading: '¡Elige una herramienta y empieza a dibujar!',
+    language: 'Idioma del tablero',
     fullscreen: 'Pantalla completa',
     exitFullscreen: 'Salir de pantalla completa',
     notFound: 'Dibujo no encontrado.',

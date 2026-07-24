@@ -785,6 +785,7 @@ export default {
     leavingHint: 'Aguarde um instante — não feche a aba até terminar.',
     optimizing: 'Otimizando imagens ({done}/{total})',
     welcomeHeading: 'Escolha uma ferramenta e comece a desenhar!',
+    language: 'Idioma do quadro',
     fullscreen: 'Tela cheia',
     exitFullscreen: 'Sair da tela cheia',
     notFound: 'Desenho não encontrado.',

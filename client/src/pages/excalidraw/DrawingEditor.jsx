@@ -27,9 +27,11 @@ export default function DrawingEditor() {
   // Idioma do quadro (UI do Excalidraw + textos da tela de boas-vindas). Começa
   // no idioma do site quando existir na lista do Excalidraw.
   const [langCode, setLangCode] = useState(() => {
-    const site = { pt: 'pt-BR', en: 'en', es: 'es' }[localStorage.getItem('lang')] || 'pt-BR'
+    const site = { pt: 'pt-BR', en: 'en', es: 'es-ES' }[localStorage.getItem('lang')] || 'pt-BR'
     return languages.some((l) => l.code === site) ? site : defaultLang.code
   })
+  // Lista de idiomas do Excalidraw sem os locales de teste (__test__…).
+  const langOptions = languages.filter((l) => !l.code.startsWith('__'))
   const storageRef = useRef('db') // 'db' | 'drive'
   const driveFileRef = useRef(null) // id do scene.json no Drive
   const driveFolderRef = useRef(null) // id da pasta do projeto no Drive
@@ -308,6 +310,18 @@ export default function DrawingEditor() {
             t('drawings.autosaveHint')
           )}
         </span>
+        <select
+          value={langCode}
+          onChange={(e) => setLangCode(e.target.value)}
+          title={t('drawings.language')}
+          className="h-8 max-w-[150px] cursor-pointer rounded-lg border border-slate-800 bg-slate-950 px-2 text-xs text-slate-300 hover:border-slate-700 focus:border-cyan-500/50 focus:outline-none"
+        >
+          {langOptions.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.label}
+            </option>
+          ))}
+        </select>
         <button onClick={toggleFullscreen} title={fs ? t('drawings.exitFullscreen') : t('drawings.fullscreen')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-100">
           {fs ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </button>
@@ -332,23 +346,6 @@ export default function DrawingEditor() {
             <MainMenu.DefaultItems.Help />
             <MainMenu.DefaultItems.ClearCanvas />
             <MainMenu.Separator />
-            <MainMenu.ItemCustom>
-              <label className="flex w-full items-center justify-between gap-2 text-sm">
-                <span>🌐</span>
-                <select
-                  value={langCode}
-                  onChange={(e) => setLangCode(e.target.value)}
-                  className="min-w-0 flex-1 cursor-pointer rounded-md border border-slate-300 bg-transparent px-2 py-1 text-sm"
-                  style={{ maxWidth: '100%' }}
-                >
-                  {languages.map((l) => (
-                    <option key={l.code} value={l.code}>
-                      {l.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </MainMenu.ItemCustom>
             <MainMenu.DefaultItems.ToggleTheme />
             <MainMenu.DefaultItems.ChangeCanvasBackground />
           </MainMenu>
