@@ -8,8 +8,11 @@ import { api } from './api'
 const FILES = 'https://www.googleapis.com/drive/v3/files'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
 // Estrutura no Drive do usuário: raiz limpa, só a pasta do app; os projetos
-// ficam todos dentro de "Noctis Studio- Site/Excalidraw-projects".
-const APP_ROOT_NAME = 'Noctis Studio- Site'
+// ficam todos dentro da pasta do app / "Excalidraw-projects". O nome deixa claro
+// que é o banco dos storyboards e que NÃO deve ser apagada.
+const APP_ROOT_NAME = 'Noctis Studio - Storyboards (NAO APAGAR)'
+// Nomes antigos: se existir, é renomeado para o novo (preserva os projetos).
+const APP_ROOT_LEGACY = ['Noctis Studio- Site', 'Noctis Studio - Site']
 const PROJECTS_FOLDER_NAME = 'Excalidraw-projects'
 
 let cachedToken = null // { accessToken, exp }
@@ -34,22 +37,45 @@ async function driveFetch(url, opts = {}) {
   return res
 }
 
-// Acha uma pasta pelo nome (dentro de parentId, ou na raiz se parentId null);
-// cria se não existir. Devolve o id.
-async function ensureFolder(name, parentId) {
+// Procura uma pasta pelo nome (dentro de parentId, ou na raiz se null). Devolve
+// o id ou null.
+async function findFolder(name, parentId) {
   const clauses = [`name='${name.replace(/'/g, "\\'")}'`, "mimeType='application/vnd.google-apps.folder'", 'trashed=false', parentId ? `'${parentId}' in parents` : "'root' in parents"]
   const q = encodeURIComponent(clauses.join(' and '))
   const res = await driveFetch(`${FILES}?q=${q}&fields=files(id,name)`)
   const { files } = await res.json()
-  if (files?.length) return files[0].id
-  return createFolder(name, parentId)
+  return files?.length ? files[0].id : null
 }
 
-// Pasta onde TODOS os projetos ficam: "Noctis Studio- Site/Excalidraw-projects".
+// Acha uma pasta pelo nome; cria se não existir. Devolve o id.
+async function ensureFolder(name, parentId) {
+  return (await findFolder(name, parentId)) || createFolder(name, parentId)
+}
+
+// Pasta raiz do app no Drive. Se ainda existir com um nome antigo, RENOMEIA para
+// o nome atual (preserva os projetos que já estão dentro) em vez de criar outra.
+async function ensureAppRoot() {
+  const current = await findFolder(APP_ROOT_NAME, null)
+  if (current) return current
+  for (const legacy of APP_ROOT_LEGACY) {
+    const old = await findFolder(legacy, null)
+    if (old) {
+      try {
+        await renameFile(old, APP_ROOT_NAME)
+      } catch {
+        /* se falhar o rename, segue usando a pasta mesmo assim */
+      }
+      return old
+    }
+  }
+  return createFolder(APP_ROOT_NAME, null)
+}
+
+// Pasta onde TODOS os projetos ficam: "<pasta do app>/Excalidraw-projects".
 // A raiz do Drive só recebe a pasta do app. Resultado cacheado por sessão.
 export async function ensureProjectsFolder() {
   if (cachedProjectsFolder) return cachedProjectsFolder
-  const appRoot = await ensureFolder(APP_ROOT_NAME, null)
+  const appRoot = await ensureAppRoot()
   const projects = await ensureFolder(PROJECTS_FOLDER_NAME, appRoot)
   cachedProjectsFolder = projects
   return projects
