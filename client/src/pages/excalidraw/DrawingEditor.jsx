@@ -27,6 +27,9 @@ export default function DrawingEditor() {
   const driveFileRef = useRef(null) // id do scene.json no Drive
   const driveFolderRef = useRef(null) // id da pasta do projeto no Drive
   const latestRef = useRef(null) // último estado bom da cena (p/ salvar ao fechar)
+  const savingRef = useRef(false) // há um doSave em andamento
+  const dirtyRef = useRef(false) // há mudança pendente ainda não salva
+  const [leaving, setLeaving] = useState(false) // overlay ao sair enquanto salva
 
   // Fullscreen imersivo do navegador (Esc sai). Botão liga/desliga.
   async function toggleFullscreen() {
@@ -106,6 +109,7 @@ export default function DrawingEditor() {
 
   const doSave = useCallback(
     async (elements, appState, files) => {
+      savingRef.current = true
       setStatus('saving')
       try {
         const thumbnail = await makeThumbnail(elements, files)
@@ -121,10 +125,13 @@ export default function DrawingEditor() {
           await api.excalidraw.save(id, { scene, sizeBytes, ...(thumbnail ? { thumbnail } : {}) })
         }
         lastSaved.current = JSON.stringify(elements)
+        dirtyRef.current = false
         setStatus('saved')
         setTimeout(() => setStatus((s) => (s === 'saved' ? 'idle' : s)), 1500)
       } catch {
         setStatus('idle')
+      } finally {
+        savingRef.current = false
       }
     },
     [id],
@@ -139,11 +146,48 @@ export default function DrawingEditor() {
       latestRef.current = { elements, appState, files }
       const sig = JSON.stringify(elements)
       if (sig === lastSaved.current) return
+      dirtyRef.current = true
       clearTimeout(saveTimer.current)
       saveTimer.current = setTimeout(() => doSave(elements, appState, files), 1200)
     },
     [doSave],
   )
+
+  // Sair com segurança: se há mudança pendente ou um save em andamento, mostra
+  // o overlay "salvando", garante que a última cena foi gravada e SÓ ENTÃO
+  // navega. Assim o usuário nunca sai antes de tudo estar salvo.
+  const goBack = useCallback(async () => {
+    const latest = latestRef.current
+    const pending = dirtyRef.current || savingRef.current
+    if (!pending) {
+      navigate('/desenhos')
+      return
+    }
+    setLeaving(true)
+    clearTimeout(saveTimer.current)
+    try {
+      if (latest && JSON.stringify(latest.elements) !== lastSaved.current) {
+        await doSave(latest.elements, latest.appState, latest.files)
+      }
+      // Se um save já estava rodando, espera ele terminar.
+      while (savingRef.current) await new Promise((r) => setTimeout(r, 120))
+    } catch {
+      /* segue mesmo assim: o unmount flush ainda tenta salvar */
+    }
+    navigate('/desenhos')
+  }, [doSave, navigate])
+
+  // Bloqueia fechar/atualizar a aba do navegador enquanto há algo por salvar.
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (dirtyRef.current || savingRef.current) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
 
   // Salva o pendente ao sair da página usando o ÚLTIMO estado bom guardado.
   useEffect(() => {
@@ -195,7 +239,7 @@ export default function DrawingEditor() {
     <div ref={rootRef} className="flex h-screen w-screen flex-col bg-slate-950">
       {/* Barra flutuante compacta do editor (fora do canvas do Excalidraw) */}
       <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-950 px-3 py-1.5">
-        <button onClick={() => navigate('/desenhos')} className="flex items-center gap-1.5 rounded-lg border border-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:border-slate-700 hover:text-slate-100" title={t('drawings.backToGallery')}>
+        <button onClick={goBack} disabled={leaving} className="flex items-center gap-1.5 rounded-lg border border-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:border-slate-700 hover:text-slate-100 disabled:opacity-50" title={t('drawings.backToGallery')}>
           <ArrowLeft size={14} />
           {t('drawings.gallery')}
         </button>
@@ -231,6 +275,22 @@ export default function DrawingEditor() {
           langCode="pt-BR"
         />
       </div>
+
+      {/* Overlay ao sair: garante ao usuário que estamos salvando antes de fechar */}
+      {leaving && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900 px-8 py-7 text-center shadow-2xl">
+            <div className="relative flex h-12 w-12 items-center justify-center">
+              <Loader2 size={40} className="animate-spin text-cyan-400" />
+              <CloudUpload size={18} className="absolute text-cyan-300" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-100">{t('drawings.leavingSaving')}</p>
+              <p className="mt-1 text-xs text-slate-500">{t('drawings.leavingHint')}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

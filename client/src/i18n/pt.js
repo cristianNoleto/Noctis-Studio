@@ -781,6 +781,8 @@ export default {
     saving: 'Salvando…',
     saved: 'Salvo',
     autosaveHint: 'Salva automaticamente',
+    leavingSaving: 'Salvando seu desenho…',
+    leavingHint: 'Aguarde um instante — não feche a aba até terminar.',
     fullscreen: 'Tela cheia',
     exitFullscreen: 'Sair da tela cheia',
     notFound: 'Desenho não encontrado.',
