@@ -1,12 +1,37 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang } from '@excalidraw/excalidraw'
+import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang, useI18n as useExcalidrawI18n } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { downloadText, updateFileContent, renameFile } from '../../lib/drive'
 import { optimizeDataUrl, dataUrlBytes } from '../../lib/imageOptimize'
 import { useI18n } from '../../i18n'
+
+// Tela de boas-vindas (placeholder do quadro vazio) TRADUZIDA pelo idioma do
+// quadro. Os componentes de hint/help do Excalidraw usam o `t` estático do
+// módulo e NÃO re-renderizam ao trocar idioma (bug do pacote). Aqui usamos o
+// useI18n reativo dele só para obter o langCode atual (que muda DEPOIS do
+// locale carregar) e remontar tudo via key — assim os textos estáticos pegam
+// o idioma novo. Precisa ser renderizado DENTRO do <Excalidraw>.
+function BoardWelcome() {
+  const { t: tx, langCode } = useExcalidrawI18n()
+  return (
+    <WelcomeScreen key={langCode}>
+      <WelcomeScreen.Hints.MenuHint />
+      <WelcomeScreen.Hints.ToolbarHint />
+      <WelcomeScreen.Hints.HelpHint />
+      <WelcomeScreen.Center>
+        <WelcomeScreen.Center.Logo>Noctis Studio</WelcomeScreen.Center.Logo>
+        <WelcomeScreen.Center.Heading>{tx('welcomeScreen.defaults.center_heading')}</WelcomeScreen.Center.Heading>
+        <WelcomeScreen.Center.Menu>
+          <WelcomeScreen.Center.MenuItemLoadScene />
+          <WelcomeScreen.Center.MenuItemHelp />
+        </WelcomeScreen.Center.Menu>
+      </WelcomeScreen.Center>
+    </WelcomeScreen>
+  )
+}
 
 // Editor Excalidraw de um projeto. Carrega a cena do banco, renderiza o editor
 // (mesmo motor do excalidraw.com) e faz AUTOSAVE com debounce — cada projeto
@@ -367,19 +392,7 @@ export default function DrawingEditor() {
               </label>
             </MainMenu.ItemCustom>
           </MainMenu>
-          <WelcomeScreen>
-            <WelcomeScreen.Hints.MenuHint />
-            <WelcomeScreen.Hints.ToolbarHint />
-            <WelcomeScreen.Hints.HelpHint />
-            <WelcomeScreen.Center>
-              <WelcomeScreen.Center.Logo>Noctis Studio</WelcomeScreen.Center.Logo>
-              <WelcomeScreen.Center.Heading>{t('drawings.welcomeHeading')}</WelcomeScreen.Center.Heading>
-              <WelcomeScreen.Center.Menu>
-                <WelcomeScreen.Center.MenuItemLoadScene />
-                <WelcomeScreen.Center.MenuItemHelp />
-              </WelcomeScreen.Center.Menu>
-            </WelcomeScreen.Center>
-          </WelcomeScreen>
+          <BoardWelcome />
         </Excalidraw>
       </div>
 
