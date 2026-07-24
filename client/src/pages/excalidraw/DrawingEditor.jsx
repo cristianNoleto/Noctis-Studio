@@ -4,8 +4,8 @@ import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLa
 import '@excalidraw/excalidraw/index.css'
 import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { downloadText, updateFileContent, renameFile } from '../../lib/drive'
-import { optimizeDataUrl, dataUrlBytes } from '../../lib/imageOptimize'
+import { downloadText, updateFileContent, renameFile, uploadFile, downloadBlob } from '../../lib/drive'
+import { optimizeDataUrl, dataUrlBytes, dataUrlToBlob, blobToDataUrl } from '../../lib/imageOptimize'
 import { useI18n } from '../../i18n'
 
 // Tela de boas-vindas (placeholder do quadro vazio) TRADUZIDA pelo idioma do
@@ -75,6 +75,15 @@ export default function DrawingEditor() {
   const [leaving, setLeaving] = useState(false) // overlay ao sair enquanto salva
   const seenFiles = useRef(new Set()) // ids de imagens já avaliadas p/ otimização
   const [optimizing, setOptimizing] = useState(null) // { done, total } ou null
+  // Manifesto das imagens já subidas ao Drive como arquivos SEPARADOS:
+  // fileId (do Excalidraw) → { driveFileId, mimeType }. Assim o scene.json fica
+  // leve (só a "planta") e as imagens carregam sob demanda.
+  const uploadedRef = useRef({})
+  const [loadingImages, setLoadingImages] = useState(null) // { done, total } ao abrir
+  const pendingSaveRef = useRef(false) // pedido de novo save enquanto um já roda
+  const pendingLazyRef = useRef(null) // manifesto de imagens a carregar sob demanda
+  const lazyStartedRef = useRef(false) // garante que o lazy-load roda uma vez só
+  const [apiReady, setApiReady] = useState(false) // Excalidraw API pronta (p/ addFiles)
 
   // Fullscreen imersivo do navegador (Esc sai). Botão liga/desliga.
   async function toggleFullscreen() {
@@ -93,6 +102,11 @@ export default function DrawingEditor() {
 
   useEffect(() => {
     let alive = true
+    // Reseta o estado por-projeto (caso o componente seja reaproveitado ao trocar de id).
+    uploadedRef.current = {}
+    seenFiles.current = new Set()
+    pendingLazyRef.current = null
+    lazyStartedRef.current = false
     ;(async () => {
       try {
         const { scene } = await api.excalidraw.get(id)
@@ -111,15 +125,25 @@ export default function DrawingEditor() {
           }
         }
         if (!alive) return
-        // Imagens já presentes no projeto não são reotimizadas (evita retrabalho).
+        // Imagens já presentes (embutidas OU no manifesto) não são reotimizadas.
         Object.keys(data.files || {}).forEach((k) => seenFiles.current.add(k))
+        // Formato novo: as imagens ficam como arquivos SEPARADOS no Drive; o
+        // scene.json só traz o manifesto (fileMeta). Popula o manifesto local e
+        // agenda o carregamento sob demanda (após o editor montar).
+        const fileMeta = data.fileMeta || {}
+        for (const [fid, m] of Object.entries(fileMeta)) {
+          uploadedRef.current[fid] = { driveFileId: m.driveFileId, mimeType: m.mimeType, created: m.created, bytes: m.bytes || 0 }
+          seenFiles.current.add(fid)
+        }
+        pendingLazyRef.current = Object.keys(fileMeta).length ? fileMeta : null
         lastSaved.current = JSON.stringify(data.elements || [])
         setInitial({
           elements: data.elements || [],
           appState: { ...(data.appState || {}), collaborators: undefined },
-          files: data.files || undefined,
+          files: data.files || undefined, // imagens embutidas (formato antigo / fallback)
           scrollToContent: true,
         })
+        maybeLazyLoad()
       } catch (e) {
         if (e?.code === 'local_mode') { setInitial({ elements: [], scrollToContent: true }); return } // DEV: sem Supabase → canvas vazio
         setError(e?.code === 'not_found' ? t('drawings.notFound') : e?.message || 'Erro')
@@ -130,6 +154,42 @@ export default function DrawingEditor() {
       alive = false
     }
   }, [id, t])
+
+  // Carrega SOB DEMANDA as imagens que estão como arquivos separados no Drive:
+  // o quadro abre na hora (só a planta) e as imagens entram uma a uma, com
+  // progresso — é isso que torna viável abrir projetos de centenas de MB.
+  async function lazyLoadImages(meta) {
+    const entries = Object.entries(meta)
+    if (!entries.length) return
+    setLoadingImages({ done: 0, total: entries.length })
+    let done = 0
+    for (const [fid, m] of entries) {
+      try {
+        const blob = await downloadBlob(m.driveFileId)
+        const dataURL = await blobToDataUrl(blob)
+        apiRef.current?.addFiles([{ id: fid, dataURL, mimeType: m.mimeType || blob.type, created: m.created || Date.now(), lastRetrieved: Date.now() }])
+      } catch {
+        /* imagem indisponível → segue as demais */
+      }
+      done += 1
+      setLoadingImages({ done, total: entries.length })
+    }
+    setLoadingImages(null)
+  }
+
+  // Dispara o lazy-load só quando a API do Excalidraw já existe (addFiles) e há
+  // manifesto pendente; roda uma única vez.
+  function maybeLazyLoad() {
+    if (lazyStartedRef.current || !pendingLazyRef.current || !apiRef.current) return
+    lazyStartedRef.current = true
+    const meta = pendingLazyRef.current
+    pendingLazyRef.current = null
+    lazyLoadImages(meta)
+  }
+  useEffect(() => {
+    if (apiReady) maybeLazyLoad()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiReady])
 
   // Gera uma miniatura pequena (PNG) da cena para a galeria — best-effort.
   async function makeThumbnail(elements, files) {
@@ -156,19 +216,22 @@ export default function DrawingEditor() {
 
   const doSave = useCallback(
     async (elements, appState, files) => {
+      // Serializa: se já há um save rodando (upload de imagens pode demorar),
+      // marca para rodar de novo no fim, evitando corridas/uploads duplicados.
+      if (savingRef.current) {
+        pendingSaveRef.current = true
+        return
+      }
       savingRef.current = true
       setStatus('saving')
       try {
         const thumbnail = await makeThumbnail(elements, files)
-        const scene = { elements, appState: { viewBackgroundColor: appState?.viewBackgroundColor }, files }
-        const json = JSON.stringify(scene)
-        const sizeBytes = new Blob([json]).size // tamanho do projeto (p/ mostrar em MB)
         if (storageRef.current === 'drive' && driveFileRef.current) {
-          // Grava a cena DIRETO no Drive (sem trafegar pelo servidor); só a
-          // miniatura leve + o tamanho vão pro banco (para a galeria).
-          await updateFileContent(driveFileRef.current, new Blob([json], { type: 'application/json' }), 'application/json')
+          const sizeBytes = await saveToDrive(elements, appState, files)
           await api.excalidraw.save(id, { sizeBytes, ...(thumbnail ? { thumbnail } : {}) })
         } else {
+          const scene = { elements, appState: { viewBackgroundColor: appState?.viewBackgroundColor }, files }
+          const sizeBytes = new Blob([JSON.stringify(scene)]).size
           await api.excalidraw.save(id, { scene, sizeBytes, ...(thumbnail ? { thumbnail } : {}) })
         }
         lastSaved.current = JSON.stringify(elements)
@@ -179,10 +242,57 @@ export default function DrawingEditor() {
         setStatus('idle')
       } finally {
         savingRef.current = false
+        if (pendingSaveRef.current) {
+          pendingSaveRef.current = false
+          const l = latestRef.current
+          if (l) doSave(l.elements, l.appState, l.files)
+        }
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [id],
   )
+
+  // Salva um projeto do Drive no MODELO NOVO: imagens como arquivos separados +
+  // scene.json enxuto (só elementos + manifesto). Sobe só imagens ainda não
+  // enviadas; as que falharem ficam embutidas como fallback (sem perda) e são
+  // retentadas no próximo save. Devolve o tamanho total aproximado (bytes).
+  async function saveToDrive(elements, appState, files) {
+    const referenced = new Set((elements || []).filter((e) => e.fileId && !e.isDeleted).map((e) => e.fileId))
+    const embedFallback = {} // imagens ainda não subidas → embutidas p/ não perder
+    let imagesBytes = 0
+    for (const [fid, f] of Object.entries(files || {})) {
+      if (!referenced.has(fid) || !f?.dataURL) continue // ignora órfãs
+      if (uploadedRef.current[fid]) {
+        imagesBytes += uploadedRef.current[fid].bytes || 0
+        continue
+      }
+      try {
+        const blob = await dataUrlToBlob(f.dataURL)
+        const driveFileId = await uploadFile({ name: `img_${fid}`, mimeType: f.mimeType, blob, parentId: driveFolderRef.current })
+        uploadedRef.current[fid] = { driveFileId, mimeType: f.mimeType, created: f.created, bytes: blob.size }
+        imagesBytes += blob.size
+      } catch {
+        embedFallback[fid] = f // falhou → mantém embutida; tenta de novo depois
+        imagesBytes += dataUrlBytes(f.dataURL)
+      }
+    }
+    // Manifesto só das imagens ainda referenciadas e já no Drive.
+    const fileMeta = {}
+    for (const fid of referenced) {
+      const m = uploadedRef.current[fid]
+      if (m) fileMeta[fid] = { driveFileId: m.driveFileId, mimeType: m.mimeType, created: m.created, bytes: m.bytes }
+    }
+    const slim = {
+      elements,
+      appState: { viewBackgroundColor: appState?.viewBackgroundColor },
+      fileMeta,
+      files: Object.keys(embedFallback).length ? embedFallback : undefined,
+    }
+    const slimJson = JSON.stringify(slim)
+    await updateFileContent(driveFileRef.current, new Blob([slimJson], { type: 'application/json' }), 'application/json')
+    return new Blob([slimJson]).size + imagesBytes
+  }
 
   // Otimiza imagens recém-adicionadas (colar/soltar): reamostra + recomprime
   // mantendo o MESMO fileId. Roda em fila, com progresso, para projetos com
@@ -328,7 +438,11 @@ export default function DrawingEditor() {
           className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-100 hover:border-slate-800 focus:border-cyan-500/50 focus:outline-none"
         />
         <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-slate-500">
-          {optimizing ? (
+          {loadingImages ? (
+            <>
+              <Loader2 size={13} className="animate-spin text-cyan-400" /> {t('drawings.loadingImages', { done: loadingImages.done, total: loadingImages.total })}
+            </>
+          ) : optimizing ? (
             <>
               <Loader2 size={13} className="animate-spin text-cyan-400" /> {t('drawings.optimizing', { done: optimizing.done, total: optimizing.total })}
             </>
@@ -352,7 +466,11 @@ export default function DrawingEditor() {
       {/* Canvas ocupa todo o resto */}
       <div className="min-h-0 flex-1">
         <Excalidraw
-          excalidrawAPI={(a) => (apiRef.current = a)}
+          excalidrawAPI={(a) => {
+            apiRef.current = a
+            if (!apiReady) setApiReady(true)
+            maybeLazyLoad()
+          }}
           initialData={initial}
           onChange={onChange}
           langCode={appliedLang}

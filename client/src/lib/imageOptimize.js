@@ -15,6 +15,22 @@ export function dataUrlBytes(dataURL) {
   return Math.floor((b64.length * 3) / 4)
 }
 
+// Converte um dataURL (base64) em Blob binário — para subir a imagem como um
+// arquivo separado no Drive (em vez de embutir base64 no scene.json).
+export async function dataUrlToBlob(dataURL) {
+  return (await fetch(dataURL)).blob()
+}
+
+// Converte um Blob (imagem baixada do Drive) de volta em dataURL para o Excalidraw.
+export function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result)
+    r.onerror = reject
+    r.readAsDataURL(blob)
+  })
+}
+
 function canvasToDataUrl(source, tw, th) {
   const canvas = document.createElement('canvas')
   canvas.width = tw

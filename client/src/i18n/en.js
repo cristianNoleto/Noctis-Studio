@@ -795,6 +795,7 @@ export default {
     leavingSaving: 'Saving your drawing…',
     leavingHint: 'Hang on a moment — don’t close the tab until it finishes.',
     optimizing: 'Optimizing images ({done}/{total})',
+    loadingImages: 'Loading images ({done}/{total})',
     welcomeHeading: 'Pick a tool and start drawing!',
     language: 'Board language',
     fullscreen: 'Fullscreen',
