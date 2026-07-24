@@ -803,6 +803,83 @@ function PrefsTab() {
 
 // ---------------------------------------------------------------------------
 // Aba Avançado: backup completo dos dados locais + zona de perigo
+// Cartão de conexão do Google Drive (armazenamento dos desenhos pesados).
+function DriveCard() {
+  const { t } = useI18n()
+  const [state, setState] = useState('loading') // loading | connected | disconnected
+  const [email, setEmail] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function refresh() {
+    try {
+      const r = await api.drive.status()
+      setState(r.connected ? 'connected' : 'disconnected')
+      setEmail(r.email || null)
+    } catch {
+      setState('disconnected')
+    }
+  }
+  useEffect(() => {
+    refresh()
+    // Feedback ao voltar do consentimento do Google (?drive=conectado|erro)
+    const p = new URLSearchParams(window.location.search)
+    const d = p.get('drive')
+    if (d === 'conectado') setMsg(t('profile.drive.connectedMsg'))
+    else if (d === 'erro') setMsg(t('profile.drive.errorMsg', { msg: p.get('msg') || '' }))
+    if (d) window.history.replaceState({}, '', '/perfil')
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function connect() {
+    setBusy(true)
+    try {
+      const { url } = await api.drive.connect()
+      window.location.href = url // redireciona pro consentimento do Google
+    } catch (e) {
+      setMsg(e?.message || 'Erro')
+      setBusy(false)
+    }
+  }
+
+  async function disconnect() {
+    setBusy(true)
+    try {
+      await api.drive.disconnect()
+      await refresh()
+      setMsg('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card title={t('profile.drive.title')} subtitle={t('profile.drive.sub')}>
+      {state === 'loading' ? (
+        <Loader2 size={16} className="animate-spin text-cyan-400" />
+      ) : state === 'connected' ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-slate-300">
+            <Check size={14} className="mr-1.5 inline text-green-400" />
+            {t('profile.drive.connectedAs')} <b className="text-slate-100">{email || '—'}</b>
+          </p>
+          <button onClick={disconnect} disabled={busy} className={`${btnGhost} text-xs`}>
+            {busy ? <Loader2 size={14} className="animate-spin" /> : t('profile.drive.disconnect')}
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-slate-500">{t('profile.drive.notConnected')}</p>
+          <button onClick={connect} disabled={busy} className={`${btnPrimary} flex items-center gap-2`}>
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <Plug size={15} />}
+            {t('profile.drive.connect')}
+          </button>
+        </div>
+      )}
+      {msg && <p className="mt-3 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">{msg}</p>}
+    </Card>
+  )
+}
+
 function AdvancedTab() {
   const { t } = useI18n()
   const db = useDb()
@@ -872,6 +949,7 @@ function AdvancedTab() {
 
   return (
     <div className="space-y-4">
+      <DriveCard />
       <Card title={t('profile.adv.backupTitle')} subtitle={t('profile.adv.backupSub')}>
         <div className="mb-4 flex flex-wrap gap-2">
           {counts.map(([key, n]) => (

@@ -1214,6 +1214,16 @@ export default {
       wipeConfirmTitle: 'Apagar todos os dados',
       wipeConfirmMsg: 'Isso remove TUDO que está salvo neste dispositivo e não pode ser desfeito. Tem certeza?',
     },
+    drive: {
+      title: 'Google Drive',
+      sub: 'Conecte seu Google Drive para guardar projetos de desenho pesados. Usamos apenas os arquivos que o app cria (escopo drive.file) — não acessamos o resto do seu Drive.',
+      notConnected: 'Nenhum Google Drive conectado.',
+      connect: 'Conectar Google Drive',
+      connectedAs: 'Conectado como',
+      disconnect: 'Desconectar',
+      connectedMsg: 'Google Drive conectado com sucesso!',
+      errorMsg: 'Não foi possível conectar o Drive ({msg}). Tente novamente.',
+    },
   },
   myPlan: {
     title: 'Meu Plano',

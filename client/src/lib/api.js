@@ -210,6 +210,12 @@ export const api = {
     save: (id, patch, keepalive = false) => authRequest(`/excalidraw/${id}`, { method: 'PUT', body: patch, keepalive }),
     remove: (id) => authRequest(`/excalidraw/${id}`, { method: 'DELETE' }),
   },
+  // Conexão do Google Drive (OAuth) por usuário.
+  drive: {
+    connect: () => authRequest('/drive/connect', { method: 'POST' }),
+    status: () => authRequest('/drive/status'),
+    disconnect: () => authRequest('/drive/disconnect', { method: 'DELETE' }),
+  },
   transcription: {
     // Envia o arquivo de áudio direto para a AssemblyAI e abre o job.
     // language_detection: o idioma é detectado sozinho (pt, en, es...) — com
