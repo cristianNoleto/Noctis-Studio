@@ -37,6 +37,9 @@ export default function DrawingsGallery() {
   }
   useEffect(() => {
     load()
+    // Pré-carrega o pacote pesado do editor (~590 KB) em segundo plano, para que
+    // clicar em um projeto abra na hora, sem esperar o download do chunk.
+    import('./DrawingEditor').catch(() => {})
   }, [])
 
   const fileRef = useRef(null)

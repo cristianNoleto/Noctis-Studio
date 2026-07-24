@@ -15,44 +15,49 @@ export function dataUrlBytes(dataURL) {
   return Math.floor((b64.length * 3) / 4)
 }
 
-function loadImage(dataURL) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = reject
-    img.src = dataURL
-  })
-}
-
-// Reamostra um dataURL para caber em MAX_DIM e recomprime em WebP. Devolve o
-// novo dataURL + mimeType, ou null se não valer a pena (menor não ficou).
-export async function optimizeDataUrl(dataURL, mimeType) {
-  // SVGs são vetoriais e leves — não reamostrar.
-  if (mimeType === 'image/svg+xml') return null
-  if (dataUrlBytes(dataURL) < MIN_BYTES) return null
-  let img
-  try {
-    img = await loadImage(dataURL)
-  } catch {
-    return null
-  }
-  const { width: w, height: h } = img
-  if (!w || !h) return null
-  const scale = Math.min(1, MAX_DIM / Math.max(w, h))
-  const tw = Math.max(1, Math.round(w * scale))
-  const th = Math.max(1, Math.round(h * scale))
+function canvasToDataUrl(source, tw, th) {
   const canvas = document.createElement('canvas')
   canvas.width = tw
   canvas.height = th
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
-  ctx.drawImage(img, 0, 0, tw, th)
-  let out
+  ctx.drawImage(source, 0, 0, tw, th)
   try {
-    out = canvas.toDataURL('image/webp', QUALITY)
+    return canvas.toDataURL('image/webp', QUALITY)
   } catch {
     return null
   }
+}
+
+// Reamostra um dataURL para caber em MAX_DIM e recomprime em WebP. Devolve o
+// novo dataURL + mimeType, ou null se não valer a pena (menor não ficou).
+// Usa createImageBitmap e libera o bitmap na hora para não acumular memória —
+// imagens grandes (7 MB+) chegam a estourar a RAM se ficarem decodificadas.
+export async function optimizeDataUrl(dataURL, mimeType) {
+  // SVGs são vetoriais e leves — não reamostrar.
+  if (mimeType === 'image/svg+xml') return null
+  if (dataUrlBytes(dataURL) < MIN_BYTES) return null
+
+  let blob
+  try {
+    blob = await (await fetch(dataURL)).blob()
+  } catch {
+    return null
+  }
+
+  let out = null
+  try {
+    const bmp = await createImageBitmap(blob)
+    const { width: w, height: h } = bmp
+    if (w && h) {
+      const scale = Math.min(1, MAX_DIM / Math.max(w, h))
+      out = canvasToDataUrl(bmp, Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)))
+    }
+    bmp.close?.() // libera a memória do bitmap imediatamente
+  } catch {
+    return null // decodificação falhou/estourou memória → mantém original
+  }
+
   if (!out || !out.startsWith('data:image/webp')) return null
   // Só aceita se realmente ficou menor.
   if (dataUrlBytes(out) >= dataUrlBytes(dataURL)) return null

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw'
+import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -24,6 +24,12 @@ export default function DrawingEditor() {
   const lastSaved = useRef('')
   const rootRef = useRef(null)
   const [fs, setFs] = useState(false)
+  // Idioma do quadro (UI do Excalidraw + textos da tela de boas-vindas). Começa
+  // no idioma do site quando existir na lista do Excalidraw.
+  const [langCode, setLangCode] = useState(() => {
+    const site = { pt: 'pt-BR', en: 'en', es: 'es' }[localStorage.getItem('lang')] || 'pt-BR'
+    return languages.some((l) => l.code === site) ? site : defaultLang.code
+  })
   const storageRef = useRef('db') // 'db' | 'drive'
   const driveFileRef = useRef(null) // id do scene.json no Drive
   const driveFolderRef = useRef(null) // id da pasta do projeto no Drive
@@ -313,8 +319,53 @@ export default function DrawingEditor() {
           excalidrawAPI={(a) => (apiRef.current = a)}
           initialData={initial}
           onChange={onChange}
-          langCode="pt-BR"
-        />
+          langCode={langCode}
+        >
+          <MainMenu>
+            <MainMenu.DefaultItems.LoadScene />
+            <MainMenu.DefaultItems.SaveToActiveFile />
+            <MainMenu.DefaultItems.Export />
+            <MainMenu.DefaultItems.SaveAsImage />
+            <MainMenu.Separator />
+            <MainMenu.DefaultItems.CommandPalette />
+            <MainMenu.DefaultItems.SearchMenu />
+            <MainMenu.DefaultItems.Help />
+            <MainMenu.DefaultItems.ClearCanvas />
+            <MainMenu.Separator />
+            <MainMenu.ItemCustom>
+              <label className="flex w-full items-center justify-between gap-2 text-sm">
+                <span>🌐</span>
+                <select
+                  value={langCode}
+                  onChange={(e) => setLangCode(e.target.value)}
+                  className="min-w-0 flex-1 cursor-pointer rounded-md border border-slate-300 bg-transparent px-2 py-1 text-sm"
+                  style={{ maxWidth: '100%' }}
+                >
+                  {languages.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </MainMenu.ItemCustom>
+            <MainMenu.DefaultItems.ToggleTheme />
+            <MainMenu.DefaultItems.ChangeCanvasBackground />
+          </MainMenu>
+          <WelcomeScreen>
+            <WelcomeScreen.Hints.MenuHint />
+            <WelcomeScreen.Hints.ToolbarHint />
+            <WelcomeScreen.Hints.HelpHint />
+            <WelcomeScreen.Center>
+              <WelcomeScreen.Center.Logo>Noctis Studio</WelcomeScreen.Center.Logo>
+              <WelcomeScreen.Center.Heading>{t('drawings.welcomeHeading')}</WelcomeScreen.Center.Heading>
+              <WelcomeScreen.Center.Menu>
+                <WelcomeScreen.Center.MenuItemLoadScene />
+                <WelcomeScreen.Center.MenuItemHelp />
+              </WelcomeScreen.Center.Menu>
+            </WelcomeScreen.Center>
+          </WelcomeScreen>
+        </Excalidraw>
       </div>
 
       {/* Overlay ao sair: garante ao usuário que estamos salvando antes de fechar */}

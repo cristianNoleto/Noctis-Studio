@@ -784,6 +784,7 @@ export default {
     leavingSaving: 'Guardando tu dibujo…',
     leavingHint: 'Espera un momento — no cierres la pestaña hasta terminar.',
     optimizing: 'Optimizando imágenes ({done}/{total})',
+    welcomeHeading: '¡Elige una herramienta y empieza a dibujar!',
     fullscreen: 'Pantalla completa',
     exitFullscreen: 'Salir de pantalla completa',
     notFound: 'Dibujo no encontrado.',
