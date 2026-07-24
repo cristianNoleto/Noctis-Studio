@@ -16,7 +16,7 @@ export const btnDanger =
   'rounded-lg bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/20'
 
 export function Modal({ open, onClose, title, children, wide, size }) {
-  const maxW = size === 'xl' ? 'max-w-4xl' : wide ? 'max-w-2xl' : 'max-w-md'
+  const maxW = size === '2xl' ? 'max-w-6xl' : size === 'xl' ? 'max-w-4xl' : wide ? 'max-w-2xl' : 'max-w-md'
   const { t } = useI18n()
   useEffect(() => {
     if (!open) return

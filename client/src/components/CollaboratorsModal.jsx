@@ -9,7 +9,7 @@ import { Modal, inputCls, btnPrimary } from './ui'
 export function AccessSelect({ label, value, onChange }) {
   const { t } = useI18n()
   return (
-    <select className={`${inputCls} !w-full !py-2 text-xs`} title={label} value={value} onChange={(e) => onChange(e.target.value)}>
+    <select className={`${inputCls} !w-full min-w-0 !py-2 text-xs`} title={label} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="none">{t('skillsLib.collab.none')}</option>
       <option value="view">{t('skillsLib.collab.view')}</option>
       <option value="edit">{t('skillsLib.collab.edit')}</option>
@@ -19,7 +19,7 @@ export function AccessSelect({ label, value, onChange }) {
 
 // Grid comum ao cabeçalho, ao form e às linhas — mantém tudo alinhado em colunas.
 // Email ocupa o espaço flexível; os 4 seletores e o botão têm largura fixa.
-const ROW = 'grid grid-cols-[minmax(13rem,1fr)_repeat(5,7rem)_2.5rem] items-center gap-2.5'
+const ROW = 'grid grid-cols-[minmax(13rem,1fr)_repeat(5,7.25rem)_2.25rem] items-center gap-2.5'
 
 // Gerenciador de colaboradores do workspace: convida por e-mail e define o
 // acesso a Vídeos / Skills / Referências por pessoa. Usado no menu do perfil
@@ -103,7 +103,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t('skillsLib.collab.title')} size="xl">
+    <Modal open={open} onClose={onClose} title={t('skillsLib.collab.title')} size="2xl">
       <p className="-mt-2 mb-4 text-xs leading-relaxed text-slate-500">{t('skillsLib.collab.subtitle')}</p>
       {/* Cabeçalho de colunas — rótulos aparecem só uma vez, alinhados ao grid */}
       <div className={`${ROW} px-1 pb-1.5`}>
