@@ -2,11 +2,11 @@ import { Router } from 'express'
 import { supabaseAdmin } from '../lib/supabaseAdmin.js'
 import { resolveAccess, canSeeRow, userIdByEmail, emailByUserId } from './workspace.js'
 
-// Storyboards são tratados como uma biblioteca compartilhada: o acesso do
-// colaborador segue o nível de "referências" do workspace do dono.
-//   references 'view'|'edit' → pode VER (respeitando a visibilidade por item)
-//   references 'edit'        → pode EDITAR/CRIAR (grava no Drive do DONO)
-//   apagar                   → SOMENTE o dono
+// Storyboards são uma biblioteca compartilhada: o acesso do colaborador segue o
+// nível de "Desenhos" (drawings_access) do workspace do dono.
+//   drawings 'view'|'edit' → pode VER (respeitando a visibilidade por item)
+//   drawings 'edit'        → pode EDITAR/CRIAR (grava no Drive do DONO)
+//   apagar                 → SOMENTE o dono
 
 // Projetos do Excalidraw (quadro de desenho). Cada cena é guardada numa tabela
 // dedicada (excalidraw_scenes), com salvamento próprio — FORA do write-through
@@ -60,7 +60,7 @@ router.get('/', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'unauthorized' })
   const access = await resolveAccess(supa, user, req.query.owner)
   if (!access) return res.status(403).json({ error: 'forbidden' })
-  if (!access.self && access.references === 'none') return res.json({ scenes: [] })
+  if (!access.self && access.drawings === 'none') return res.json({ scenes: [] })
   const ownerId = access.self ? user.id : await userIdByEmail(supa, access.owner)
   if (!ownerId) return res.status(404).json({ error: 'owner_not_found' })
   const { data = [], error } = await supa
@@ -80,11 +80,11 @@ async function authorizeScene(supa, user, sceneId, needEdit = false) {
   const { data: scene } = await supa.from('excalidraw_scenes').select('*').eq('id', sceneId).maybeSingle()
   if (!scene) return { notFound: true }
   if (scene.user_id === user.id) return { scene, isOwner: true }
-  // Cena de outro usuário: precisa ser colaborador do dono com acesso a referências.
+  // Cena de outro usuário: precisa ser colaborador do dono com acesso a Desenhos.
   const ownerEmail = await emailByUserId(supa, scene.user_id)
   const access = ownerEmail ? await resolveAccess(supa, user, ownerEmail) : null
-  if (!access || access.references === 'none') return { forbidden: true }
-  if (needEdit && access.references !== 'edit') return { forbidden: true }
+  if (!access || access.drawings === 'none') return { forbidden: true }
+  if (needEdit && access.drawings !== 'edit') return { forbidden: true }
   if (!canSeeRow(scene, user.email, false)) return { forbidden: true }
   return { scene, isOwner: false }
 }
@@ -110,13 +110,13 @@ router.post('/', async (req, res) => {
   await ensureProfile(supa, user)
   const { name, scene, storage, driveFolderId, driveSceneFileId, videoId, visibility, allowedEmails, owner } = req.body || {}
   // Editor criando no workspace de outro: a cena pertence ao DONO (fica no Drive
-  // do dono). Exige nível de edição em referências.
+  // do dono). Exige nível de edição em Desenhos.
   let ownerId = user.id
   if (owner) {
     const access = await resolveAccess(supa, user, owner)
     if (!access) return res.status(403).json({ error: 'forbidden' })
     if (!access.self) {
-      if (access.references !== 'edit') return res.status(403).json({ error: 'forbidden' })
+      if (access.drawings !== 'edit') return res.status(403).json({ error: 'forbidden' })
       ownerId = await userIdByEmail(supa, access.owner)
       if (!ownerId) return res.status(404).json({ error: 'owner_not_found' })
     }

@@ -41,7 +41,7 @@ export default function DrawingEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
   const db = useDb()
-  const canEditScene = db.canEdit('references') // editor pode salvar; viewer não
+  const canEditScene = db.canEdit('drawings') // editor pode salvar; viewer não
   const { t } = useI18n()
   const [initial, setInitial] = useState(null) // dados iniciais da cena
   const [name, setName] = useState('')

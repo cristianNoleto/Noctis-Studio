@@ -28,7 +28,7 @@ export default function DrawingsGallery() {
   const db = useDb()
   const owner = db.activeWorkspace() // null = próprio; e-mail = workspace de outro
   const isOwnerSelf = !owner
-  const canEdit = db.canEdit('references') // storyboards seguem o acesso a referências
+  const canEdit = db.canEdit('drawings') // storyboards seguem o acesso a Desenhos
   const videos = db.all('videos') // p/ vincular storyboard a um vídeo
   const [scenes, setScenes] = useState(null) // null = carregando
   const [creating, setCreating] = useState(false)
@@ -161,9 +161,11 @@ export default function DrawingsGallery() {
           title={t('drawings.emptyTitle')}
           description={t('drawings.emptyDesc')}
           action={
-            <button className={btnPrimary} onClick={create}>
-              {t('drawings.new')}
-            </button>
+            canEdit ? (
+              <button className={btnPrimary} onClick={create}>
+                {t('drawings.new')}
+              </button>
+            ) : null
           }
         />
       ) : (
@@ -175,7 +177,7 @@ export default function DrawingsGallery() {
               videos={videos}
               onOpen={() => navigate(`/desenhos/${s.id}`)}
               isOwner={isOwnerSelf}
-              canEdit={db.canEdit('references')}
+              canEdit={db.canEdit('drawings')}
               onRename={() => rename(s)}
               onDelete={() => setToDelete(s)}
               onLinkVideo={(vid) => linkVideo(s, vid)}

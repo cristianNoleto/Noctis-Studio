@@ -263,6 +263,7 @@ export default {
       references: 'References',
       videos: 'Channel videos',
       board: 'Idea board',
+      drawings: 'Drawings',
       none: 'No access',
       view: 'View',
       edit: 'Edit',

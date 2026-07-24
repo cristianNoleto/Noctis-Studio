@@ -110,6 +110,9 @@ export default function VideosTable({ channelId, channel }) {
     loadStoryboards()
   }, [])
 
+  // Quem só VÊ storyboards não pode criar — só acessar os que já existem.
+  const canCreateStoryboard = db.canEdit('drawings')
+
   // Abre o storyboard do vídeo; se não existir, cria um novo com o título do
   // vídeo já vinculado e redireciona pro editor.
   async function openOrCreateStoryboard(video) {
@@ -118,6 +121,7 @@ export default function VideosTable({ channelId, channel }) {
       navigate(`/desenhos/${existing.id}`)
       return
     }
+    if (!canCreateStoryboard) return // viewer não cria
     if (creatingSb) return
     setCreatingSb(video.id)
     try {
@@ -353,6 +357,7 @@ export default function VideosTable({ channelId, channel }) {
               readOnly={readOnly}
               storyboard={storyboards[v.id]}
               creatingStoryboard={creatingSb === v.id}
+              canCreateStoryboard={canCreateStoryboard}
               onStoryboard={() => setSbConfirm(v)}
               onToggleStep={(key) => toggleStep(v, key)}
               onEdit={() => setEditVideo(v)}
@@ -461,7 +466,7 @@ function StatusTag({ video }) {
   return <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${cls[status] || cls.planning}`}>{t(`videos.tabs.${status}`)}</span>
 }
 
-function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, onStoryboard, onToggleStep, onEdit, onScript, onReport, onLink, onDelete }) {
+function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, canCreateStoryboard, onStoryboard, onToggleStep, onEdit, onScript, onReport, onLink, onDelete }) {
   const db = useDb()
   const { t } = useI18n()
   const report = db.all('seoReports').filter((r) => r.videoId === v.id).sort((a, b) => b.createdAt - a.createdAt)[0]
@@ -626,7 +631,7 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, onStoryb
           <span className="text-[9px] font-semibold text-slate-500">SEO</span>
           {report?.score != null ? `${report.score}/100` : '—/100'}
         </button>
-        <StoryboardChip storyboard={storyboard} creating={creatingStoryboard} onClick={onStoryboard} />
+        <StoryboardChip storyboard={storyboard} creating={creatingStoryboard} canCreate={canCreateStoryboard} onClick={onStoryboard} />
         <RowBtn title={readOnly ? t('videos.view') : t('videos.edit')} onClick={onEdit}>
           {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
         </RowBtn>
@@ -668,9 +673,11 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, onStoryb
 // Botão do storyboard na direita da linha (depois do SEO):
 // - sem storyboard: CRIA um novo board com o título do vídeo (já vinculado)
 // - com storyboard: fica ciano e ABRE o board direto ao clicar
-function StoryboardChip({ storyboard, creating, onClick }) {
+function StoryboardChip({ storyboard, creating, canCreate, onClick }) {
   const { t } = useI18n()
   const linked = !!storyboard
+  // Sem storyboard e sem permissão de criar (viewer) → não mostra o botão.
+  if (!linked && !canCreate) return null
   return (
     <button
       onClick={onClick}

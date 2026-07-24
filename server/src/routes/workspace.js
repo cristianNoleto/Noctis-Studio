@@ -259,10 +259,10 @@ export function canSeeRow(row, requesterEmail, isSelf) {
 export async function resolveAccess(supa, requester, ownerEmail) {
   const me = (requester.email || '').toLowerCase()
   const owner = (ownerEmail || me).toLowerCase()
-  if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit' }
+  if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit' }
   const { data } = await supa.from('workspace_collaborators').select('*').eq('owner_email', owner).eq('member_email', me).maybeSingle()
   if (!data) return null
-  return { owner, self: false, videos: data.videos_access || 'none', skills: data.skills || 'none', references: data.references_access || 'none', board: data.board_access || 'none' }
+  return { owner, self: false, videos: data.videos_access || 'none', skills: data.skills || 'none', references: data.references_access || 'none', board: data.board_access || 'none', drawings: data.drawings_access || 'none' }
 }
 
 // GET /workspace/workspaces — workspaces que o usuário pode acessar (próprio + convidados)
@@ -271,15 +271,16 @@ router.get('/workspaces', async (req, res) => {
   if (!supa) return
   const user = await getUser(req, supa)
   if (!user) return res.status(401).json({ error: 'unauthorized' })
-  const list = [{ ownerEmail: user.email, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit' }]
+  const list = [{ ownerEmail: user.email, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit' }]
   const { data } = await supa.from('workspace_collaborators').select('*').eq('member_email', (user.email || '').toLowerCase())
   for (const c of data || []) {
     const any =
       (c.videos_access && c.videos_access !== 'none') ||
       (c.skills && c.skills !== 'none') ||
       (c.references_access && c.references_access !== 'none') ||
-      (c.board_access && c.board_access !== 'none')
-    if (any) list.push({ ownerEmail: c.owner_email, self: false, videos: c.videos_access || 'none', skills: c.skills || 'none', references: c.references_access || 'none', board: c.board_access || 'none' })
+      (c.board_access && c.board_access !== 'none') ||
+      (c.drawings_access && c.drawings_access !== 'none')
+    if (any) list.push({ ownerEmail: c.owner_email, self: false, videos: c.videos_access || 'none', skills: c.skills || 'none', references: c.references_access || 'none', board: c.board_access || 'none', drawings: c.drawings_access || 'none' })
   }
   res.json({ workspaces: list })
 })

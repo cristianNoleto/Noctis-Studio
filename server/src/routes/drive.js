@@ -156,7 +156,7 @@ export async function accessTokenForUser(supa, userId) {
 // GET /api/drive/access — token do Drive para o navegador falar direto com o
 // Drive. Sem ?owner: token do PRÓPRIO usuário. Com ?owner=<email> de outro
 // usuário: PORTEIRO — emite o token do DONO para um colaborador autorizado
-// (nível de referências), para ele ler/gravar nos storyboards do dono. O escopo
+// (nível de Desenhos), para ele ler/gravar nos storyboards do dono. O escopo
 // é drive.file: o colaborador só alcança arquivos que o app criou no Drive do dono.
 router.get('/access', async (req, res) => {
   const supa = requireSupabase(res)
@@ -169,7 +169,7 @@ router.get('/access', async (req, res) => {
     const access = await resolveAccess(supa, user, owner)
     if (!access) return res.status(403).json({ error: 'forbidden' })
     if (!access.self) {
-      if (access.references === 'none') return res.status(403).json({ error: 'forbidden' })
+      if (access.drawings === 'none') return res.status(403).json({ error: 'forbidden' })
       targetId = await userIdByEmail(supa, access.owner)
       if (!targetId) return res.status(404).json({ error: 'owner_not_found' })
     }

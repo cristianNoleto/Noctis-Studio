@@ -263,6 +263,7 @@ export default {
       references: 'Referencias',
       videos: 'Vídeos de los canales',
       board: 'Tablero de ideas',
+      drawings: 'Dibujos',
       none: 'Sin acceso',
       view: 'Ver',
       edit: 'Editar',

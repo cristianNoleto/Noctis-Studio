@@ -19,7 +19,7 @@ export function AccessSelect({ label, value, onChange }) {
 
 // Grid comum ao cabeçalho, ao form e às linhas — mantém tudo alinhado em colunas.
 // Email ocupa o espaço flexível; os 4 seletores e o botão têm largura fixa.
-const ROW = 'grid grid-cols-[minmax(14rem,1fr)_repeat(4,7.5rem)_2.5rem] items-center gap-3'
+const ROW = 'grid grid-cols-[minmax(13rem,1fr)_repeat(5,7rem)_2.5rem] items-center gap-2.5'
 
 // Gerenciador de colaboradores do workspace: convida por e-mail e define o
 // acesso a Vídeos / Skills / Referências por pessoa. Usado no menu do perfil
@@ -32,6 +32,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   const [references, setReferences] = useState('none')
   const [videos, setVideos] = useState('edit')
   const [board, setBoard] = useState('none')
+  const [drawings, setDrawings] = useState('none')
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [remote, setRemote] = useState([])
@@ -59,10 +60,10 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
       setError(t('skillsLib.collab.dupe'))
       return
     }
-    if (isLocalMode) db.insert('collaborators', { ownerEmail: owner, memberEmail: m, skills, references, videos, board })
+    if (isLocalMode) db.insert('collaborators', { ownerEmail: owner, memberEmail: m, skills, references, videos, board, drawings })
     else {
       try {
-        const res = await api.collaborators.save({ memberEmail: m, skills, references, videos, board })
+        const res = await api.collaborators.save({ memberEmail: m, skills, references, videos, board, drawings })
         setInfo(res?.invited ? t('skillsLib.collab.invited', { email: m }) : '')
         refresh()
       } catch (err) {
@@ -86,7 +87,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
     // Otimista: atualiza a UI na hora e persiste em seguida (se falhar, reverte).
     setRemote((list) => list.map((x) => (x.id === c.id ? { ...x, [field]: value } : x)))
     try {
-      await api.collaborators.save({ memberEmail: c.memberEmail, skills: c.skills, references: c.references, videos: c.videos, board: c.board, [field]: value })
+      await api.collaborators.save({ memberEmail: c.memberEmail, skills: c.skills, references: c.references, videos: c.videos, board: c.board, drawings: c.drawings, [field]: value })
     } catch (e) {
       setError(e?.message || 'Erro ao salvar acesso.')
       refresh()
@@ -110,6 +111,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
         <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.videos')}</span>
         <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.references')}</span>
         <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.board')}</span>
+        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.drawings')}</span>
         <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.skills')}</span>
         <span />
       </div>
@@ -118,6 +120,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
         <AccessSelect label={t('skillsLib.collab.videos')} value={videos} onChange={setVideos} />
         <AccessSelect label={t('skillsLib.collab.references')} value={references} onChange={setReferences} />
         <AccessSelect label={t('skillsLib.collab.board')} value={board} onChange={setBoard} />
+        <AccessSelect label={t('skillsLib.collab.drawings')} value={drawings} onChange={setDrawings} />
         <AccessSelect label={t('skillsLib.collab.skills')} value={skills} onChange={setSkills} />
         <button type="submit" title={t('skillsLib.collab.add')} className={`${btnPrimary} flex h-9 w-9 items-center justify-center !p-0`}>
           <UserPlus size={15} />
@@ -137,6 +140,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
               <AccessSelect label={t('skillsLib.collab.videos')} value={c.videos || 'none'} onChange={(v) => setAccess(c, 'videos', v)} />
               <AccessSelect label={t('skillsLib.collab.references')} value={c.references || 'none'} onChange={(v) => setAccess(c, 'references', v)} />
               <AccessSelect label={t('skillsLib.collab.board')} value={c.board || 'none'} onChange={(v) => setAccess(c, 'board', v)} />
+              <AccessSelect label={t('skillsLib.collab.drawings')} value={c.drawings || 'none'} onChange={(v) => setAccess(c, 'drawings', v)} />
               <AccessSelect label={t('skillsLib.collab.skills')} value={c.skills || 'none'} onChange={(v) => setAccess(c, 'skills', v)} />
               <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 text-slate-500 transition-colors hover:border-red-500/40 hover:text-red-400">
                 <Trash2 size={13} />
