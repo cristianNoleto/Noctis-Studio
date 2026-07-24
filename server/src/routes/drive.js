@@ -92,11 +92,12 @@ router.get('/callback', async (req, res) => {
       return fail(tok.error_description || tok.error || 'sem_refresh_token')
     }
 
-    // Descobre o e-mail da conta Google conectada (userinfo).
+    // Descobre o e-mail da conta Google conectada. O about.get do Drive funciona
+    // com o escopo drive.file (não precisamos pedir o escopo de e-mail).
     let email = null
     try {
-      const info = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${tok.access_token}` } })
-      if (info.ok) email = (await info.json()).email || null
+      const info = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', { headers: { Authorization: `Bearer ${tok.access_token}` } })
+      if (info.ok) email = (await info.json())?.user?.emailAddress || null
     } catch {
       /* opcional */
     }
