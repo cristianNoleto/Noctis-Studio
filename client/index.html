@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Noctis Studio — O Sistema Operacional dos Criadores Dark" />
+    <meta name="description" content="Noctis Studio é uma plataforma para criar e gerenciar canais no YouTube: gestão de canais e vídeos, roteiros, referências, quadro de ideias, ferramenta de desenho e pesquisa de nichos." />
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -20,7 +20,26 @@
     <title>Noctis Studio</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Conteúdo estático de fallback: descreve o app para visitantes e para
+           verificadores sem JavaScript (ex.: Google OAuth). O React substitui
+           tudo isto ao montar, então usuários normais nunca veem esta versão. -->
+      <main style="max-width:760px;margin:0 auto;padding:48px 20px;font-family:Satoshi,Inter,system-ui,sans-serif;color:#e2e8f0;background:#0d0e12;min-height:100vh">
+        <h1 style="font-size:28px;font-weight:700;color:#f1f5f9">Noctis Studio</h1>
+        <p style="margin-top:16px;line-height:1.6;color:#94a3b8">
+          O Noctis Studio é uma plataforma web para criar e gerenciar canais no YouTube. Em um só lugar, o criador
+          organiza seus canais e vídeos, escreve roteiros, guarda referências, planeja pautas em um quadro de ideias,
+          usa uma ferramenta de desenho e faz pesquisa de nichos. Os dados ficam salvos na nuvem e sincronizam entre
+          dispositivos.
+        </p>
+        <p style="margin-top:24px">
+          <a href="/login" style="color:#22d3ee">Entrar</a> &nbsp;·&nbsp;
+          <a href="/register" style="color:#22d3ee">Criar conta</a> &nbsp;·&nbsp;
+          <a href="/privacidade" style="color:#22d3ee">Política de Privacidade</a> &nbsp;·&nbsp;
+          <a href="/termos" style="color:#22d3ee">Termos de Serviço</a>
+        </p>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
