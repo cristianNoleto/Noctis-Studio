@@ -783,6 +783,7 @@ export default {
     autosaveHint: 'Guardado automático',
     leavingSaving: 'Guardando tu dibujo…',
     leavingHint: 'Espera un momento — no cierres la pestaña hasta terminar.',
+    optimizing: 'Optimizando imágenes ({done}/{total})',
     fullscreen: 'Pantalla completa',
     exitFullscreen: 'Salir de pantalla completa',
     notFound: 'Dibujo no encontrado.',

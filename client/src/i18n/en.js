@@ -783,6 +783,7 @@ export default {
     autosaveHint: 'Autosaves',
     leavingSaving: 'Saving your drawing…',
     leavingHint: 'Hang on a moment — don’t close the tab until it finishes.',
+    optimizing: 'Optimizing images ({done}/{total})',
     fullscreen: 'Fullscreen',
     exitFullscreen: 'Exit fullscreen',
     notFound: 'Drawing not found.',

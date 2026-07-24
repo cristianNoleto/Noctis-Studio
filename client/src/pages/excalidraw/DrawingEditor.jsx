@@ -5,6 +5,7 @@ import '@excalidraw/excalidraw/index.css'
 import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { downloadText, updateFileContent, renameFile } from '../../lib/drive'
+import { optimizeDataUrl, dataUrlBytes } from '../../lib/imageOptimize'
 import { useI18n } from '../../i18n'
 
 // Editor Excalidraw de um projeto. Carrega a cena do banco, renderiza o editor
@@ -30,6 +31,8 @@ export default function DrawingEditor() {
   const savingRef = useRef(false) // há um doSave em andamento
   const dirtyRef = useRef(false) // há mudança pendente ainda não salva
   const [leaving, setLeaving] = useState(false) // overlay ao sair enquanto salva
+  const seenFiles = useRef(new Set()) // ids de imagens já avaliadas p/ otimização
+  const [optimizing, setOptimizing] = useState(null) // { done, total } ou null
 
   // Fullscreen imersivo do navegador (Esc sai). Botão liga/desliga.
   async function toggleFullscreen() {
@@ -66,6 +69,8 @@ export default function DrawingEditor() {
           }
         }
         if (!alive) return
+        // Imagens já presentes no projeto não são reotimizadas (evita retrabalho).
+        Object.keys(data.files || {}).forEach((k) => seenFiles.current.add(k))
         lastSaved.current = JSON.stringify(data.elements || [])
         setInitial({
           elements: data.elements || [],
@@ -137,6 +142,37 @@ export default function DrawingEditor() {
     [id],
   )
 
+  // Otimiza imagens recém-adicionadas (colar/soltar): reamostra + recomprime
+  // mantendo o MESMO fileId. Roda em fila, com progresso, para projetos com
+  // muitas imagens não travarem a UI nem estourarem o tamanho do arquivo.
+  const optimizeNewImages = useCallback(async (files) => {
+    if (!files) return
+    const pending = []
+    for (const [fid, f] of Object.entries(files)) {
+      if (seenFiles.current.has(fid)) continue
+      seenFiles.current.add(fid)
+      if (f?.dataURL && String(f.mimeType || '').startsWith('image/') && dataUrlBytes(f.dataURL) >= 180 * 1024) {
+        pending.push({ fid, f })
+      }
+    }
+    if (!pending.length) return
+    setOptimizing({ done: 0, total: pending.length })
+    let done = 0
+    for (const { fid, f } of pending) {
+      try {
+        const opt = await optimizeDataUrl(f.dataURL, f.mimeType)
+        if (opt && apiRef.current) {
+          apiRef.current.addFiles([{ id: fid, dataURL: opt.dataURL, mimeType: opt.mimeType, created: f.created || Date.now(), lastRetrieved: Date.now() }])
+        }
+      } catch {
+        /* mantém a imagem original se falhar */
+      }
+      done += 1
+      setOptimizing({ done, total: pending.length })
+    }
+    setOptimizing(null)
+  }, [])
+
   // onChange dispara MUITO; só salva se os elementos mudaram, com debounce.
   // Guarda SEMPRE o último estado bom num ref — é ele que salvamos ao fechar
   // (não o getSceneElements() do editor, que devolve VAZIO durante o desmonte e
@@ -144,13 +180,14 @@ export default function DrawingEditor() {
   const onChange = useCallback(
     (elements, appState, files) => {
       latestRef.current = { elements, appState, files }
+      optimizeNewImages(files)
       const sig = JSON.stringify(elements)
       if (sig === lastSaved.current) return
       dirtyRef.current = true
       clearTimeout(saveTimer.current)
       saveTimer.current = setTimeout(() => doSave(elements, appState, files), 1200)
     },
-    [doSave],
+    [doSave, optimizeNewImages],
   )
 
   // Sair com segurança: se há mudança pendente ou um save em andamento, mostra
@@ -249,7 +286,11 @@ export default function DrawingEditor() {
           className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-100 hover:border-slate-800 focus:border-cyan-500/50 focus:outline-none"
         />
         <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-slate-500">
-          {status === 'saving' ? (
+          {optimizing ? (
+            <>
+              <Loader2 size={13} className="animate-spin text-cyan-400" /> {t('drawings.optimizing', { done: optimizing.done, total: optimizing.total })}
+            </>
+          ) : status === 'saving' ? (
             <>
               <CloudUpload size={13} className="text-cyan-400" /> {t('drawings.saving')}
             </>
