@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import { useAuth } from './auth/AuthContext'
 import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
@@ -65,56 +66,59 @@ function RootRoute() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/aceitar-convite" element={<AcceptInvite />} />
-      {/* Páginas legais públicas (acessíveis sem login — exigidas p/ o Google) */}
-      <Route path="/privacidade" element={<PrivacyPolicy />} />
-      <Route path="/termos" element={<TermsOfService />} />
-      {/* Raiz: landing pública (deslogado) ou Dashboard dentro do Layout (logado) */}
-      <Route path="/" element={<RootRoute />}>
-        <Route index element={<Dashboard />} />
-      </Route>
-      <Route
-        element={
-          <Protected>
-            <Layout />
-          </Protected>
-        }
-      >
-        <Route path="/canais" element={<ChannelsList />} />
-        <Route path="/canais/:id" element={<ChannelDetail />} />
-        <Route path="/quadro-ideias" element={<IdeaBoard />} />
-        <Route path="/desenhos" element={<Suspense fallback={<LazyFallback />}><DrawingsGallery /></Suspense>} />
-        <Route path="/referencias" element={<References />} />
-        <Route path="/prompts" element={<Prompts />} />
-        <Route path="/perfil" element={<Profile />} />
-        <Route path="/niche-finder" element={<NicheFinder />} />
-        <Route path="/videos-virais" element={<ViralVideos />} />
-        <Route path="/canais-removidos" element={<RemovedChannels />} />
-        <Route path="/dobra-de-nicho" element={<NicheDoubling />} />
-        <Route path="/videos-imagens" element={<MediaBank />} />
-        <Route path="/transcricao" element={<Transcription />} />
-        <Route path="/ferramentas-texto" element={<TextTools />} />
-        <Route path="/academia" element={<Academy />} />
-        <Route path="/ajuda" element={<Help />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/suporte" element={<Support />} />
-        <Route path="/meu-plano" element={<MyPlan />} />
-      </Route>
-      {/* Editor de desenho em TELA CHEIA (fora do Layout: sem sidebar/header) */}
-      <Route
-        path="/desenhos/:id"
-        element={
-          <Protected>
-            <Suspense fallback={<LazyFallback />}>
-              <DrawingEditor />
-            </Suspense>
-          </Protected>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/aceitar-convite" element={<AcceptInvite />} />
+        {/* Páginas legais públicas (acessíveis sem login — exigidas p/ o Google) */}
+        <Route path="/privacidade" element={<PrivacyPolicy />} />
+        <Route path="/termos" element={<TermsOfService />} />
+        {/* Raiz: landing pública (deslogado) ou Dashboard dentro do Layout (logado) */}
+        <Route path="/" element={<RootRoute />}>
+          <Route index element={<Dashboard />} />
+        </Route>
+        <Route
+          element={
+            <Protected>
+              <Layout />
+            </Protected>
+          }
+        >
+          <Route path="/canais" element={<ChannelsList />} />
+          <Route path="/canais/:id" element={<ChannelDetail />} />
+          <Route path="/quadro-ideias" element={<IdeaBoard />} />
+          <Route path="/desenhos" element={<Suspense fallback={<LazyFallback />}><DrawingsGallery /></Suspense>} />
+          <Route path="/referencias" element={<References />} />
+          <Route path="/prompts" element={<Prompts />} />
+          <Route path="/perfil" element={<Profile />} />
+          <Route path="/niche-finder" element={<NicheFinder />} />
+          <Route path="/videos-virais" element={<ViralVideos />} />
+          <Route path="/canais-removidos" element={<RemovedChannels />} />
+          <Route path="/dobra-de-nicho" element={<NicheDoubling />} />
+          <Route path="/videos-imagens" element={<MediaBank />} />
+          <Route path="/transcricao" element={<Transcription />} />
+          <Route path="/ferramentas-texto" element={<TextTools />} />
+          <Route path="/academia" element={<Academy />} />
+          <Route path="/ajuda" element={<Help />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/suporte" element={<Support />} />
+          <Route path="/meu-plano" element={<MyPlan />} />
+        </Route>
+        {/* Editor de desenho em TELA CHEIA (fora do Layout: sem sidebar/header) */}
+        <Route
+          path="/desenhos/:id"
+          element={
+            <Protected>
+              <Suspense fallback={<LazyFallback />}>
+                <DrawingEditor />
+              </Suspense>
+            </Protected>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <Analytics />
+    </>
   )
 }
