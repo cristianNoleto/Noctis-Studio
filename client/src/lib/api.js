@@ -206,7 +206,7 @@ export const api = {
   excalidraw: {
     list: () => authRequest('/excalidraw'),
     get: (id) => authRequest(`/excalidraw/${id}`),
-    create: (name, scene) => authRequest('/excalidraw', { method: 'POST', body: { name, scene } }),
+    create: (body) => authRequest('/excalidraw', { method: 'POST', body }),
     save: (id, patch, keepalive = false) => authRequest(`/excalidraw/${id}`, { method: 'PUT', body: patch, keepalive }),
     remove: (id) => authRequest(`/excalidraw/${id}`, { method: 'DELETE' }),
   },

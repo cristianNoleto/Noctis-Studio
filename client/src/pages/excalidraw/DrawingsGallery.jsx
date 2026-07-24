@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical } from 'lucide-react'
 import { useRef } from 'react'
 import { api } from '../../lib/api'
+import { ensureProjectsFolder, createFolder, uploadJson, deleteFile } from '../../lib/drive'
 import { useI18n } from '../../i18n'
 import { btnPrimary, EmptyState, ConfirmDialog } from '../../components/ui'
 import { AnchoredMenu } from '../../components/AnchoredMenu'
@@ -34,7 +35,22 @@ export default function DrawingsGallery() {
     if (creating) return
     setCreating(true)
     try {
-      const { scene } = await api.excalidraw.create(t('drawings.untitled'))
+      const name = t('drawings.untitled')
+      let payload = { name }
+      // Drive conectado → cria a pasta do projeto + scene.json direto no Drive
+      // (dentro de "Noctis Studio- Site/Excalidraw-projects"); o banco guarda só o índice.
+      try {
+        const st = await api.drive.status()
+        if (st.connected) {
+          const projects = await ensureProjectsFolder()
+          const folderId = await createFolder(name, projects)
+          const driveSceneFileId = await uploadJson({ name: 'scene.json', data: { elements: [], appState: {}, files: {} }, parentId: folderId })
+          payload = { name, storage: 'drive', driveFolderId: folderId, driveSceneFileId }
+        }
+      } catch {
+        /* Drive indisponível → cai no armazenamento do banco */
+      }
+      const { scene } = await api.excalidraw.create(payload)
       navigate(`/desenhos/${scene.id}`)
     } catch (e) {
       setError(e?.message || 'Erro ao criar')
@@ -51,6 +67,14 @@ export default function DrawingsGallery() {
   }
 
   async function remove(s) {
+    // Projeto no Drive: apaga a pasta do projeto no Drive antes de remover o índice.
+    if (s.storage === 'drive' && s.driveFolderId) {
+      try {
+        await deleteFile(s.driveFolderId)
+      } catch {
+        /* segue e remove o índice mesmo assim */
+      }
+    }
     await api.excalidraw.remove(s.id)
     setToDelete(null)
     load()

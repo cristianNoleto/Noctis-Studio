@@ -7,9 +7,13 @@ import { api } from './api'
 
 const FILES = 'https://www.googleapis.com/drive/v3/files'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
-const ROOT_FOLDER_NAME = 'Noctis Studio - Desenhos'
+// Estrutura no Drive do usuário: raiz limpa, só a pasta do app; os projetos
+// ficam todos dentro de "Noctis Studio- Site/Excalidraw-projects".
+const APP_ROOT_NAME = 'Noctis Studio- Site'
+const PROJECTS_FOLDER_NAME = 'Excalidraw-projects'
 
 let cachedToken = null // { accessToken, exp }
+let cachedProjectsFolder = null // id da pasta Excalidraw-projects (por sessão)
 
 // Access token com cache (expira antes do prazo real por segurança).
 export async function driveToken() {
@@ -30,13 +34,25 @@ async function driveFetch(url, opts = {}) {
   return res
 }
 
-// Pasta raiz do app no Drive do usuário (cria se não existir).
-export async function ensureRootFolder() {
-  const q = encodeURIComponent(`name='${ROOT_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)
+// Acha uma pasta pelo nome (dentro de parentId, ou na raiz se parentId null);
+// cria se não existir. Devolve o id.
+async function ensureFolder(name, parentId) {
+  const clauses = [`name='${name.replace(/'/g, "\\'")}'`, "mimeType='application/vnd.google-apps.folder'", 'trashed=false', parentId ? `'${parentId}' in parents` : "'root' in parents"]
+  const q = encodeURIComponent(clauses.join(' and '))
   const res = await driveFetch(`${FILES}?q=${q}&fields=files(id,name)`)
   const { files } = await res.json()
   if (files?.length) return files[0].id
-  return createFolder(ROOT_FOLDER_NAME, null)
+  return createFolder(name, parentId)
+}
+
+// Pasta onde TODOS os projetos ficam: "Noctis Studio- Site/Excalidraw-projects".
+// A raiz do Drive só recebe a pasta do app. Resultado cacheado por sessão.
+export async function ensureProjectsFolder() {
+  if (cachedProjectsFolder) return cachedProjectsFolder
+  const appRoot = await ensureFolder(APP_ROOT_NAME, null)
+  const projects = await ensureFolder(PROJECTS_FOLDER_NAME, appRoot)
+  cachedProjectsFolder = projects
+  return projects
 }
 
 export async function createFolder(name, parentId) {

@@ -4,6 +4,7 @@ import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { downloadText, updateFileContent } from '../../lib/drive'
 import { useI18n } from '../../i18n'
 
 // Editor Excalidraw de um projeto. Carrega a cena do banco, renderiza o editor
@@ -22,6 +23,8 @@ export default function DrawingEditor() {
   const lastSaved = useRef('')
   const rootRef = useRef(null)
   const [fs, setFs] = useState(false)
+  const storageRef = useRef('db') // 'db' | 'drive'
+  const driveFileRef = useRef(null) // id do scene.json no Drive
 
   // Fullscreen imersivo do navegador (Esc sai). Botão liga/desliga.
   async function toggleFullscreen() {
@@ -45,7 +48,18 @@ export default function DrawingEditor() {
         const { scene } = await api.excalidraw.get(id)
         if (!alive) return
         setName(scene.name || '')
-        const data = scene.scene || {}
+        storageRef.current = scene.storage || 'db'
+        driveFileRef.current = scene.driveSceneFileId || null
+        // Projeto no Drive: baixa o scene.json DIRETO do Drive (não passa pelo servidor).
+        let data = scene.scene || {}
+        if (scene.storage === 'drive' && scene.driveSceneFileId) {
+          try {
+            data = JSON.parse(await downloadText(scene.driveSceneFileId)) || {}
+          } catch {
+            data = {}
+          }
+        }
+        if (!alive) return
         lastSaved.current = JSON.stringify(data.elements || [])
         setInitial({
           elements: data.elements || [],
@@ -93,7 +107,14 @@ export default function DrawingEditor() {
       try {
         const thumbnail = await makeThumbnail(elements, files)
         const scene = { elements, appState: { viewBackgroundColor: appState?.viewBackgroundColor }, files }
-        await api.excalidraw.save(id, thumbnail ? { scene, thumbnail } : { scene })
+        if (storageRef.current === 'drive' && driveFileRef.current) {
+          // Grava a cena DIRETO no Drive (sem trafegar pelo servidor); só a
+          // miniatura leve vai pro banco (para a galeria).
+          await updateFileContent(driveFileRef.current, new Blob([JSON.stringify(scene)], { type: 'application/json' }), 'application/json')
+          await api.excalidraw.save(id, thumbnail ? { thumbnail } : {})
+        } else {
+          await api.excalidraw.save(id, thumbnail ? { scene, thumbnail } : { scene })
+        }
         lastSaved.current = JSON.stringify(elements)
         setStatus('saved')
         setTimeout(() => setStatus((s) => (s === 'saved' ? 'idle' : s)), 1500)
