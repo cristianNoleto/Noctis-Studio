@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { supabaseAdmin } from '../lib/supabaseAdmin.js'
-import { encrypt, signState, verifyState } from '../lib/driveCrypto.js'
+import { encrypt, decrypt, signState, verifyState } from '../lib/driveCrypto.js'
 
 // Conexão do Google Drive por usuário (OAuth 2.0, escopo drive.file).
 // Fluxo:
@@ -126,6 +126,42 @@ router.get('/status', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'unauthorized' })
   const { data } = await supa.from('drive_connections').select('google_email, connected_at').eq('user_id', user.id).maybeSingle()
   res.json({ connected: !!data, email: data?.google_email || null })
+})
+
+// Emite um access token de curta duração do Drive de um usuário (a partir do
+// refresh token guardado). Reutilizado pelo "servidor porteiro": um colaborador
+// autorizado recebe o token do DONO para ler/gravar direto no Drive dele.
+export async function accessTokenForUser(supa, userId) {
+  const { data } = await supa.from('drive_connections').select('refresh_token_enc').eq('user_id', userId).maybeSingle()
+  if (!data?.refresh_token_enc) return null
+  let refresh
+  try {
+    refresh = decrypt(data.refresh_token_enc)
+  } catch {
+    return null
+  }
+  const body = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID || '',
+    client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+    refresh_token: refresh,
+    grant_type: 'refresh_token',
+  })
+  const r = await fetch(GOOGLE_TOKEN, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })
+  const t = await r.json()
+  if (!r.ok || !t.access_token) return null
+  return { accessToken: t.access_token, expiresIn: t.expires_in || 3600 }
+}
+
+// GET /api/drive/access — token do PRÓPRIO usuário (o navegador fala direto com
+// o Drive, sem trafegar os arquivos pesados pelo servidor).
+router.get('/access', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const tok = await accessTokenForUser(supa, user.id)
+  if (!tok) return res.status(400).json({ error: 'drive_not_connected' })
+  res.json(tok)
 })
 
 router.delete('/disconnect', async (req, res) => {

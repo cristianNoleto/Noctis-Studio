@@ -214,6 +214,7 @@ export const api = {
   drive: {
     connect: () => authRequest('/drive/connect', { method: 'POST' }),
     status: () => authRequest('/drive/status'),
+    access: () => authRequest('/drive/access'),
     disconnect: () => authRequest('/drive/disconnect', { method: 'DELETE' }),
   },
   transcription: {
