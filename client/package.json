@@ -16,6 +16,7 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "@supabase/supabase-js": "^2.110.1",
     "@tailwindcss/vite": "^4.3.2",
+    "@vercel/analytics": "^2.0.1",
     "framer-motion": "^12.42.2",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
