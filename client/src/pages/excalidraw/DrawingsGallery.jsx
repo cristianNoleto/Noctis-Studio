@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload, Film } from 'lucide-react'
 import { api } from '../../lib/api'
-import { ensureProjectsFolder, createFolder, uploadJson, deleteFile } from '../../lib/drive'
+import { deleteFile } from '../../lib/drive'
+import { createDrawing } from '../../lib/drawings'
+import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
 import { btnPrimary, btnGhost, EmptyState, ConfirmDialog } from '../../components/ui'
 import { AnchoredMenu } from '../../components/AnchoredMenu'
@@ -21,6 +23,8 @@ function formatSize(bytes) {
 export default function DrawingsGallery() {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const db = useDb()
+  const videos = db.all('videos') // p/ vincular storyboard a um vídeo
   const [scenes, setScenes] = useState(null) // null = carregando
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -44,31 +48,11 @@ export default function DrawingsGallery() {
 
   const fileRef = useRef(null)
 
-  // Cria um projeto (vazio ou com uma cena importada). Drive conectado → grava a
-  // pasta + scene.json direto no Drive (dentro de "Noctis Studio- Site/Excalidraw-projects").
-  async function createProject(name, sceneData) {
-    const data = sceneData || { elements: [], appState: {}, files: {} }
-    let payload = { name, scene: data }
-    try {
-      const st = await api.drive.status()
-      if (st.connected) {
-        const projects = await ensureProjectsFolder()
-        const folderId = await createFolder(name, projects)
-        const driveSceneFileId = await uploadJson({ name: 'scene.json', data, parentId: folderId })
-        payload = { name, storage: 'drive', driveFolderId: folderId, driveSceneFileId }
-      }
-    } catch {
-      /* Drive indisponível → cai no banco (payload já tem scene) */
-    }
-    const { scene } = await api.excalidraw.create(payload)
-    return scene
-  }
-
   async function create() {
     if (creating) return
     setCreating(true)
     try {
-      const scene = await createProject(t('drawings.untitled'))
+      const scene = await createDrawing(t('drawings.untitled'))
       navigate(`/desenhos/${scene.id}`)
     } catch (e) {
       setError(e?.message || 'Erro ao criar')
@@ -89,7 +73,7 @@ export default function DrawingsGallery() {
       if (!Array.isArray(parsed.elements)) throw new Error('invalid')
       const data = { elements: parsed.elements, appState: { viewBackgroundColor: parsed.appState?.viewBackgroundColor }, files: parsed.files || {} }
       const name = file.name.replace(/\.excalidraw$/i, '').slice(0, 120) || t('drawings.untitled')
-      const scene = await createProject(name, data)
+      const scene = await createDrawing(name, { sceneData: data })
       navigate(`/desenhos/${scene.id}`)
     } catch {
       setError(t('drawings.importError'))
@@ -102,6 +86,12 @@ export default function DrawingsGallery() {
     const name = window.prompt(t('drawings.renamePrompt'), s.name)
     if (name == null) return
     await api.excalidraw.save(s.id, { name: name.trim() || t('drawings.untitled') })
+    load()
+  }
+
+  // Vincula/desvincula o storyboard a um vídeo (videoId=null desvincula).
+  async function linkVideo(s, videoId) {
+    await api.excalidraw.save(s.id, { videoId: videoId || null })
     load()
   }
 
@@ -164,7 +154,15 @@ export default function DrawingsGallery() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {scenes.map((s) => (
-            <SceneCard key={s.id} scene={s} onOpen={() => navigate(`/desenhos/${s.id}`)} onRename={() => rename(s)} onDelete={() => setToDelete(s)} />
+            <SceneCard
+              key={s.id}
+              scene={s}
+              videos={videos}
+              onOpen={() => navigate(`/desenhos/${s.id}`)}
+              onRename={() => rename(s)}
+              onDelete={() => setToDelete(s)}
+              onLinkVideo={(vid) => linkVideo(s, vid)}
+            />
           ))}
         </div>
       )}
@@ -180,10 +178,12 @@ export default function DrawingsGallery() {
   )
 }
 
-function SceneCard({ scene: s, onOpen, onRename, onDelete }) {
+function SceneCard({ scene: s, videos, onOpen, onRename, onDelete, onLinkVideo }) {
   const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [linking, setLinking] = useState(false)
   const btnRef = useRef(null)
+  const linkedVideo = s.videoId ? videos.find((v) => v.id === s.videoId) : null
   return (
     <div className="group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-slate-700">
       <button onClick={onOpen} className="block w-full text-left">
@@ -205,18 +205,54 @@ function SceneCard({ scene: s, onOpen, onRename, onDelete }) {
               </>
             )}
           </p>
+          {linkedVideo && (
+            <p className="mt-1.5 flex items-center gap-1 truncate rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-300">
+              <Film size={10} className="shrink-0" />
+              <span className="truncate">{linkedVideo.title}</span>
+            </p>
+          )}
         </div>
       </button>
       <button ref={btnRef} onClick={() => setMenuOpen((v) => !v)} className="absolute right-2 top-2 rounded-md bg-slate-900/80 p-1 text-slate-400 opacity-0 transition-opacity hover:text-slate-200 group-hover:opacity-100">
         <MoreVertical size={15} />
       </button>
-      <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => setMenuOpen(false)} width={160}>
-        <button onClick={() => { setMenuOpen(false); onRename() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
-          <Pencil size={13} /> {t('drawings.rename')}
-        </button>
-        <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
-          <Trash2 size={13} /> {t('drawings.delete')}
-        </button>
+      <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => { setMenuOpen(false); setLinking(false) }} width={220}>
+        {linking ? (
+          <div className="max-h-64 overflow-y-auto">
+            <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t('drawings.linkVideoTitle')}</p>
+            {s.videoId && (
+              <button onClick={() => { setMenuOpen(false); setLinking(false); onLinkVideo(null) }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
+                {t('drawings.unlinkVideo')}
+              </button>
+            )}
+            {videos.length === 0 ? (
+              <p className="px-2.5 py-1.5 text-xs text-slate-500">{t('drawings.noVideos')}</p>
+            ) : (
+              videos.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => { setMenuOpen(false); setLinking(false); onLinkVideo(v.id) }}
+                  className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-slate-800 ${v.id === s.videoId ? 'text-cyan-300' : 'text-slate-300'}`}
+                >
+                  <Film size={12} className="shrink-0" />
+                  <span className="truncate">{v.title}</span>
+                </button>
+              ))
+            )}
+          </div>
+        ) : (
+          <>
+            <button onClick={() => { setMenuOpen(false); onRename() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
+              <Pencil size={13} /> {t('drawings.rename')}
+            </button>
+            <button onClick={() => setLinking(true)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
+              <Film size={13} /> {t('drawings.linkVideo')}
+            </button>
+            <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
+              <Trash2 size={13} /> {t('drawings.delete')}
+            </button>
+          </>
+        )}
       </AnchoredMenu>
     </div>
   )

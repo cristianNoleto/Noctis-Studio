@@ -36,6 +36,7 @@ function toClient(row) {
     driveFolderId: row.drive_folder_id || null,
     driveSceneFileId: row.drive_scene_file_id || null,
     sizeBytes: Number(row.size_bytes || 0),
+    videoId: row.video_id || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -49,7 +50,7 @@ router.get('/', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'unauthorized' })
   const { data = [], error } = await supa
     .from('excalidraw_scenes')
-    .select('id, name, thumbnail, storage, drive_folder_id, drive_scene_file_id, size_bytes, created_at, updated_at')
+    .select('id, name, thumbnail, storage, drive_folder_id, drive_scene_file_id, size_bytes, video_id, created_at, updated_at')
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
@@ -75,7 +76,7 @@ router.post('/', async (req, res) => {
   const user = await getUser(req, supa)
   if (!user) return res.status(401).json({ error: 'unauthorized' })
   await ensureProfile(supa, user)
-  const { name, scene, storage, driveFolderId, driveSceneFileId } = req.body || {}
+  const { name, scene, storage, driveFolderId, driveSceneFileId, videoId } = req.body || {}
   // Projeto no Drive: o navegador já criou a pasta + scene.json; o banco guarda só
   // o índice (sem a cena). Projeto 'db': cena pequena fica no próprio banco.
   const isDrive = storage === 'drive'
@@ -86,6 +87,7 @@ router.post('/', async (req, res) => {
     scene: isDrive ? null : scene || {},
     drive_folder_id: isDrive ? driveFolderId || null : null,
     drive_scene_file_id: isDrive ? driveSceneFileId || null : null,
+    video_id: videoId || null,
   }
   const { data, error } = await supa.from('excalidraw_scenes').insert(row).select('*').single()
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
@@ -103,6 +105,7 @@ router.put('/:id', async (req, res) => {
   if (req.body?.scene !== undefined) patch.scene = req.body.scene
   if (req.body?.thumbnail !== undefined) patch.thumbnail = req.body.thumbnail
   if (req.body?.sizeBytes !== undefined) patch.size_bytes = Number(req.body.sizeBytes) || 0
+  if (req.body?.videoId !== undefined) patch.video_id = req.body.videoId || null // null = desvincular
   const { data, error } = await supa.from('excalidraw_scenes').update(patch).eq('id', req.params.id).eq('user_id', user.id).select('*').maybeSingle()
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
   if (!data) return res.status(404).json({ error: 'not_found' })

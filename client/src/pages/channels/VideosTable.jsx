@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { DndContext, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
 import {
   Plus,
@@ -22,10 +23,12 @@ import {
   Download,
   SquareCheckBig,
   Eye,
+  PenTool,
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
 import { api, apiErrorMessage } from '../../lib/api'
+import { createDrawing } from '../../lib/drawings'
 import { importChannelVideos } from '../../lib/importVideos'
 import { deriveStatus, isPosted, REQUIRED_STEPS } from '../../lib/videoStatus'
 import { Modal, inputCls, btnPrimary, btnGhost, ScoreRing, ConfirmDialog, EmptyState } from '../../components/ui'
@@ -83,8 +86,45 @@ function matchesTab(video, tab) {
 export default function VideosTable({ channelId, channel }) {
   const db = useDb()
   const { t } = useI18n()
+  const navigate = useNavigate()
   // Colaborador com acesso só "Ver" → tudo em modo leitura (sem editar/salvar).
   const readOnly = !db.canEdit('videos')
+
+  // Storyboards (cenas do Excalidraw) vinculados aos vídeos: mapa videoId → cena.
+  // Carregado uma vez; usado para mostrar/abrir o storyboard de cada vídeo.
+  const [storyboards, setStoryboards] = useState({})
+  const [creatingSb, setCreatingSb] = useState(null) // id do vídeo em criação
+  async function loadStoryboards() {
+    try {
+      const { scenes } = await api.excalidraw.list()
+      const map = {}
+      for (const sc of scenes || []) if (sc.videoId) map[sc.videoId] = sc
+      setStoryboards(map)
+    } catch {
+      /* sem Supabase (dev) ou sem login → sem storyboards */
+    }
+  }
+  useEffect(() => {
+    loadStoryboards()
+  }, [])
+
+  // Abre o storyboard do vídeo; se não existir, cria um novo com o título do
+  // vídeo já vinculado e redireciona pro editor.
+  async function openOrCreateStoryboard(video) {
+    const existing = storyboards[video.id]
+    if (existing) {
+      navigate(`/desenhos/${existing.id}`)
+      return
+    }
+    if (creatingSb) return
+    setCreatingSb(video.id)
+    try {
+      const scene = await createDrawing(video.title || t('videos.storyboard'), { videoId: video.id })
+      navigate(`/desenhos/${scene.id}`)
+    } catch {
+      setCreatingSb(null)
+    }
+  }
   const [view, setView] = useState('list')
   const [tab, setTab] = useState('all')
   const [query, setQuery] = useState('')
@@ -308,6 +348,9 @@ export default function VideosTable({ channelId, channel }) {
               key={v.id}
               video={v}
               readOnly={readOnly}
+              storyboard={storyboards[v.id]}
+              creatingStoryboard={creatingSb === v.id}
+              onStoryboard={() => openOrCreateStoryboard(v)}
               onToggleStep={(key) => toggleStep(v, key)}
               onEdit={() => setEditVideo(v)}
               onScript={() => setScriptVideo(v)}
@@ -402,7 +445,7 @@ function StatusTag({ video }) {
   return <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${cls[status] || cls.planning}`}>{t(`videos.tabs.${status}`)}</span>
 }
 
-function VideoRow({ video: v, readOnly, onToggleStep, onEdit, onScript, onReport, onLink, onDelete }) {
+function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, onStoryboard, onToggleStep, onEdit, onScript, onReport, onLink, onDelete }) {
   const db = useDb()
   const { t } = useI18n()
   const report = db.all('seoReports').filter((r) => r.videoId === v.id).sort((a, b) => b.createdAt - a.createdAt)[0]
@@ -535,23 +578,28 @@ function VideoRow({ video: v, readOnly, onToggleStep, onEdit, onScript, onReport
             {t('videos.titleCopied')}
           </div>
         )}
-        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
           {STEPS.map(([key]) => {
             const done = !!v.steps?.[key]
             const label = t(`videos.steps.${key}`)
             return (
-              <button
-                key={key}
-                onClick={() => onToggleStep(key)}
-                disabled={readOnly}
-                title={done ? t('videos.stepDone', { label }) : t('videos.stepPending', { label })}
-                className={`flex items-center gap-1 text-[10px] transition-colors ${readOnly ? 'cursor-default' : ''} ${done ? 'text-green-400' : `text-slate-600 ${readOnly ? '' : 'hover:text-slate-400'}`}`}
-              >
-                <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border ${done ? 'border-green-500 bg-green-500/20' : 'border-slate-700'}`}>
-                  {done && <Check size={9} />}
-                </span>
-                {label}
-              </button>
+              <div key={key} className="flex items-center gap-3">
+                {/* Chip do storyboard vem ANTES da etapa "Renderizado" */}
+                {key === 'renderizado' && (
+                  <StoryboardChip storyboard={storyboard} creating={creatingStoryboard} onClick={onStoryboard} />
+                )}
+                <button
+                  onClick={() => onToggleStep(key)}
+                  disabled={readOnly}
+                  title={done ? t('videos.stepDone', { label }) : t('videos.stepPending', { label })}
+                  className={`flex items-center gap-1 text-[10px] transition-colors ${readOnly ? 'cursor-default' : ''} ${done ? 'text-green-400' : `text-slate-600 ${readOnly ? '' : 'hover:text-slate-400'}`}`}
+                >
+                  <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border ${done ? 'border-green-500 bg-green-500/20' : 'border-slate-700'}`}>
+                    {done && <Check size={9} />}
+                  </span>
+                  {label}
+                </button>
+              </div>
             )
           })}
         </div>
@@ -602,6 +650,29 @@ function VideoRow({ video: v, readOnly, onToggleStep, onEdit, onScript, onReport
         </button>
       </div>
     </div>
+  )
+}
+
+// Chip do storyboard na linha do vídeo (antes de "Renderizado"):
+// - sem storyboard: botão para CRIAR (novo board com o título do vídeo)
+// - com storyboard: fica verde e ABRE o board direto ao clicar
+function StoryboardChip({ storyboard, creating, onClick }) {
+  const { t } = useI18n()
+  const linked = !!storyboard
+  return (
+    <button
+      onClick={onClick}
+      disabled={creating}
+      title={linked ? t('videos.storyboardOpen') : t('videos.storyboardCreate')}
+      className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+        linked
+          ? 'bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25'
+          : 'border border-dashed border-slate-700 text-slate-500 hover:border-cyan-500/40 hover:text-cyan-300'
+      }`}
+    >
+      {creating ? <Loader2 size={10} className="animate-spin" /> : linked ? <PenTool size={10} /> : <Plus size={10} />}
+      {t('videos.storyboard')}
+    </button>
   )
 }
 
