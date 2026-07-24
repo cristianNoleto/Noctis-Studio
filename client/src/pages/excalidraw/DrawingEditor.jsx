@@ -32,6 +32,15 @@ export default function DrawingEditor() {
   })
   // Lista de idiomas do Excalidraw sem os locales de teste (__test__…).
   const langOptions = languages.filter((l) => !l.code.startsWith('__'))
+  // Idioma efetivamente aplicado no Excalidraw. É DEBOUNCED em relação ao
+  // seletor: o setLanguage do Excalidraw é assíncrono e trocas rápidas seguidas
+  // criam uma corrida (vence a que carrega por último, não a última escolhida).
+  // Aplicando só a escolha final evitamos esse "off-by-one".
+  const [appliedLang, setAppliedLang] = useState(langCode)
+  useEffect(() => {
+    const t = setTimeout(() => setAppliedLang(langCode), 250)
+    return () => clearTimeout(t)
+  }, [langCode])
   const storageRef = useRef('db') // 'db' | 'drive'
   const driveFileRef = useRef(null) // id do scene.json no Drive
   const driveFolderRef = useRef(null) // id da pasta do projeto no Drive
@@ -310,18 +319,6 @@ export default function DrawingEditor() {
             t('drawings.autosaveHint')
           )}
         </span>
-        <select
-          value={langCode}
-          onChange={(e) => setLangCode(e.target.value)}
-          title={t('drawings.language')}
-          className="h-8 max-w-[150px] cursor-pointer rounded-lg border border-slate-800 bg-slate-950 px-2 text-xs text-slate-300 hover:border-slate-700 focus:border-cyan-500/50 focus:outline-none"
-        >
-          {langOptions.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.label}
-            </option>
-          ))}
-        </select>
         <button onClick={toggleFullscreen} title={fs ? t('drawings.exitFullscreen') : t('drawings.fullscreen')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-100">
           {fs ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </button>
@@ -333,7 +330,7 @@ export default function DrawingEditor() {
           excalidrawAPI={(a) => (apiRef.current = a)}
           initialData={initial}
           onChange={onChange}
-          langCode={langCode}
+          langCode={appliedLang}
         >
           <MainMenu>
             <MainMenu.DefaultItems.LoadScene />
@@ -341,13 +338,34 @@ export default function DrawingEditor() {
             <MainMenu.DefaultItems.Export />
             <MainMenu.DefaultItems.SaveAsImage />
             <MainMenu.Separator />
-            <MainMenu.DefaultItems.CommandPalette />
             <MainMenu.DefaultItems.SearchMenu />
             <MainMenu.DefaultItems.Help />
             <MainMenu.DefaultItems.ClearCanvas />
             <MainMenu.Separator />
             <MainMenu.DefaultItems.ToggleTheme />
             <MainMenu.DefaultItems.ChangeCanvasBackground />
+            <MainMenu.ItemCustom>
+              {/* stopPropagation p/ o dropdown nativo não fechar o menu do Excalidraw */}
+              <label
+                className="flex w-full items-center gap-2 text-sm"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <span aria-hidden>🌐</span>
+                <select
+                  value={langCode}
+                  onChange={(e) => setLangCode(e.target.value)}
+                  aria-label={t('drawings.language')}
+                  className="min-w-0 flex-1 cursor-pointer rounded-md border border-gray-300 bg-transparent px-2 py-1 text-sm"
+                >
+                  {langOptions.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </MainMenu.ItemCustom>
           </MainMenu>
           <WelcomeScreen>
             <WelcomeScreen.Hints.MenuHint />
