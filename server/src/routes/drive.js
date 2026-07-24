@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { supabaseAdmin } from '../lib/supabaseAdmin.js'
 import { encrypt, decrypt, signState, verifyState } from '../lib/driveCrypto.js'
+import { resolveAccess, userIdByEmail } from './workspace.js'
 
 // Conexão do Google Drive por usuário (OAuth 2.0, escopo drive.file).
 // Fluxo:
@@ -152,14 +153,28 @@ export async function accessTokenForUser(supa, userId) {
   return { accessToken: t.access_token, expiresIn: t.expires_in || 3600 }
 }
 
-// GET /api/drive/access — token do PRÓPRIO usuário (o navegador fala direto com
-// o Drive, sem trafegar os arquivos pesados pelo servidor).
+// GET /api/drive/access — token do Drive para o navegador falar direto com o
+// Drive. Sem ?owner: token do PRÓPRIO usuário. Com ?owner=<email> de outro
+// usuário: PORTEIRO — emite o token do DONO para um colaborador autorizado
+// (nível de referências), para ele ler/gravar nos storyboards do dono. O escopo
+// é drive.file: o colaborador só alcança arquivos que o app criou no Drive do dono.
 router.get('/access', async (req, res) => {
   const supa = requireSupabase(res)
   if (!supa) return
   const user = await getUser(req, supa)
   if (!user) return res.status(401).json({ error: 'unauthorized' })
-  const tok = await accessTokenForUser(supa, user.id)
+  let targetId = user.id
+  const owner = req.query.owner
+  if (owner) {
+    const access = await resolveAccess(supa, user, owner)
+    if (!access) return res.status(403).json({ error: 'forbidden' })
+    if (!access.self) {
+      if (access.references === 'none') return res.status(403).json({ error: 'forbidden' })
+      targetId = await userIdByEmail(supa, access.owner)
+      if (!targetId) return res.status(404).json({ error: 'owner_not_found' })
+    }
+  }
+  const tok = await accessTokenForUser(supa, targetId)
   if (!tok) return res.status(400).json({ error: 'drive_not_connected' })
   res.json(tok)
 })

@@ -98,7 +98,7 @@ export default function VideosTable({ channelId, channel }) {
   const [sbConfirm, setSbConfirm] = useState(null) // vídeo aguardando confirmação (evita clique acidental)
   async function loadStoryboards() {
     try {
-      const { scenes } = await api.excalidraw.list()
+      const { scenes } = await api.excalidraw.list(db.activeWorkspace())
       const map = {}
       for (const sc of scenes || []) if (sc.videoId) map[sc.videoId] = sc
       setStoryboards(map)
@@ -121,7 +121,7 @@ export default function VideosTable({ channelId, channel }) {
     if (creatingSb) return
     setCreatingSb(video.id)
     try {
-      const scene = await createDrawing(video.title || t('videos.storyboard'), { videoId: video.id })
+      const scene = await createDrawing(video.title || t('videos.storyboard'), { videoId: video.id, owner: db.activeWorkspace() })
       navigate(`/desenhos/${scene.id}`)
     } catch {
       setCreatingSb(null)

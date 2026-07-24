@@ -229,17 +229,22 @@ router.post('/migrate', async (req, res) => {
 })
 
 // Resolve o id (auth) de um e-mail. Base pequena → listUsers.
-async function userIdByEmail(supa, email) {
+export async function userIdByEmail(supa, email) {
   const e = (email || '').toLowerCase()
   const { data } = await supa.auth.admin.listUsers({ page: 1, perPage: 1000 })
   return (data?.users || []).find((x) => (x.email || '').toLowerCase() === e)?.id || null
+}
+
+export async function emailByUserId(supa, userId) {
+  const { data } = await supa.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  return (data?.users || []).find((x) => x.id === userId)?.email || null
 }
 
 // Visibilidade por item (referências/cards do quadro): o dono vê tudo; o
 // colaborador só vê itens 'workspace' (padrão) ou 'specific' com o e-mail dele
 // na lista. 'only_me' fica escondido de qualquer colaborador. Coluna ausente/
 // nula = 'workspace' (comportamento antigo: visível).
-function canSeeRow(row, requesterEmail, isSelf) {
+export function canSeeRow(row, requesterEmail, isSelf) {
   if (isSelf) return true
   const vis = row.visibility || 'workspace'
   if (vis === 'only_me') return false
@@ -251,7 +256,7 @@ function canSeeRow(row, requesterEmail, isSelf) {
 }
 
 // Acesso do requester ao workspace de ownerEmail (self = próprio).
-async function resolveAccess(supa, requester, ownerEmail) {
+export async function resolveAccess(supa, requester, ownerEmail) {
   const me = (requester.email || '').toLowerCase()
   const owner = (ownerEmail || me).toLowerCase()
   if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit' }

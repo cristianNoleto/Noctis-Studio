@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload, Film } from 'lucide-react'
 import { api } from '../../lib/api'
-import { deleteFile } from '../../lib/drive'
+import { deleteFile, setDriveOwner } from '../../lib/drive'
 import { createDrawing } from '../../lib/drawings'
 import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
@@ -26,6 +26,9 @@ export default function DrawingsGallery() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const db = useDb()
+  const owner = db.activeWorkspace() // null = próprio; e-mail = workspace de outro
+  const isOwnerSelf = !owner
+  const canEdit = db.canEdit('references') // storyboards seguem o acesso a referências
   const videos = db.all('videos') // p/ vincular storyboard a um vídeo
   const [scenes, setScenes] = useState(null) // null = carregando
   const [creating, setCreating] = useState(false)
@@ -34,7 +37,8 @@ export default function DrawingsGallery() {
 
   async function load() {
     try {
-      const { scenes } = await api.excalidraw.list()
+      setDriveOwner(owner) // Drive do dono quando em workspace de outro
+      const { scenes } = await api.excalidraw.list(owner)
       setScenes(scenes)
     } catch (e) {
       setError(e?.message || 'Erro ao carregar')
@@ -46,7 +50,8 @@ export default function DrawingsGallery() {
     // Pré-carrega o pacote pesado do editor (~590 KB) em segundo plano, para que
     // clicar em um projeto abra na hora, sem esperar o download do chunk.
     import('./DrawingEditor').catch(() => {})
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner])
 
   const fileRef = useRef(null)
 
@@ -54,7 +59,7 @@ export default function DrawingsGallery() {
     if (creating) return
     setCreating(true)
     try {
-      const scene = await createDrawing(t('drawings.untitled'))
+      const scene = await createDrawing(t('drawings.untitled'), { owner })
       navigate(`/desenhos/${scene.id}`)
     } catch (e) {
       setError(e?.message || 'Erro ao criar')
@@ -75,7 +80,7 @@ export default function DrawingsGallery() {
       if (!Array.isArray(parsed.elements)) throw new Error('invalid')
       const data = { elements: parsed.elements, appState: { viewBackgroundColor: parsed.appState?.viewBackgroundColor }, files: parsed.files || {} }
       const name = file.name.replace(/\.excalidraw$/i, '').slice(0, 120) || t('drawings.untitled')
-      const scene = await createDrawing(name, { sceneData: data })
+      const scene = await createDrawing(name, { sceneData: data, owner })
       navigate(`/desenhos/${scene.id}`)
     } catch {
       setError(t('drawings.importError'))
@@ -129,17 +134,19 @@ export default function DrawingsGallery() {
             <p className="text-sm text-slate-500">{t('drawings.subtitle')}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input ref={fileRef} type="file" accept=".excalidraw,application/json" hidden onChange={importFile} />
-          <button className={`${btnGhost} flex items-center gap-2 text-sm`} onClick={() => fileRef.current?.click()} disabled={creating}>
-            <Upload size={15} />
-            {t('drawings.import')}
-          </button>
-          <button className={`${btnPrimary} flex items-center gap-2`} onClick={create} disabled={creating}>
-            {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-            {t('drawings.new')}
-          </button>
-        </div>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <input ref={fileRef} type="file" accept=".excalidraw,application/json" hidden onChange={importFile} />
+            <button className={`${btnGhost} flex items-center gap-2 text-sm`} onClick={() => fileRef.current?.click()} disabled={creating}>
+              <Upload size={15} />
+              {t('drawings.import')}
+            </button>
+            <button className={`${btnPrimary} flex items-center gap-2`} onClick={create} disabled={creating}>
+              {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              {t('drawings.new')}
+            </button>
+          </div>
+        )}
       </div>
 
       {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>}
@@ -167,6 +174,8 @@ export default function DrawingsGallery() {
               scene={s}
               videos={videos}
               onOpen={() => navigate(`/desenhos/${s.id}`)}
+              isOwner={isOwnerSelf}
+              canEdit={db.canEdit('references')}
               onRename={() => rename(s)}
               onDelete={() => setToDelete(s)}
               onLinkVideo={(vid) => linkVideo(s, vid)}
@@ -187,7 +196,7 @@ export default function DrawingsGallery() {
   )
 }
 
-function SceneCard({ scene: s, videos, onOpen, onRename, onDelete, onLinkVideo, onSetVisibility }) {
+function SceneCard({ scene: s, videos, isOwner, canEdit, onOpen, onRename, onDelete, onLinkVideo, onSetVisibility }) {
   const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
   const [mode, setMode] = useState(null) // null | 'link' | 'visibility'
@@ -263,18 +272,28 @@ function SceneCard({ scene: s, videos, onOpen, onRename, onDelete, onLinkVideo, 
           </div>
         ) : (
           <>
-            <button onClick={() => { setMenuOpen(false); onRename() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
-              <Pencil size={13} /> {t('drawings.rename')}
-            </button>
-            <button onClick={() => setMode('link')} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
-              <Film size={13} /> {t('drawings.linkVideo')}
-            </button>
-            <button onClick={() => setMode('visibility')} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
-              <Eye size={13} /> {t('drawings.visibility')}
-            </button>
-            <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
-              <Trash2 size={13} /> {t('drawings.delete')}
-            </button>
+            {canEdit && (
+              <button onClick={() => { setMenuOpen(false); onRename() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
+                <Pencil size={13} /> {t('drawings.rename')}
+              </button>
+            )}
+            {/* Vincular a vídeo, visibilidade e apagar são SOMENTE do dono. */}
+            {isOwner && (
+              <>
+                <button onClick={() => setMode('link')} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
+                  <Film size={13} /> {t('drawings.linkVideo')}
+                </button>
+                <button onClick={() => setMode('visibility')} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
+                  <Eye size={13} /> {t('drawings.visibility')}
+                </button>
+                <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
+                  <Trash2 size={13} /> {t('drawings.delete')}
+                </button>
+              </>
+            )}
+            {!canEdit && !isOwner && (
+              <p className="px-2.5 py-1.5 text-xs text-slate-500">{t('drawings.viewOnly')}</p>
+            )}
           </>
         )}
       </AnchoredMenu>

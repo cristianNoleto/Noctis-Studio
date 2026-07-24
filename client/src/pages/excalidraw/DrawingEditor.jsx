@@ -4,8 +4,9 @@ import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLa
 import '@excalidraw/excalidraw/index.css'
 import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { downloadText, updateFileContent, renameFile, uploadFile, downloadBlob } from '../../lib/drive'
+import { downloadText, updateFileContent, renameFile, uploadFile, downloadBlob, setDriveOwner } from '../../lib/drive'
 import { optimizeDataUrl, dataUrlBytes, dataUrlToBlob, blobToDataUrl } from '../../lib/imageOptimize'
+import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
 
 // Tela de boas-vindas (placeholder do quadro vazio) TRADUZIDA pelo idioma do
@@ -39,6 +40,8 @@ function BoardWelcome() {
 export default function DrawingEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const db = useDb()
+  const canEditScene = db.canEdit('references') // editor pode salvar; viewer não
   const { t } = useI18n()
   const [initial, setInitial] = useState(null) // dados iniciais da cena
   const [name, setName] = useState('')
@@ -102,6 +105,7 @@ export default function DrawingEditor() {
 
   useEffect(() => {
     let alive = true
+    setDriveOwner(db.activeWorkspace()) // Drive do dono quando em workspace de outro
     // Reseta o estado por-projeto (caso o componente seja reaproveitado ao trocar de id).
     uploadedRef.current = {}
     seenFiles.current = new Set()
@@ -153,6 +157,7 @@ export default function DrawingEditor() {
     return () => {
       alive = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, t])
 
   // Carrega SOB DEMANDA as imagens que estão como arquivos separados no Drive:
@@ -332,6 +337,7 @@ export default function DrawingEditor() {
   const onChange = useCallback(
     (elements, appState, files) => {
       latestRef.current = { elements, appState, files }
+      if (!canEditScene) return // viewer: não salva nem otimiza
       optimizeNewImages(files)
       const sig = JSON.stringify(elements)
       if (sig === lastSaved.current) return
@@ -339,7 +345,7 @@ export default function DrawingEditor() {
       clearTimeout(saveTimer.current)
       saveTimer.current = setTimeout(() => doSave(elements, appState, files), 1200)
     },
-    [doSave, optimizeNewImages],
+    [doSave, optimizeNewImages, canEditScene],
   )
 
   // Sair com segurança: se há mudança pendente ou um save em andamento, mostra
@@ -435,7 +441,8 @@ export default function DrawingEditor() {
         <input
           value={name}
           onChange={(e) => saveName(e.target.value)}
-          className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-100 hover:border-slate-800 focus:border-cyan-500/50 focus:outline-none"
+          readOnly={!canEditScene}
+          className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-100 hover:border-slate-800 focus:border-cyan-500/50 focus:outline-none read-only:hover:border-transparent"
         />
         <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-slate-500">
           {loadingImages ? (
@@ -474,6 +481,7 @@ export default function DrawingEditor() {
           initialData={initial}
           onChange={onChange}
           langCode={appliedLang}
+          viewModeEnabled={!canEditScene}
         >
           <MainMenu>
             <MainMenu.DefaultItems.LoadScene />

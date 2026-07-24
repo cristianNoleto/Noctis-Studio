@@ -17,11 +17,24 @@ const PROJECTS_FOLDER_NAME = 'Excalidraw-projects'
 
 let cachedToken = null // { accessToken, exp }
 let cachedProjectsFolder = null // id da pasta Excalidraw-projects (por sessão)
+let driveOwner = null // dono do workspace ativo (null = próprio); porteiro usa o token dele
+
+// Define de QUEM é o Drive nas próximas operações: null = próprio; e-mail de
+// outro usuário = colaborador acessando o Drive do dono (porteiro). Troca de dono
+// invalida os caches (token e pasta são de Drives diferentes).
+export function setDriveOwner(owner) {
+  const next = owner || null
+  if (next !== driveOwner) {
+    driveOwner = next
+    cachedToken = null
+    cachedProjectsFolder = null
+  }
+}
 
 // Access token com cache (expira antes do prazo real por segurança).
 export async function driveToken() {
   if (cachedToken && Date.now() < cachedToken.exp - 60000) return cachedToken.accessToken
-  const { accessToken, expiresIn } = await api.drive.access()
+  const { accessToken, expiresIn } = await api.drive.access(driveOwner || undefined)
   cachedToken = { accessToken, exp: Date.now() + (expiresIn || 3600) * 1000 }
   return accessToken
 }

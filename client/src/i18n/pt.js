@@ -777,6 +777,7 @@ export default {
     importError: 'Arquivo .excalidraw inválido.',
     untitled: 'Sem título',
     visibility: 'Visibilidade',
+    viewOnly: 'Somente leitura',
     linkVideo: 'Vincular a vídeo',
     linkVideoTitle: 'Vincular a qual vídeo?',
     unlinkVideo: 'Desvincular do vídeo',

@@ -204,7 +204,8 @@ export const api = {
   // Projetos do Excalidraw (quadro de desenho) — tabela dedicada, salvamento
   // próprio (separado do write-through do workspace).
   excalidraw: {
-    list: () => authRequest('/excalidraw'),
+    // owner (e-mail) = workspace de outro usuário; ausente = próprio.
+    list: (owner) => authRequest(`/excalidraw${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`),
     get: (id) => authRequest(`/excalidraw/${id}`),
     create: (body) => authRequest('/excalidraw', { method: 'POST', body }),
     save: (id, patch, keepalive = false) => authRequest(`/excalidraw/${id}`, { method: 'PUT', body: patch, keepalive }),
@@ -214,7 +215,8 @@ export const api = {
   drive: {
     connect: () => authRequest('/drive/connect', { method: 'POST' }),
     status: () => authRequest('/drive/status'),
-    access: () => authRequest('/drive/access'),
+    // owner = porteiro: token do Drive do dono (colaborador autorizado).
+    access: (owner) => authRequest(`/drive/access${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`),
     disconnect: () => authRequest('/drive/disconnect', { method: 'DELETE' }),
   },
   transcription: {
