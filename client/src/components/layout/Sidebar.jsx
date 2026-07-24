@@ -172,13 +172,11 @@ export default function Sidebar() {
           )
         })}
       </nav>
-      {isOpen && (
-        <div className="mt-auto flex shrink-0 items-center gap-2 border-t border-slate-800/70 px-4 py-2 text-[10px] text-slate-600">
-          <Link to="/privacidade" className="hover:text-cyan-400">{t('auth.privacy')}</Link>
-          <span>·</span>
-          <Link to="/termos" className="hover:text-cyan-400">{t('auth.terms')}</Link>
-        </div>
-      )}
+      <div className="mt-auto flex shrink-0 items-center gap-2 border-t border-slate-800/70 px-4 py-2 text-[10px] text-slate-600">
+        <Link to="/privacidade" className="hover:text-cyan-400">{t('auth.privacy')}</Link>
+        <span>·</span>
+        <Link to="/termos" className="hover:text-cyan-400">{t('auth.terms')}</Link>
+      </div>
     </aside>
   )
 }
