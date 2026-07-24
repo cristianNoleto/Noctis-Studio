@@ -74,6 +74,7 @@ export const STEPS = [
   ['roteiro', 'Roteiro'],
   ['audio', 'Áudio'],
   ['thumbnail', 'Thumbnail'],
+  ['storyboard', 'Storyboard'],
   ['renderizado', 'Renderizado'],
   ['publicado', 'Publicado'],
 ]
@@ -189,7 +190,8 @@ export default function VideosTable({ channelId, channel }) {
   // "Sim, completar" no modal: marca todas as etapas e publica.
   function confirmPublishAll() {
     const v = publishConfirm.video
-    const steps = { titulo: true, roteiro: true, audio: true, thumbnail: true, renderizado: true, publicado: true }
+    // Preserva o storyboard (etapa opcional) ao completar as etapas obrigatórias.
+    const steps = { ...(v.steps || {}), titulo: true, roteiro: true, audio: true, thumbnail: true, renderizado: true, publicado: true }
     const patch = { steps }
     if (!v.publishedAt) patch.publishedAt = new Date().toISOString()
     db.update('videos', v.id, patch)
@@ -578,28 +580,23 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, onStoryb
             {t('videos.titleCopied')}
           </div>
         )}
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
           {STEPS.map(([key]) => {
             const done = !!v.steps?.[key]
             const label = t(`videos.steps.${key}`)
             return (
-              <div key={key} className="flex items-center gap-3">
-                {/* Chip do storyboard vem ANTES da etapa "Renderizado" */}
-                {key === 'renderizado' && (
-                  <StoryboardChip storyboard={storyboard} creating={creatingStoryboard} onClick={onStoryboard} />
-                )}
-                <button
-                  onClick={() => onToggleStep(key)}
-                  disabled={readOnly}
-                  title={done ? t('videos.stepDone', { label }) : t('videos.stepPending', { label })}
-                  className={`flex items-center gap-1 text-[10px] transition-colors ${readOnly ? 'cursor-default' : ''} ${done ? 'text-green-400' : `text-slate-600 ${readOnly ? '' : 'hover:text-slate-400'}`}`}
-                >
-                  <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border ${done ? 'border-green-500 bg-green-500/20' : 'border-slate-700'}`}>
-                    {done && <Check size={9} />}
-                  </span>
-                  {label}
-                </button>
-              </div>
+              <button
+                key={key}
+                onClick={() => onToggleStep(key)}
+                disabled={readOnly}
+                title={done ? t('videos.stepDone', { label }) : t('videos.stepPending', { label })}
+                className={`flex items-center gap-1 text-[10px] transition-colors ${readOnly ? 'cursor-default' : ''} ${done ? 'text-green-400' : `text-slate-600 ${readOnly ? '' : 'hover:text-slate-400'}`}`}
+              >
+                <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border ${done ? 'border-green-500 bg-green-500/20' : 'border-slate-700'}`}>
+                  {done && <Check size={9} />}
+                </span>
+                {label}
+              </button>
             )
           })}
         </div>
@@ -615,6 +612,7 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, onStoryb
           <span className="text-[9px] font-semibold text-slate-500">SEO</span>
           {report?.score != null ? `${report.score}/100` : '—/100'}
         </button>
+        <StoryboardChip storyboard={storyboard} creating={creatingStoryboard} onClick={onStoryboard} />
         <RowBtn title={readOnly ? t('videos.view') : t('videos.edit')} onClick={onEdit}>
           {readOnly ? <Eye size={14} /> : <Pencil size={14} />}
         </RowBtn>
@@ -653,9 +651,9 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, onStoryb
   )
 }
 
-// Chip do storyboard na linha do vídeo (antes de "Renderizado"):
-// - sem storyboard: botão para CRIAR (novo board com o título do vídeo)
-// - com storyboard: fica verde e ABRE o board direto ao clicar
+// Botão do storyboard na direita da linha (depois do SEO):
+// - sem storyboard: CRIA um novo board com o título do vídeo (já vinculado)
+// - com storyboard: fica ciano e ABRE o board direto ao clicar
 function StoryboardChip({ storyboard, creating, onClick }) {
   const { t } = useI18n()
   const linked = !!storyboard
@@ -664,13 +662,13 @@ function StoryboardChip({ storyboard, creating, onClick }) {
       onClick={onClick}
       disabled={creating}
       title={linked ? t('videos.storyboardOpen') : t('videos.storyboardCreate')}
-      className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+      className={`flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-medium transition-colors ${
         linked
-          ? 'bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25'
-          : 'border border-dashed border-slate-700 text-slate-500 hover:border-cyan-500/40 hover:text-cyan-300'
+          ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20'
+          : 'border-slate-700 text-slate-400 hover:border-cyan-500/40 hover:text-cyan-300'
       }`}
     >
-      {creating ? <Loader2 size={10} className="animate-spin" /> : linked ? <PenTool size={10} /> : <Plus size={10} />}
+      {creating ? <Loader2 size={13} className="animate-spin" /> : <PenTool size={13} />}
       {t('videos.storyboard')}
     </button>
   )
@@ -724,9 +722,9 @@ function VideosKanban({ videos, readOnly, onOpenScript }) {
     const v = db.get('videos', active.id)
     if (!v) return
     // Arrastar para uma coluna ajusta as etapas para bater com aquele estágio.
-    const base = { titulo: true, roteiro: false, audio: false, thumbnail: false, renderizado: false, publicado: false }
+    const base = { titulo: true, roteiro: false, audio: false, thumbnail: false, storyboard: false, renderizado: false, publicado: false }
     const steps = { ...base, ...(v.steps || {}), titulo: true }
-    if (over.id === 'planning') Object.assign(steps, { roteiro: false, audio: false, thumbnail: false, renderizado: false, publicado: false })
+    if (over.id === 'planning') Object.assign(steps, { roteiro: false, audio: false, thumbnail: false, storyboard: false, renderizado: false, publicado: false })
     else if (over.id === 'production') Object.assign(steps, { roteiro: true, renderizado: false, publicado: false })
     else if (over.id === 'finished') Object.assign(steps, { roteiro: true, renderizado: true, publicado: false })
     else if (over.id === 'scheduled_published') Object.assign(steps, { roteiro: true, renderizado: true, publicado: true })

@@ -492,7 +492,7 @@ export default {
     viewList: 'List',
     viewKanban: 'Kanban',
     tabs: { all: 'All', planning: 'Planning', production: 'Production', finished: 'Finished', scheduled_published: 'Scheduled/Published' },
-    steps: { titulo: 'Title', roteiro: 'Script', audio: 'Audio', thumbnail: 'Thumbnail', renderizado: 'Rendered', publicado: 'Published' },
+    steps: { titulo: 'Title', roteiro: 'Script', audio: 'Audio', thumbnail: 'Thumbnail', storyboard: 'Storyboard', renderizado: 'Rendered', publicado: 'Published' },
     storyboard: 'Storyboard',
     storyboardCreate: 'Create a storyboard for this video',
     storyboardOpen: 'Open storyboard',

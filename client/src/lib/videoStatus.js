@@ -21,7 +21,7 @@ export function deriveStatus(video) {
   const s = video?.steps || {}
   if (s.publicado) return 'scheduled_published'
   if (s.renderizado) return 'finished'
-  if (s.roteiro || s.audio || s.thumbnail) return 'production'
+  if (s.roteiro || s.audio || s.thumbnail || s.storyboard) return 'production'
   return 'planning'
 }
 
