@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { FileText, Captions, Scissors, Copy, FileDown } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { FileText, Captions, Scissors, Copy, FileDown, AudioLines, Clock, ArrowRight } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { inputCls, btnPrimary, btnGhost } from '../components/ui'
 import { countWords, countParagraphs, generateSrt, splitTextByLimit, formatDuration, downloadFile } from '../lib/text'
@@ -122,6 +123,68 @@ function EditorTab() {
 }
 
 function SrtTab() {
+  const { t } = useI18n()
+  const [mode, setMode] = useState('script') // 'script' (tempos estimados) | 'audio' (tempos reais)
+
+  return (
+    <div className="space-y-4">
+      {/* Seletor de modo: por roteiro (tempos estimados) x por áudio (tempos reais) */}
+      <div className="flex flex-wrap gap-2">
+        <ModeBtn active={mode === 'script'} onClick={() => setMode('script')} icon={<Captions size={14} />} label={t('textTools.srtModeScript')} desc={t('textTools.srtModeScriptDesc')} />
+        <ModeBtn active={mode === 'audio'} onClick={() => setMode('audio')} icon={<AudioLines size={14} />} label={t('textTools.srtModeAudio')} desc={t('textTools.srtModeAudioDesc')} />
+      </div>
+      {mode === 'script' ? <SrtByScript /> : <SrtByAudio />}
+    </div>
+  )
+}
+
+function ModeBtn({ active, onClick, icon, label, desc }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex flex-1 items-start gap-2.5 rounded-xl border p-3 text-left transition-colors ${
+        active ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
+      }`}
+    >
+      <span className={`mt-0.5 ${active ? 'text-cyan-300' : 'text-slate-500'}`}>{icon}</span>
+      <span>
+        <span className={`block text-sm font-semibold ${active ? 'text-cyan-200' : 'text-slate-200'}`}>{label}</span>
+        <span className="block text-[11px] text-slate-500">{desc}</span>
+      </span>
+    </button>
+  )
+}
+
+// Modo "Por áudio": leva à página de Transcrição (AssemblyAI), que já gera SRT
+// com TEMPOS REAIS a partir do áudio, sem travar o navegador e com expiração.
+function SrtByAudio() {
+  const { t } = useI18n()
+  const navigate = useNavigate()
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
+      <div className="flex items-start gap-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-500/12 text-cyan-400">
+          <AudioLines size={22} />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-base font-semibold text-slate-100">{t('textTools.srtAudioTitle')}</h3>
+          <p className="mt-1 text-sm leading-relaxed text-slate-400">{t('textTools.srtAudioDesc')}</p>
+          <ul className="mt-3 space-y-1.5 text-[13px] text-slate-300">
+            <li className="flex items-center gap-2"><Clock size={13} className="shrink-0 text-cyan-400" /> {t('textTools.srtAudioReal')}</li>
+            <li className="flex items-center gap-2"><Captions size={13} className="shrink-0 text-cyan-400" /> {t('textTools.srtAudioFormats')}</li>
+            <li className="flex items-center gap-2"><AudioLines size={13} className="shrink-0 text-cyan-400" /> {t('textTools.srtAudioSafe')}</li>
+          </ul>
+          <button className={`${btnPrimary} mt-5 inline-flex items-center gap-2`} onClick={() => navigate('/transcricao')}>
+            {t('textTools.srtAudioOpen')}
+            <ArrowRight size={15} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SrtByScript() {
   const { t } = useI18n()
   const [text, setText] = useState('')
   const [wordsPerBlock, setWordsPerBlock] = useState(12)
