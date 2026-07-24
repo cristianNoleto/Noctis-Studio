@@ -95,6 +95,7 @@ export default function VideosTable({ channelId, channel }) {
   // Carregado uma vez; usado para mostrar/abrir o storyboard de cada vídeo.
   const [storyboards, setStoryboards] = useState({})
   const [creatingSb, setCreatingSb] = useState(null) // id do vídeo em criação
+  const [sbConfirm, setSbConfirm] = useState(null) // vídeo aguardando confirmação (evita clique acidental)
   async function loadStoryboards() {
     try {
       const { scenes } = await api.excalidraw.list()
@@ -352,7 +353,7 @@ export default function VideosTable({ channelId, channel }) {
               readOnly={readOnly}
               storyboard={storyboards[v.id]}
               creatingStoryboard={creatingSb === v.id}
-              onStoryboard={() => openOrCreateStoryboard(v)}
+              onStoryboard={() => setSbConfirm(v)}
               onToggleStep={(key) => toggleStep(v, key)}
               onEdit={() => setEditVideo(v)}
               onScript={() => setScriptVideo(v)}
@@ -382,6 +383,19 @@ export default function VideosTable({ channelId, channel }) {
         message={t('videos.deleteMsg', { title: deleteVideo?.title })}
       />
       <PublishConfirmModal data={publishConfirm} onClose={() => setPublishConfirm(null)} onConfirm={confirmPublishAll} />
+      <ConfirmDialog
+        open={sbConfirm !== null}
+        onClose={() => setSbConfirm(null)}
+        onConfirm={() => {
+          const v = sbConfirm
+          setSbConfirm(null)
+          openOrCreateStoryboard(v)
+        }}
+        title={sbConfirm && storyboards[sbConfirm.id] ? t('videos.storyboardOpenTitle') : t('videos.storyboardCreateTitle')}
+        message={sbConfirm && storyboards[sbConfirm.id] ? t('videos.storyboardOpenMsg') : t('videos.storyboardCreateMsg', { title: sbConfirm?.title })}
+        confirmLabel={sbConfirm && storyboards[sbConfirm.id] ? t('videos.storyboardOpen') : t('videos.storyboard')}
+        danger={false}
+      />
     </div>
   )
 }
