@@ -776,6 +776,7 @@ export default {
     import: 'Import',
     importError: 'Invalid .excalidraw file.',
     untitled: 'Untitled',
+    visibility: 'Visibility',
     linkVideo: 'Link to video',
     linkVideoTitle: 'Link to which video?',
     unlinkVideo: 'Unlink from video',

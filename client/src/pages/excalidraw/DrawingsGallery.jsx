@@ -8,6 +8,8 @@ import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
 import { btnPrimary, btnGhost, EmptyState, ConfirmDialog } from '../../components/ui'
 import { AnchoredMenu } from '../../components/AnchoredMenu'
+import { VisibilityControl, VisibilityBadge } from '../../components/ItemVisibility'
+import { Eye } from 'lucide-react'
 
 // Formata bytes em KB/MB/GB para mostrar o tamanho do projeto.
 function formatSize(bytes) {
@@ -95,6 +97,12 @@ export default function DrawingsGallery() {
     load()
   }
 
+  // Define quem vê o storyboard (só eu / workspace / e-mails específicos).
+  async function setVisibility(s, visibility, emails) {
+    await api.excalidraw.save(s.id, { visibility, allowedEmails: emails || [] })
+    load()
+  }
+
   async function remove(s) {
     // Projeto no Drive: apaga a pasta do projeto no Drive antes de remover o índice.
     if (s.storage === 'drive' && s.driveFolderId) {
@@ -162,6 +170,7 @@ export default function DrawingsGallery() {
               onRename={() => rename(s)}
               onDelete={() => setToDelete(s)}
               onLinkVideo={(vid) => linkVideo(s, vid)}
+              onSetVisibility={(vis, emails) => setVisibility(s, vis, emails)}
             />
           ))}
         </div>
@@ -178,12 +187,13 @@ export default function DrawingsGallery() {
   )
 }
 
-function SceneCard({ scene: s, videos, onOpen, onRename, onDelete, onLinkVideo }) {
+function SceneCard({ scene: s, videos, onOpen, onRename, onDelete, onLinkVideo, onSetVisibility }) {
   const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [linking, setLinking] = useState(false)
+  const [mode, setMode] = useState(null) // null | 'link' | 'visibility'
   const btnRef = useRef(null)
   const linkedVideo = s.videoId ? videos.find((v) => v.id === s.videoId) : null
+  const closeMenu = () => { setMenuOpen(false); setMode(null) }
   return (
     <div className="group relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-slate-700">
       <button onClick={onOpen} className="block w-full text-left">
@@ -205,23 +215,26 @@ function SceneCard({ scene: s, videos, onOpen, onRename, onDelete, onLinkVideo }
               </>
             )}
           </p>
-          {linkedVideo && (
-            <p className="mt-1.5 flex items-center gap-1 truncate rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-300">
-              <Film size={10} className="shrink-0" />
-              <span className="truncate">{linkedVideo.title}</span>
-            </p>
-          )}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {linkedVideo && (
+              <span className="flex min-w-0 items-center gap-1 truncate rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-300">
+                <Film size={10} className="shrink-0" />
+                <span className="truncate">{linkedVideo.title}</span>
+              </span>
+            )}
+            <VisibilityBadge visibility={s.visibility} />
+          </div>
         </div>
       </button>
       <button ref={btnRef} onClick={() => setMenuOpen((v) => !v)} className="absolute right-2 top-2 rounded-md bg-slate-900/80 p-1 text-slate-400 opacity-0 transition-opacity hover:text-slate-200 group-hover:opacity-100">
         <MoreVertical size={15} />
       </button>
-      <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => { setMenuOpen(false); setLinking(false) }} width={220}>
-        {linking ? (
+      <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={closeMenu} width={230}>
+        {mode === 'link' ? (
           <div className="max-h-64 overflow-y-auto">
             <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t('drawings.linkVideoTitle')}</p>
             {s.videoId && (
-              <button onClick={() => { setMenuOpen(false); setLinking(false); onLinkVideo(null) }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
+              <button onClick={() => { closeMenu(); onLinkVideo(null) }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
                 {t('drawings.unlinkVideo')}
               </button>
             )}
@@ -231,7 +244,7 @@ function SceneCard({ scene: s, videos, onOpen, onRename, onDelete, onLinkVideo }
               videos.map((v) => (
                 <button
                   key={v.id}
-                  onClick={() => { setMenuOpen(false); setLinking(false); onLinkVideo(v.id) }}
+                  onClick={() => { closeMenu(); onLinkVideo(v.id) }}
                   className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-slate-800 ${v.id === s.videoId ? 'text-cyan-300' : 'text-slate-300'}`}
                 >
                   <Film size={12} className="shrink-0" />
@@ -240,13 +253,24 @@ function SceneCard({ scene: s, videos, onOpen, onRename, onDelete, onLinkVideo }
               ))
             )}
           </div>
+        ) : mode === 'visibility' ? (
+          <div className="p-1.5">
+            <VisibilityControl
+              value={s.visibility}
+              emails={s.allowedEmails}
+              onChange={(vis, emails) => { onSetVisibility(vis, emails); if (vis !== 'specific') closeMenu() }}
+            />
+          </div>
         ) : (
           <>
             <button onClick={() => { setMenuOpen(false); onRename() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
               <Pencil size={13} /> {t('drawings.rename')}
             </button>
-            <button onClick={() => setLinking(true)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
+            <button onClick={() => setMode('link')} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
               <Film size={13} /> {t('drawings.linkVideo')}
+            </button>
+            <button onClick={() => setMode('visibility')} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
+              <Eye size={13} /> {t('drawings.visibility')}
             </button>
             <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
               <Trash2 size={13} /> {t('drawings.delete')}
