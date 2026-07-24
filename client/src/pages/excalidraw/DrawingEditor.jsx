@@ -4,7 +4,7 @@ import { Excalidraw, exportToBlob } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { downloadText, updateFileContent } from '../../lib/drive'
+import { downloadText, updateFileContent, renameFile } from '../../lib/drive'
 import { useI18n } from '../../i18n'
 
 // Editor Excalidraw de um projeto. Carrega a cena do banco, renderiza o editor
@@ -25,6 +25,8 @@ export default function DrawingEditor() {
   const [fs, setFs] = useState(false)
   const storageRef = useRef('db') // 'db' | 'drive'
   const driveFileRef = useRef(null) // id do scene.json no Drive
+  const driveFolderRef = useRef(null) // id da pasta do projeto no Drive
+  const latestRef = useRef(null) // último estado bom da cena (p/ salvar ao fechar)
 
   // Fullscreen imersivo do navegador (Esc sai). Botão liga/desliga.
   async function toggleFullscreen() {
@@ -50,6 +52,7 @@ export default function DrawingEditor() {
         setName(scene.name || '')
         storageRef.current = scene.storage || 'db'
         driveFileRef.current = scene.driveSceneFileId || null
+        driveFolderRef.current = scene.driveFolderId || null
         // Projeto no Drive: baixa o scene.json DIRETO do Drive (não passa pelo servidor).
         let data = scene.scene || {}
         if (scene.storage === 'drive' && scene.driveSceneFileId) {
@@ -126,8 +129,12 @@ export default function DrawingEditor() {
   )
 
   // onChange dispara MUITO; só salva se os elementos mudaram, com debounce.
+  // Guarda SEMPRE o último estado bom num ref — é ele que salvamos ao fechar
+  // (não o getSceneElements() do editor, que devolve VAZIO durante o desmonte e
+  // sobrescrevia o projeto com uma cena vazia → abria vazio no reload).
   const onChange = useCallback(
     (elements, appState, files) => {
+      latestRef.current = { elements, appState, files }
       const sig = JSON.stringify(elements)
       if (sig === lastSaved.current) return
       clearTimeout(saveTimer.current)
@@ -136,25 +143,32 @@ export default function DrawingEditor() {
     [doSave],
   )
 
-  // Salva o pendente ao sair da página (troca de rota / fechar).
+  // Salva o pendente ao sair da página usando o ÚLTIMO estado bom guardado.
   useEffect(() => {
     return () => {
-      if (saveTimer.current && apiRef.current) {
-        clearTimeout(saveTimer.current)
-        const els = apiRef.current.getSceneElements()
-        const files = apiRef.current.getFiles()
-        if (JSON.stringify(els) !== lastSaved.current) doSave(els, apiRef.current.getAppState(), files)
+      clearTimeout(saveTimer.current)
+      const latest = latestRef.current
+      if (latest && JSON.stringify(latest.elements) !== lastSaved.current) {
+        doSave(latest.elements, latest.appState, latest.files)
       }
     }
   }, [doSave])
 
-  async function saveName(v) {
+  // Renomear o projeto: atualiza o índice (banco) e, se for Drive, também
+  // renomeia a PASTA do projeto no Drive. Debounce p/ não chamar a cada tecla.
+  const nameTimer = useRef(null)
+  function saveName(v) {
     setName(v)
-    try {
-      await api.excalidraw.save(id, { name: v.trim() || t('drawings.untitled') })
-    } catch {
-      /* ignora */
-    }
+    clearTimeout(nameTimer.current)
+    nameTimer.current = setTimeout(async () => {
+      const clean = v.trim() || t('drawings.untitled')
+      try {
+        await api.excalidraw.save(id, { name: clean })
+        if (storageRef.current === 'drive' && driveFolderRef.current) await renameFile(driveFolderRef.current, clean)
+      } catch {
+        /* ignora */
+      }
+    }, 700)
   }
 
   if (initial === null) {

@@ -97,6 +97,22 @@ export async function deleteFile(fileId) {
   await driveFetch(`${FILES}/${fileId}`, { method: 'DELETE' })
 }
 
+// Renomeia um arquivo ou pasta no Drive.
+export async function renameFile(fileId, name) {
+  await driveFetch(`${FILES}/${fileId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+}
+
+// Tamanho (bytes) de um arquivo no Drive.
+export async function fileSize(fileId) {
+  const res = await driveFetch(`${FILES}/${fileId}?fields=size`)
+  const { size } = await res.json()
+  return size ? Number(size) : 0
+}
+
 // Sobe um JSON (ex.: a "planta" leve da cena) e devolve o id.
 export async function uploadJson({ name, data, parentId }) {
   return uploadFile({ name, mimeType: 'application/json', blob: new Blob([JSON.stringify(data)], { type: 'application/json' }), parentId })
