@@ -1285,6 +1285,7 @@ export default {
     subtitle: 'Gerencie sua assinatura',
     aiUsage: 'Uso de IA',
     aiPerDay: '{n} usos de IA por dia',
+    aiUnlimited: 'Usos de IA ilimitados por dia',
     usedOfToday: '{used} de {limit} hoje',
     usageSources: 'Relatórios SEO · Dobra de Nicho · Títulos · Transcrições',
     renewsDaily: 'Renova todos os dias',
@@ -1322,7 +1323,7 @@ export default {
       free: { summary: '5 gerações de IA no total', credits: '1 canal · ferramentas de texto', desc: 'Para testar a plataforma: relatórios de SEO, Dobra de Nicho e títulos por IA em até 5 gerações (não renovam), com 1 canal no pipeline.' },
       basic: { summary: '15 gerações de IA/dia', credits: '3 canais', desc: 'Relatórios de SEO/CTR, Dobra de Nicho e títulos por IA com 15 gerações por dia, renovando todos os dias, e até 3 canais no pipeline.' },
       lite: { summary: '25 gerações de IA/dia', credits: '10 canais', desc: 'Tudo do Basic com 25 gerações de IA por dia, até 10 canais no pipeline e acesso completo às ferramentas de tendências.' },
-      pro: { summary: '50 gerações de IA/dia', credits: 'Canais ilimitados', desc: 'Para operações grandes: 50 gerações de IA por dia, canais ilimitados, acesso à API e à comunidade. Renovam todos os dias.' },
+      pro: { summary: 'IA ilimitada por dia', credits: 'Canais ilimitados', desc: 'Para operações grandes: uso de IA ilimitado por dia, canais ilimitados, acesso à API e à comunidade.' },
     },
     faq: [
       { q: 'Quando posso cancelar minha assinatura?', a: 'Quando quiser. Sua assinatura permanece ativa até a data de renovação e não há multa de cancelamento.' },

@@ -1285,6 +1285,7 @@ export default {
     subtitle: 'Gestiona tu suscripción',
     aiUsage: 'Uso de IA',
     aiPerDay: '{n} usos de IA por día',
+    aiUnlimited: 'Usos de IA ilimitados por día',
     usedOfToday: '{used} de {limit} hoy',
     usageSources: 'Informes SEO · Pliegue de Nicho · Títulos · Transcripciones',
     renewsDaily: 'Se renueva todos los días',
@@ -1322,7 +1323,7 @@ export default {
       free: { summary: '5 generaciones de IA en total', credits: '1 canal · herramientas de texto', desc: 'Para probar la plataforma: informes de SEO, Pliegue de Nicho y títulos por IA en hasta 5 generaciones (no se renuevan), con 1 canal en el pipeline.' },
       basic: { summary: '15 generaciones de IA/día', credits: '3 canales', desc: 'Informes de SEO/CTR, Pliegue de Nicho y títulos por IA con 15 generaciones por día, renovándose todos los días, y hasta 3 canales en el pipeline.' },
       lite: { summary: '25 generaciones de IA/día', credits: '10 canales', desc: 'Todo lo de Basic con 25 generaciones de IA por día, hasta 10 canales en el pipeline y acceso completo a las herramientas de tendencias.' },
-      pro: { summary: '50 generaciones de IA/día', credits: 'Canales ilimitados', desc: 'Para operaciones grandes: 50 generaciones de IA por día, canales ilimitados, acceso a la API y a la comunidad. Se renuevan todos los días.' },
+      pro: { summary: 'IA ilimitada por día', credits: 'Canales ilimitados', desc: 'Para operaciones grandes: uso de IA ilimitado por día, canales ilimitados, acceso a la API y a la comunidad.' },
     },
     faq: [
       { q: '¿Cuándo puedo cancelar mi suscripción?', a: 'Cuando quieras. Tu suscripción permanece activa hasta la fecha de renovación y no hay penalización por cancelación.' },

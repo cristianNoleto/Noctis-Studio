@@ -156,7 +156,9 @@ export default function MyPlan() {
               <p className="text-[10px] text-slate-600">{p.noCard ? t('myPlan.noCard') : cycle === 'monthly' ? t('myPlan.billedMonthly') : t('myPlan.billedQuarterly')}</p>
 
               <p className="mt-3 text-xs font-semibold text-cyan-300">{t(`myPlan.plans.${p.key}.summary`)}</p>
-              <p className="mt-1 text-[11px] font-semibold text-slate-300">{t('myPlan.aiPerDay', { n: aiPerDay })}</p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-300">
+                {isFinite(aiPerDay) ? t('myPlan.aiPerDay', { n: aiPerDay }) : t('myPlan.aiUnlimited')}
+              </p>
               <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">{t(`myPlan.plans.${p.key}.desc`)}</p>
 
               <button

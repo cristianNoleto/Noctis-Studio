@@ -4,8 +4,9 @@
 
 export const PLAN_RANK = { FREE: 0, BASIC: 1, LITE: 2, PRO: 3, MASTER: 4 }
 
-// Limite de usos de IA por dia, por plano (fundador = ilimitado).
-export const AI_DAILY_LIMIT = { FREE: 2, BASIC: 8, LITE: 20, PRO: 40 }
+// Limite de usos de IA por dia, por plano. PRO é ilimitado (Infinity), assim como
+// o fundador. Os demais têm teto diário.
+export const AI_DAILY_LIMIT = { FREE: 2, BASIC: 8, LITE: 20, PRO: Infinity }
 
 // Plano mínimo para um colaborador ABRIR um workspace compartilhado.
 export const COLLAB_MIN_PLAN = 'BASIC'
@@ -30,7 +31,7 @@ export function planRank(plan) {
 
 // Limite diário de IA do usuário (fundador/MASTER = ilimitado).
 export function aiLimitFor(plan, isFounder) {
-  if (isFounder || plan === 'MASTER') return Infinity
+  if (isFounder || plan === 'MASTER' || plan === 'PRO') return Infinity
   return AI_DAILY_LIMIT[plan] ?? AI_DAILY_LIMIT.FREE
 }
 

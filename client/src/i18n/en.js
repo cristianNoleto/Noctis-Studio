@@ -1285,6 +1285,7 @@ export default {
     subtitle: 'Manage your subscription',
     aiUsage: 'AI usage',
     aiPerDay: '{n} AI uses per day',
+    aiUnlimited: 'Unlimited AI uses per day',
     usedOfToday: '{used} of {limit} today',
     usageSources: 'SEO reports · Niche Fold · Titles · Transcriptions',
     renewsDaily: 'Renews every day',
@@ -1322,7 +1323,7 @@ export default {
       free: { summary: '5 AI generations total', credits: '1 channel · text tools', desc: 'To test the platform: SEO reports, Niche Fold and AI titles in up to 5 generations (non-renewing), with 1 channel in the pipeline.' },
       basic: { summary: '15 AI generations/day', credits: '3 channels', desc: 'SEO/CTR reports, Niche Fold and AI titles with 15 generations per day, renewing daily, and up to 3 channels in the pipeline.' },
       lite: { summary: '25 AI generations/day', credits: '10 channels', desc: 'Everything in Basic with 25 AI generations per day, up to 10 channels in the pipeline and full access to the trends tools.' },
-      pro: { summary: '50 AI generations/day', credits: 'Unlimited channels', desc: 'For large operations: 50 AI generations per day, unlimited channels, API and community access. Renews every day.' },
+      pro: { summary: 'Unlimited AI per day', credits: 'Unlimited channels', desc: 'For large operations: unlimited AI usage per day, unlimited channels, API and community access.' },
     },
     faq: [
       { q: 'When can I cancel my subscription?', a: 'Whenever you want. Your subscription stays active until the renewal date and there is no cancellation fee.' },

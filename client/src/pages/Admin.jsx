@@ -74,7 +74,7 @@ export default function Admin() {
 // Membros (produção/Supabase) — lista real de usuários da plataforma, direto
 // do site: mudar plano, suspender/reativar e excluir contas.
 // ---------------------------------------------------------------------------
-const PLAN_OPTIONS = ['FREE', 'BASIC', 'LITE', 'PRO', 'MASTER']
+const PLAN_OPTIONS = ['FREE', 'BASIC', 'LITE', 'PRO']
 
 function SupabaseMembersTab() {
   const { t } = useI18n()
@@ -376,10 +376,10 @@ function LocalMembersTab() {
               </p>
               <p className="truncate text-xs text-slate-500">{email}</p>
             </div>
-            <select className={`${inputCls} !w-32 !py-1.5 text-xs`} value={u.plan || 'MASTER'} onChange={(e) => setPlan(email, e.target.value)}>
-              <option value="FREE">FREE</option>
-              <option value="PRO">PRO</option>
-              <option value="MASTER">MASTER</option>
+            <select className={`${inputCls} !w-32 !py-1.5 text-xs`} value={u.plan || 'FREE'} onChange={(e) => setPlan(email, e.target.value)}>
+              {PLAN_OPTIONS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
             </select>
             {!isThisAdmin && (
               <>
