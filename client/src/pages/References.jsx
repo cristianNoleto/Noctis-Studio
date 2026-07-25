@@ -175,7 +175,7 @@ function ReferenceCard({ reference: r, readOnly, linkedName, onEdit }) {
       <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => setMenuOpen(false)} width={176}>
         {!readOnly && <MenuItem icon={Pencil} label={t('references.menuEdit')} onClick={() => { setMenuOpen(false); onEdit() }} />}
         <MenuItem icon={ExternalLink} label={t('references.menuOpen')} onClick={() => { setMenuOpen(false); window.open(url, '_blank') }} />
-        {!readOnly && <MenuItem icon={Trash2} label={t('references.menuDelete')} danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />}
+        {db.canDelete('references', r) && <MenuItem icon={Trash2} label={t('references.menuDelete')} danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />}
       </AnchoredMenu>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">

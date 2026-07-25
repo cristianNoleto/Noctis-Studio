@@ -29,6 +29,12 @@ const MANAGED = [
   'boardCards', 'checklistItems', 'referenceFolders', 'referenceChannels', 'promptCategories',
   'prompts', 'transcriptions', 'nicheAnalyses',
 ]
+// Coleções com exclusão explícita/persistente no servidor (o migrate é upsert-only).
+// O servidor valida a autoria: colaborador só apaga o que ele mesmo criou.
+const CLOUD_DELETABLE = new Set([
+  'channels', 'videos', 'referenceFolders', 'referenceChannels',
+  'boardSpaces', 'boardColumns', 'boardCards', 'prompts', 'promptCategories',
+])
 
 const emptyState = () => ({
   channels: [],
@@ -263,6 +269,18 @@ export const db = {
   canEdit(area) {
     return activeAccess.self || activeAccess[area] === 'edit'
   },
+  // Pode EXCLUIR este item? Precisa poder editar a área; o dono apaga qualquer
+  // coisa; um colaborador editor só apaga o que ELE criou (createdBy = e-mail
+  // dele). Itens sem createdBy (criados pelo dono ou antes do acesso) → só o dono.
+  canDelete(area, record) {
+    if (!this.canEdit(area)) return false
+    if (activeAccess.self) return true
+    return !!record && !!record.createdBy && record.createdBy === selfEmail
+  },
+  // E-mail do usuário logado (autor das criações no workspace ativo).
+  selfEmail() {
+    return selfEmail
+  },
   // Troca o workspace ativo (próprio ou de um dono que me deu acesso).
   switchWorkspace(owner) {
     const next = owner && owner !== selfEmail ? owner : null
@@ -293,7 +311,10 @@ export const db = {
     return this.all(col).find((r) => r.id === id) || null
   },
   insert(col, row) {
-    const record = { id: crypto.randomUUID(), createdAt: Date.now(), ...row }
+    // createdBy = quem está criando (o e-mail do workspace ativo). É a base da
+    // exclusão por autor: no workspace de outro dono, um colaborador editor só
+    // apaga o que ELE criou. Itens antigos sem createdBy = do dono.
+    const record = { id: crypto.randomUUID(), createdAt: Date.now(), createdBy: selfEmail || undefined, ...row }
     state[col] = [...this.all(col), record]
     persist()
     return record
@@ -306,6 +327,12 @@ export const db = {
   remove(col, id) {
     state[col] = this.all(col).filter((r) => r.id !== id)
     persist()
+    // Exclusão PERSISTENTE no servidor (o migrate só faz upsert, nunca apaga).
+    // O servidor valida a autoria. Filhos (roteiros, cards, refs…) caem por
+    // CASCADE, então basta apagar a linha-pai. Fire-and-forget.
+    if (cloud && cloudActive && CLOUD_DELETABLE.has(col)) {
+      api.workspace.remove(col, id, activeOwner || undefined).catch(() => {})
+    }
   },
   removeWhere(col, predicate) {
     state[col] = this.all(col).filter((r) => !predicate(r))

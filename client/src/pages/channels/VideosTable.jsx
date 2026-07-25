@@ -480,6 +480,7 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, canCreat
   const db = useDb()
   const { t } = useI18n()
   const report = db.all('seoReports').filter((r) => r.videoId === v.id).sort((a, b) => b.createdAt - a.createdAt)[0]
+  const canDeleteVideo = db.canDelete('videos', v) // colaborador só apaga o que ele criou
   const fileRef = useRef(null)
   const [zoom, setZoom] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -662,7 +663,7 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, canCreat
             </RowBtn>
           )
         )}
-        {!readOnly && (
+        {canDeleteVideo && (
           <RowBtn title={t('videos.delete')} danger onClick={onDelete}>
             <Trash2 size={14} />
           </RowBtn>

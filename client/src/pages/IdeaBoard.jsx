@@ -203,9 +203,11 @@ function Column({ column, cards, readOnly, onRename, onDelete }) {
             <button onClick={onRename} title={t('ideaBoard.configColumn')} className="text-slate-600 hover:text-slate-300">
               <Settings2 size={13} />
             </button>
-            <button onClick={onDelete} title={t('ideaBoard.deleteColumnTitle')} className="text-slate-600 hover:text-red-400">
-              <Trash2 size={13} />
-            </button>
+            {db.canDelete('board', column) && (
+              <button onClick={onDelete} title={t('ideaBoard.deleteColumnTitle')} className="text-slate-600 hover:text-red-400">
+                <Trash2 size={13} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -263,6 +265,7 @@ function Card({ card, readOnly, onMoveUp, onMoveDown, isFirst, isLast }) {
   const db = useDb()
   const { t } = useI18n()
   const isOwner = db.access().self // só o dono controla a visibilidade do card
+  const canDeleteCard = db.canDelete('board', card) // colaborador só apaga o card que ele criou
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id, disabled: readOnly })
   const dnd = readOnly ? {} : { ...listeners, ...attributes }
   const [editing, setEditing] = useState(!readOnly && !card.content && card.type === 'nota' && !card.title)
@@ -305,7 +308,7 @@ function Card({ card, readOnly, onMoveUp, onMoveDown, isFirst, isLast }) {
             {card.collapsed ? <Plus size={12} /> : <Minus size={12} />}
           </button>
           {isOwner && <CardVisibility card={card} />}
-          {!readOnly && (
+          {canDeleteCard && (
             <button
               onClick={() => db.remove('boardCards', card.id)}
               className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
@@ -372,14 +375,14 @@ function Card({ card, readOnly, onMoveUp, onMoveDown, isFirst, isLast }) {
           </button>
           {isOwner && <CardVisibility card={card} />}
           {!readOnly && (
-            <>
-              <button onClick={() => setChecklistOpen(true)} className="text-slate-600 opacity-0 transition-opacity hover:text-slate-300 group-hover:opacity-100" title={t('ideaBoard.edit')}>
-                <Settings2 size={12} />
-              </button>
-              <button onClick={() => db.remove('boardCards', card.id)} className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100" title={t('ideaBoard.delete')}>
-                <X size={12} />
-              </button>
-            </>
+            <button onClick={() => setChecklistOpen(true)} className="text-slate-600 opacity-0 transition-opacity hover:text-slate-300 group-hover:opacity-100" title={t('ideaBoard.edit')}>
+              <Settings2 size={12} />
+            </button>
+          )}
+          {canDeleteCard && (
+            <button onClick={() => db.remove('boardCards', card.id)} className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100" title={t('ideaBoard.delete')}>
+              <X size={12} />
+            </button>
           )}
         </div>
         <p className="mt-2 truncate text-xs font-semibold text-slate-200">{card.title}</p>

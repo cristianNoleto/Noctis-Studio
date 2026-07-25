@@ -42,28 +42,28 @@ const CONFIG = [
     required: { name: 'Canal' } },
   { key: 'channelButtons', table: 'channel_custom_buttons', parent: { field: 'channelId', col: 'channel_id' },
     cols: { label: 'label', url: 'url', position: 'position' }, required: { label: '', url: '', position: 0 } },
-  { key: 'videos', table: 'channel_videos', parent: { field: 'channelId', col: 'channel_id' },
+  { key: 'videos', table: 'channel_videos', parent: { field: 'channelId', col: 'channel_id' }, author: true,
     cols: { title: 'title', description: 'description', tags: 'tags', thumbnailUrl: 'thumbnail_url', youtubeUrl: 'youtube_url', steps: 'steps', videoNumber: 'video_number', publishedAt: 'published_at', imported: 'imported', thumbnailConcept: 'thumbnail_concept', createdAt: 'created_at' },
     required: { title: 'Sem título' } },
   { key: 'scripts', table: 'video_scripts', parent: { field: 'videoId', col: 'video_id' },
     cols: { content: 'content' }, hasExtra: false },
   { key: 'seoReports', table: 'video_seo_reports', parent: { field: 'videoId', col: 'video_id' },
     cols: { score: 'score', report: 'report_json', createdAt: 'created_at' } },
-  { key: 'boardSpaces', table: 'board_spaces', owner: 'user_id',
+  { key: 'boardSpaces', table: 'board_spaces', owner: 'user_id', author: true,
     cols: { name: 'name', position: 'position' }, required: { name: 'Espaço' } },
-  { key: 'boardColumns', table: 'board_columns', owner: 'user_id',
+  { key: 'boardColumns', table: 'board_columns', owner: 'user_id', author: true,
     cols: { title: 'title', color: 'color', position: 'position', spaceId: 'space_id', channelId: 'channel_id' }, required: { title: 'Coluna' } },
-  { key: 'boardCards', table: 'board_cards', parent: { field: 'columnId', col: 'column_id' },
+  { key: 'boardCards', table: 'board_cards', parent: { field: 'columnId', col: 'column_id' }, author: true,
     cols: { title: 'title', color: 'color', position: 'position', source: 'source', sourceRef: 'source_ref', visibility: 'visibility', allowedEmails: 'allowed_emails', createdAt: 'created_at' }, required: { title: '' } },
   { key: 'checklistItems', table: 'board_card_checklist_items', parent: { field: 'cardId', col: 'card_id' },
     cols: { label: 'label', done: 'done', position: 'position' }, required: { label: '', position: 0 } },
-  { key: 'referenceFolders', table: 'reference_folders', owner: 'user_id',
+  { key: 'referenceFolders', table: 'reference_folders', owner: 'user_id', author: true,
     cols: { name: 'name', channelId: 'channel_id', createdAt: 'created_at' }, required: { name: 'Pasta' } },
-  { key: 'referenceChannels', table: 'reference_channels', parent: { field: 'folderId', col: 'folder_id' },
+  { key: 'referenceChannels', table: 'reference_channels', parent: { field: 'folderId', col: 'folder_id' }, author: true,
     cols: { youtubeUrl: 'youtube_url', youtubeChannelId: 'youtube_channel_id', niche: 'niche', notes: 'notes', cachedStats: 'cached_stats', visibility: 'visibility', allowedEmails: 'allowed_emails', createdAt: 'created_at' }, required: { youtubeUrl: '' } },
-  { key: 'promptCategories', table: 'prompt_categories', owner: 'user_id',
+  { key: 'promptCategories', table: 'prompt_categories', owner: 'user_id', author: true,
     cols: { name: 'name', position: 'position' }, required: { name: 'Categoria' } },
-  { key: 'prompts', table: 'prompts', owner: 'user_id',
+  { key: 'prompts', table: 'prompts', owner: 'user_id', author: true,
     cols: { name: 'name', content: 'content', notes: 'notes', channelId: 'channel_id', categoryId: 'category_id', suggestedLanguage: 'suggested_language', isFavorite: 'is_favorite', createdAt: 'created_at' }, required: { name: 'Prompt', content: '' } },
   { key: 'transcriptions', table: 'transcriptions', owner: 'user_id',
     cols: { sourceType: 'source_type', sourceUrl: 'source_url', status: 'status', result: 'result_json', createdAt: 'created_at' }, required: { sourceType: 'upload' } },
@@ -107,6 +107,7 @@ function toRow(rec, cfg, ownerId) {
   }
   for (const [k, v] of Object.entries(rec)) {
     if (k === 'id') continue
+    if (k === 'createdBy') continue // autoria é definida no SERVIDOR (anti-spoof), nunca pelo client
     if (cfg.parent && k === cfg.parent.field) continue
     const col = cfg.cols[k]
     if (col) row[col] = FK_FIELDS.has(k) ? toUuid(v) : TS_COLS.has(col) ? toIso(v) : v
@@ -138,6 +139,7 @@ function toRec(row, cfg) {
     }
   }
   if (row.extra && typeof row.extra === 'object') Object.assign(rec, row.extra)
+  if (row.created_by !== undefined) rec.createdBy = row.created_by // autoria por item
   return rec
 }
 
@@ -219,6 +221,15 @@ router.post('/migrate', async (req, res) => {
     }
     const prev = inserted[cfg.table] || new Set()
     if (!rows.length) { summary[cfg.key] = 0; inserted[cfg.table] = prev; continue }
+    // Autoria por item (created_by): definida no SERVIDOR. Linha nova → quem está
+    // gravando; linha já existente → PRESERVA o autor original (impede que um
+    // colaborador se aposse de itens do dono ao editá-los). NULL = do dono.
+    if (cfg.author) {
+      const meEmail = (user.email || '').toLowerCase()
+      const { data: existing = [] } = await supa.from(cfg.table).select('id, created_by').in('id', rows.map((r) => r.id))
+      const prevBy = new Map((existing || []).map((e) => [e.id, e.created_by]))
+      for (const r of rows) r.created_by = prevBy.has(r.id) ? (prevBy.get(r.id) ?? null) : meEmail
+    }
     const { error } = await supa.from(cfg.table).upsert(rows, { onConflict: 'id' })
     if (!error) for (const r of rows) prev.add(r.id)
     inserted[cfg.table] = prev
@@ -227,6 +238,53 @@ router.post('/migrate', async (req, res) => {
   // limpa chaves _orfaos vazias
   for (const k of Object.keys(summary)) if (summary[k] === undefined) delete summary[k]
   res.json({ ok: true, owner: access.owner, self: access.self, summary })
+})
+
+// Coleções que podem ser apagadas via endpoint explícito. area = permissão
+// necessária no workspace; ownerOnly = só o dono (ex.: canais). As FKs filhas
+// têm ON DELETE CASCADE, então apagar a linha-pai limpa os filhos sozinho.
+const DELETABLE = {
+  channels: { table: 'channels', ownerOnly: true },
+  videos: { table: 'channel_videos', area: 'videos' },
+  referenceFolders: { table: 'reference_folders', area: 'references' },
+  referenceChannels: { table: 'reference_channels', area: 'references' },
+  boardSpaces: { table: 'board_spaces', area: 'board' },
+  boardColumns: { table: 'board_columns', area: 'board' },
+  boardCards: { table: 'board_cards', area: 'board' },
+  prompts: { table: 'prompts', area: 'skills' },
+  promptCategories: { table: 'prompt_categories', area: 'skills' },
+}
+
+// POST /workspace/delete { collection, id } [?owner=] — exclusão explícita e
+// PERSISTENTE (o migrate é upsert-only, nunca apaga). Regra de autoria: o dono
+// apaga qualquer item; o colaborador editor só apaga o que ELE criou
+// (created_by = e-mail dele). NULL/diferente = criado pelo dono → 403.
+router.post('/delete', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const access = await resolveAccess(supa, user, req.query.owner)
+  if (!access) return res.status(403).json({ error: 'forbidden' })
+  const { collection, id } = req.body || {}
+  const cfg = DELETABLE[collection]
+  if (!cfg || id == null) return res.status(400).json({ error: 'bad_request' })
+  // Permissão de área. Canais = só o dono.
+  const canEditArea = cfg.ownerOnly ? access.self : access.self || access[cfg.area] === 'edit'
+  if (!canEditArea) return res.status(403).json({ error: 'forbidden' })
+  const rid = toUuid(id)
+  const { data: row } = await supa.from(cfg.table).select('created_by').eq('id', rid).maybeSingle()
+  if (!row) return res.json({ ok: true, already: true }) // já não existe
+  // Colaborador só apaga o que ele mesmo criou.
+  if (!access.self && !cfg.ownerOnly) {
+    const me = (user.email || '').toLowerCase()
+    if (!row.created_by || String(row.created_by).toLowerCase() !== me) {
+      return res.status(403).json({ error: 'forbidden_not_author', message: 'Você só pode excluir itens que você mesmo criou.' })
+    }
+  }
+  const { error } = await supa.from(cfg.table).delete().eq('id', rid)
+  if (error) return res.status(500).json({ error: 'db_error', message: error.message })
+  res.json({ ok: true })
 })
 
 // Resolve o id (auth) de um e-mail. Base pequena → listUsers.

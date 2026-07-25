@@ -184,6 +184,7 @@ export default function DrawingsGallery() {
               onOpen={() => navigate(`/desenhos/${s.id}`)}
               isOwner={isOwnerSelf}
               canEdit={db.canEdit('drawings')}
+              canDeleteScene={isOwnerSelf || (db.canEdit('drawings') && !!s.createdBy && s.createdBy === db.selfEmail())}
               onRename={() => rename(s)}
               onDelete={() => setToDelete(s)}
               onLinkVideo={(vid) => linkVideo(s, vid)}
@@ -204,7 +205,7 @@ export default function DrawingsGallery() {
   )
 }
 
-function SceneCard({ scene: s, videos, isOwner, canEdit, onOpen, onRename, onDelete, onLinkVideo, onSetVisibility }) {
+function SceneCard({ scene: s, videos, isOwner, canEdit, canDeleteScene, onOpen, onRename, onDelete, onLinkVideo, onSetVisibility }) {
   const { t } = useI18n()
   const [menuOpen, setMenuOpen] = useState(false)
   const [mode, setMode] = useState(null) // null | 'link' | 'visibility'
@@ -287,7 +288,7 @@ function SceneCard({ scene: s, videos, isOwner, canEdit, onOpen, onRename, onDel
                 <Pencil size={13} /> {t('drawings.rename')}
               </button>
             )}
-            {/* Vincular a vídeo, visibilidade e apagar são SOMENTE do dono. */}
+            {/* Vincular a vídeo e visibilidade são SOMENTE do dono. */}
             {isOwner && (
               <>
                 <button onClick={() => setMode('link')} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
@@ -296,10 +297,13 @@ function SceneCard({ scene: s, videos, isOwner, canEdit, onOpen, onRename, onDel
                 <button onClick={() => setMode('visibility')} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
                   <Eye size={13} /> {t('drawings.visibility')}
                 </button>
-                <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
-                  <Trash2 size={13} /> {t('drawings.delete')}
-                </button>
               </>
+            )}
+            {/* Apagar: o dono apaga qualquer um; o editor só o storyboard que ELE criou. */}
+            {canDeleteScene && (
+              <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
+                <Trash2 size={13} /> {t('drawings.delete')}
+              </button>
             )}
             {!canEdit && !isOwner && (
               <p className="px-2.5 py-1.5 text-xs text-slate-500">{t('drawings.viewOnly')}</p>

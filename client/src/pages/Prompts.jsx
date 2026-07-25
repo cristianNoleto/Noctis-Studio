@@ -483,6 +483,7 @@ export default function Prompts() {
                   category={categories.find((c) => c.id === p.categoryId)}
                   channelName={p.channelId ? channels.find((c) => c.id === p.channelId)?.name : null}
                   canEdit={canEditPrompts}
+                  canDelete={db.canDelete('skills', p)}
                   onEdit={() => setEditPrompt(p)}
                   onDelete={() => setDeletePrompt(p)}
                 />
@@ -1046,7 +1047,7 @@ function CatPill({ active, onClick, label, count }) {
   )
 }
 
-function PromptCard({ prompt: p, category, channelName, canEdit, onEdit, onDelete }) {
+function PromptCard({ prompt: p, category, channelName, canEdit, canDelete, onEdit, onDelete }) {
   const db = useDb()
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
@@ -1092,10 +1093,12 @@ function PromptCard({ prompt: p, category, channelName, canEdit, onEdit, onDelet
               <Pencil size={12} />
               {t('prompts.edit')}
             </button>
-            <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
-              <Trash2 size={12} />
-              {t('prompts.delete')}
-            </button>
+            {canDelete && (
+              <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
+                <Trash2 size={12} />
+                {t('prompts.delete')}
+              </button>
+            )}
           </div>
         )}
 
@@ -1285,9 +1288,11 @@ function CategoriesModal({ open, onClose, categories }) {
         {categories.map((c) => (
           <li key={c.id} className="flex items-center justify-between rounded-lg bg-slate-950 px-3 py-2 text-sm text-slate-300">
             {c.name}
-            <button onClick={() => db.remove('promptCategories', c.id)} className="text-slate-600 hover:text-red-400" title={t('prompts.deleteCategory')}>
-              <X size={14} />
-            </button>
+            {db.canDelete('skills', c) && (
+              <button onClick={() => db.remove('promptCategories', c.id)} className="text-slate-600 hover:text-red-400" title={t('prompts.deleteCategory')}>
+                <X size={14} />
+              </button>
+            )}
           </li>
         ))}
       </ul>

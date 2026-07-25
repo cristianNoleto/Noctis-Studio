@@ -46,6 +46,7 @@ function toClient(row) {
     videoId: row.video_id || null,
     visibility: row.visibility || 'workspace',
     allowedEmails: row.allowed_emails || [],
+    createdBy: row.created_by || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -65,7 +66,7 @@ router.get('/', async (req, res) => {
   if (!ownerId) return res.status(404).json({ error: 'owner_not_found' })
   const { data = [], error } = await supa
     .from('excalidraw_scenes')
-    .select('id, name, thumbnail, storage, drive_folder_id, drive_scene_file_id, size_bytes, video_id, visibility, allowed_emails, created_at, updated_at')
+    .select('id, name, thumbnail, storage, drive_folder_id, drive_scene_file_id, size_bytes, video_id, visibility, allowed_emails, created_by, created_at, updated_at')
     .eq('user_id', ownerId)
     .order('updated_at', { ascending: false })
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
@@ -126,6 +127,7 @@ router.post('/', async (req, res) => {
   const isDrive = storage === 'drive'
   const row = {
     user_id: ownerId,
+    created_by: (user.email || '').toLowerCase(), // quem REALMENTE criou (pode ser o editor, mesmo que a cena viva no Drive do dono)
     name: (name || 'Sem título').slice(0, 120),
     storage: isDrive ? 'drive' : 'db',
     scene: isDrive ? null : scene || {},
@@ -167,13 +169,20 @@ router.put('/:id', async (req, res) => {
   res.json({ scene: toClient(data) })
 })
 
-// DELETE /:id
+// DELETE /:id — o DONO da cena (user_id) apaga qualquer uma; um colaborador só
+// apaga a cena que ELE mesmo criou (created_by = e-mail dele). Cenas antigas sem
+// created_by, ou criadas pelo dono, só o dono apaga.
 router.delete('/:id', async (req, res) => {
   const supa = requireSupabase(res)
   if (!supa) return
   const user = await getUser(req, supa)
   if (!user) return res.status(401).json({ error: 'unauthorized' })
-  const { error } = await supa.from('excalidraw_scenes').delete().eq('id', req.params.id).eq('user_id', user.id)
+  const { data: scene } = await supa.from('excalidraw_scenes').select('user_id, created_by').eq('id', req.params.id).maybeSingle()
+  if (!scene) return res.json({ ok: true, already: true })
+  const isOwner = scene.user_id === user.id
+  const isAuthor = scene.created_by && String(scene.created_by).toLowerCase() === (user.email || '').toLowerCase()
+  if (!isOwner && !isAuthor) return res.status(403).json({ error: 'forbidden_not_author', message: 'Você só pode excluir storyboards que você mesmo criou.' })
+  const { error } = await supa.from('excalidraw_scenes').delete().eq('id', req.params.id)
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
   res.json({ ok: true })
 })
