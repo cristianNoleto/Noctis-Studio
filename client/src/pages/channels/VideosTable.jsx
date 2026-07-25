@@ -125,7 +125,10 @@ export default function VideosTable({ channelId, channel }) {
     if (creatingSb) return
     setCreatingSb(video.id)
     try {
-      const scene = await createDrawing(video.title || t('videos.storyboard'), { videoId: video.id, owner: db.activeWorkspace() })
+      // Nome do storyboard no formato "Vídeo X - Título" (número da gestão de canais).
+      const prefix = video.videoNumber != null ? `${t('videos.videoNum', { n: video.videoNumber })} - ` : ''
+      const sbName = `${prefix}${video.title || t('videos.storyboard')}`.slice(0, 120)
+      const scene = await createDrawing(sbName, { videoId: video.id, owner: db.activeWorkspace() })
       navigate(`/desenhos/${scene.id}`)
     } catch {
       setCreatingSb(null)

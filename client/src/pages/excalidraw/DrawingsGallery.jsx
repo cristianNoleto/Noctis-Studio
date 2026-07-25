@@ -11,6 +11,12 @@ import { AnchoredMenu } from '../../components/AnchoredMenu'
 import { VisibilityControl, VisibilityBadge } from '../../components/ItemVisibility'
 import { Eye } from 'lucide-react'
 
+// Rótulo do vídeo com o número da gestão de canais: "Vídeo X — Título".
+function videoLabel(v, t) {
+  const prefix = v.videoNumber != null ? `${t('videos.videoNum', { n: v.videoNumber })} — ` : ''
+  return `${prefix}${v.title || ''}`
+}
+
 // Formata bytes em KB/MB/GB para mostrar o tamanho do projeto.
 function formatSize(bytes) {
   if (!bytes) return null
@@ -230,7 +236,7 @@ function SceneCard({ scene: s, videos, isOwner, canEdit, onOpen, onRename, onDel
             {linkedVideo && (
               <span className="flex min-w-0 items-center gap-1 truncate rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-300">
                 <Film size={10} className="shrink-0" />
-                <span className="truncate">{linkedVideo.title}</span>
+                <span className="truncate">{videoLabel(linkedVideo, t)}</span>
               </span>
             )}
             <VisibilityBadge visibility={s.visibility} />
@@ -252,16 +258,18 @@ function SceneCard({ scene: s, videos, isOwner, canEdit, onOpen, onRename, onDel
             {videos.length === 0 ? (
               <p className="px-2.5 py-1.5 text-xs text-slate-500">{t('drawings.noVideos')}</p>
             ) : (
-              videos.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => { closeMenu(); onLinkVideo(v.id) }}
-                  className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-slate-800 ${v.id === s.videoId ? 'text-cyan-300' : 'text-slate-300'}`}
-                >
-                  <Film size={12} className="shrink-0" />
-                  <span className="truncate">{v.title}</span>
-                </button>
-              ))
+              [...videos]
+                .sort((a, b) => (a.videoNumber ?? 0) - (b.videoNumber ?? 0))
+                .map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => { closeMenu(); onLinkVideo(v.id) }}
+                    className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-slate-800 ${v.id === s.videoId ? 'text-cyan-300' : 'text-slate-300'}`}
+                  >
+                    <Film size={12} className="shrink-0" />
+                    <span className="truncate">{videoLabel(v, t)}</span>
+                  </button>
+                ))
             )}
           </div>
         ) : mode === 'visibility' ? (
