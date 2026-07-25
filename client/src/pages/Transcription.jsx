@@ -4,6 +4,8 @@ import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
 import { api, apiErrorMessage } from '../lib/api'
 import { btnGhost, btnPrimary } from '../components/ui'
+import { AiLimitBanner } from '../components/PlanGate'
+import { useAiLimit } from '../lib/useAiLimit'
 import { downloadFile, generateSrt } from '../lib/text'
 
 const SEVEN_DAYS = 7 * 24 * 3600 * 1000
@@ -100,6 +102,7 @@ function srtByWord(words, n, formato) {
 export default function Transcription() {
   const db = useDb()
   const { t } = useI18n()
+  const aiLimit = useAiLimit()
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -149,6 +152,10 @@ export default function Transcription() {
 
   async function handleFile(file) {
     if (!file) return
+    if (!aiLimit.ok) {
+      setError(t('plans.aiLimit.reached', { used: aiLimit.used, limit: aiLimit.limit }))
+      return
+    }
     setError('')
     setUploading(true)
     try {
@@ -170,6 +177,8 @@ export default function Transcription() {
       </div>
 
       {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
+
+      <AiLimitBanner />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* ------------------------- Coluna esquerda ------------------------- */}

@@ -29,6 +29,8 @@ import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
 import { api, apiErrorMessage } from '../../lib/api'
 import { createDrawing } from '../../lib/drawings'
+import { useAiLimit } from '../../lib/useAiLimit'
+import { AiLimitBanner } from '../../components/PlanGate'
 import { importChannelVideos } from '../../lib/importVideos'
 import { deriveStatus, isPosted, REQUIRED_STEPS } from '../../lib/videoStatus'
 import { Modal, inputCls, btnPrimary, btnGhost, ScoreRing, ConfirmDialog, EmptyState } from '../../components/ui'
@@ -88,6 +90,7 @@ export default function VideosTable({ channelId, channel }) {
   const db = useDb()
   const { t } = useI18n()
   const navigate = useNavigate()
+  const aiLimit = useAiLimit() // limite diário de IA por plano
   // Colaborador com acesso só "Ver" → tudo em modo leitura (sem editar/salvar).
   const readOnly = !db.canEdit('videos')
 
@@ -218,7 +221,9 @@ export default function VideosTable({ channelId, channel }) {
       batchStop.current = true
       return
     }
-    const targets = videos.filter((v) => !reportedIds.has(v.id))
+    if (!aiLimit.ok) return // limite diário de IA atingido
+    // Não passa do limite diário: analisa no máximo os usos restantes.
+    const targets = videos.filter((v) => !reportedIds.has(v.id)).slice(0, aiLimit.unlimited ? Infinity : aiLimit.remaining)
     if (!targets.length) return
     batchStop.current = false
     setBatch({ running: true, done: 0, total: targets.length, current: targets[0].title, errors: 0 })
@@ -294,7 +299,7 @@ export default function VideosTable({ channelId, channel }) {
         {!readOnly && videos.length > 0 && (
           <button
             onClick={analyzeAll}
-            disabled={!batch?.running && pendingReports === 0}
+            disabled={(!batch?.running && pendingReports === 0) || (!batch?.running && !aiLimit.ok)}
             title={pendingReports === 0 && !batch?.running ? t('videos.analyzeAllDone') : t('videos.analyzeAllHint')}
             className={`${btnGhost} flex items-center gap-2 text-xs disabled:cursor-not-allowed disabled:opacity-50`}
           >
@@ -314,6 +319,8 @@ export default function VideosTable({ channelId, channel }) {
           </button>
         )}
       </div>
+
+      <AiLimitBanner />
 
       {/* Progresso da análise em lote */}
       {batch && (
@@ -973,12 +980,14 @@ function LinkYoutubeModal({ open, onClose, video }) {
 function SeoReportModal({ open, onClose, video, channel, readOnly }) {
   const db = useDb()
   const { t } = useI18n()
+  const aiLimit = useAiLimit()
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
 
   const report = video ? db.all('seoReports').filter((r) => r.videoId === video.id).sort((a, b) => b.createdAt - a.createdAt)[0] : null
 
   async function generate() {
+    if (!aiLimit.ok) return
     setGenerating(true)
     setError('')
     try {
@@ -1004,11 +1013,12 @@ function SeoReportModal({ open, onClose, video, channel, readOnly }) {
         <div className="py-6 text-center">
           <p className="text-sm text-slate-500">{readOnly ? t('videos.seo.none') : t('videos.seo.intro')}</p>
           {!readOnly && (
-            <button className={`${btnPrimary} mt-4 inline-flex items-center gap-2`} onClick={generate}>
+            <button className={`${btnPrimary} mt-4 inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50`} onClick={generate} disabled={!aiLimit.ok}>
               <Sparkles size={15} />
               {t('videos.seo.generate')}
             </button>
           )}
+          {!readOnly && <div className="mt-3"><AiLimitBanner /></div>}
           {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
         </div>
       )}

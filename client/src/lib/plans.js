@@ -27,6 +27,12 @@ export function planRank(plan) {
   return PLAN_RANK[plan] ?? 0
 }
 
+// Limite diário de IA do usuário (fundador/MASTER = ilimitado).
+export function aiLimitFor(plan, isFounder) {
+  if (isFounder || plan === 'MASTER') return Infinity
+  return AI_DAILY_LIMIT[plan] ?? AI_DAILY_LIMIT.FREE
+}
+
 // O usuário (fundador ou plano) atinge o plano mínimo exigido?
 export function meetsPlan(plan, isFounder, min) {
   return !!isFounder || planRank(plan) >= (PLAN_RANK[min] ?? 0)

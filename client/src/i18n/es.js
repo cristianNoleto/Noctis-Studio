@@ -5,6 +5,10 @@ export default {
       current: 'Tu plan actual: {plan}',
       cta: 'Ver planes',
     },
+    aiLimit: {
+      reached: 'Límite diario de IA alcanzado ({used}/{limit}). Vuelve mañana o mejora tu plan para usar más.',
+      cta: 'Mejorar plan',
+    },
     features: {
       collabWorkspace: { name: 'Workspace compartido', desc: 'Para acceder al workspace que alguien te compartió, necesitas un plan activo. Suscríbete para colaborar en canales, referencias, tablero y dibujos.' },
       mediaBank: { name: 'Vídeos e Imágenes', desc: 'Tu banco de medios central: guarda y organiza imágenes y vídeos de referencia de tus canales en un solo lugar.' },

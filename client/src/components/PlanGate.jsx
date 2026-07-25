@@ -4,7 +4,24 @@ import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
 import { PAGE_GATE, meetsPlan, planRank, COLLAB_MIN_PLAN, planLabel } from '../lib/plans'
+import { useAiLimit } from '../lib/useAiLimit'
 import { btnPrimary } from './ui'
+
+// Aviso (com upgrade) quando o limite diário de IA foi atingido. Renderize perto
+// das ações de IA; some sozinho quando ainda há usos disponíveis.
+export function AiLimitBanner() {
+  const { t } = useI18n()
+  const { ok, used, limit } = useAiLimit()
+  if (ok) return null
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
+      <span className="text-amber-300">{t('plans.aiLimit.reached', { used, limit })}</span>
+      <Link to="/meu-plano" className="shrink-0 font-semibold text-cyan-300 hover:underline">
+        {t('plans.aiLimit.cta')}
+      </Link>
+    </div>
+  )
+}
 
 // Envolve uma página: se o plano do usuário não alcança o mínimo, mostra um
 // cartão de upgrade (explica pra que serve) em vez do conteúdo. Fundador passa

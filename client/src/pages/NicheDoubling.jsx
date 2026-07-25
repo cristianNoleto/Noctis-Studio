@@ -22,6 +22,8 @@ import { inputCls, btnPrimary, btnGhost, Drawer, formatCompact } from '../compon
 import { PrivacyScope, PageEye, Masked, RestrictedThumb } from '../components/privacy'
 import { downloadFile } from '../lib/text'
 import { useI18n } from '../i18n'
+import { useAiLimit } from '../lib/useAiLimit'
+import { AiLimitBanner } from '../components/PlanGate'
 
 // Normaliza análises antigas (schema v1: dna/doubling em array) para o formato atual.
 function normalizeResult(result) {
@@ -58,6 +60,7 @@ function timeAgo(ts, t) {
 export default function NicheDoubling() {
   const db = useDb()
   const { t } = useI18n()
+  const aiLimit = useAiLimit()
   const [params] = useSearchParams()
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -84,6 +87,12 @@ export default function NicheDoubling() {
       const channel = await api.youtube.lookupChannel(input)
 
       const cached = db.all('nicheAnalyses').find((h) => h.sourceChannelId === channel.id)
+      // Só bloqueia o limite quando VAI chamar a IA (análise em cache não conta).
+      if ((!cached || force) && !aiLimit.ok) {
+        setError(t('plans.aiLimit.reached', { used: aiLimit.used, limit: aiLimit.limit }))
+        setLoading(false)
+        return
+      }
       if (cached && !force) {
         setCurrentId(cached.id)
         setLoading(false)
@@ -301,11 +310,12 @@ export default function NicheDoubling() {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input className={`${inputCls} !pl-9`} placeholder={t('doubling.placeholder')} value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
-          <button type="submit" className={`${btnPrimary} flex shrink-0 items-center gap-2`} disabled={loading}>
+          <button type="submit" className={`${btnPrimary} flex shrink-0 items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50`} disabled={loading || !aiLimit.ok}>
             {loading ? <Loader2 size={15} className="animate-spin" /> : <GitBranch size={15} />}
             {t('doubling.analyze')}
           </button>
         </form>
+        <AiLimitBanner />
 
         {error && <p className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
 
