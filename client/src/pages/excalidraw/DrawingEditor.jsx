@@ -55,7 +55,7 @@ export default function DrawingEditor() {
   // Idioma do quadro (UI do Excalidraw + textos da tela de boas-vindas). Começa
   // no idioma do site quando existir na lista do Excalidraw.
   const [langCode, setLangCode] = useState(() => {
-    const site = { pt: 'pt-BR', en: 'en', es: 'es-ES' }[localStorage.getItem('lang')] || 'pt-BR'
+    const site = { pt: 'pt-BR', en: 'en', es: 'es-ES' }[localStorage.getItem('dp_lang')] || 'pt-BR'
     return languages.some((l) => l.code === site) ? site : defaultLang.code
   })
   // Lista de idiomas do Excalidraw sem os locales de teste (__test__…).
