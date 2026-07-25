@@ -1321,14 +1321,14 @@ export default {
       community: 'Acesso à comunidade',
     },
     plans: {
-      free: { summary: '5 gerações de IA no total', credits: '1 canal · ferramentas de texto', desc: 'Para testar a plataforma: relatórios de SEO, Dobra de Nicho e títulos por IA em até 5 gerações (não renovam), com 1 canal no pipeline.' },
-      basic: { summary: '15 gerações de IA/dia', credits: '3 canais', desc: 'Relatórios de SEO/CTR, Dobra de Nicho e títulos por IA com 15 gerações por dia, renovando todos os dias, e até 3 canais no pipeline.' },
-      lite: { summary: '25 gerações de IA/dia', credits: '10 canais', desc: 'Tudo do Basic com 25 gerações de IA por dia, até 10 canais no pipeline e acesso completo às ferramentas de tendências.' },
+      free: { summary: '2 gerações de IA/dia', credits: '1 canal · ferramentas de texto', desc: 'Para testar a plataforma: relatórios de SEO, Dobra de Nicho e títulos por IA com 2 gerações por dia, renovando todos os dias, e 1 canal no pipeline.' },
+      basic: { summary: '8 gerações de IA/dia', credits: '3 canais', desc: 'Relatórios de SEO/CTR, Dobra de Nicho e títulos por IA com 8 gerações por dia, renovando todos os dias, e até 3 canais no pipeline.' },
+      lite: { summary: '20 gerações de IA/dia', credits: '10 canais', desc: 'Tudo do Basic com 20 gerações de IA por dia, até 10 canais no pipeline e acesso completo às ferramentas de tendências.' },
       pro: { summary: 'IA ilimitada por dia', credits: 'Canais ilimitados', desc: 'Para operações grandes: uso de IA ilimitado por dia, canais ilimitados, acesso à API e à comunidade.' },
     },
     faq: [
       { q: 'Quando posso cancelar minha assinatura?', a: 'Quando quiser. Sua assinatura permanece ativa até a data de renovação e não há multa de cancelamento.' },
-      { q: 'Como funcionam as gerações de IA?', a: 'Cada relatório de SEO/CTR, análise de Dobra de Nicho ou lote de títulos conta como 1 geração. Cada plano tem um limite de gerações por dia, que renova todos os dias e não acumula. No plano Free são 5 gerações no total para testar, que não renovam.' },
+      { q: 'Como funcionam as gerações de IA?', a: 'Cada relatório de SEO/CTR, análise de Dobra de Nicho ou lote de títulos conta como 1 geração. Cada plano tem um limite de gerações por dia, que renova todos os dias e não acumula: Free 2, Basic 8, Lite 20 por dia; o Pro é ilimitado (o sistema não limita, mas suas chaves de API têm cotas próprias).' },
       { q: 'Sou cobrado por cada geração?', a: 'Não — o plano é uma mensalidade fixa. As gerações consomem apenas o limite diário incluso.' },
       { q: '"IA ilimitada" no Pro é ilimitada mesmo?', a: 'O Noctis não impõe nenhum limite de uso no plano Pro. Mas a IA funciona com as SUAS próprias chaves de API (Gemini, Groq, YouTube, AssemblyAI), então na prática você respeita os limites da sua própria conta em cada serviço. Ou seja: o sistema não te limita, mas as APIs que você conecta podem ter cotas próprias.' },
       { q: 'O que está incluído e como funciona o acesso à comunidade?', a: 'Todos os planos pagos incluem as ferramentas de gestão, pesquisa (Niche Finder, Vídeos Virais, Dobra de Nicho) e a comunidade no WhatsApp/Discord.' },

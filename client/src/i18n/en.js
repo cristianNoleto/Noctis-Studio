@@ -1321,14 +1321,14 @@ export default {
       community: 'Community access',
     },
     plans: {
-      free: { summary: '5 AI generations total', credits: '1 channel · text tools', desc: 'To test the platform: SEO reports, Niche Fold and AI titles in up to 5 generations (non-renewing), with 1 channel in the pipeline.' },
-      basic: { summary: '15 AI generations/day', credits: '3 channels', desc: 'SEO/CTR reports, Niche Fold and AI titles with 15 generations per day, renewing daily, and up to 3 channels in the pipeline.' },
-      lite: { summary: '25 AI generations/day', credits: '10 channels', desc: 'Everything in Basic with 25 AI generations per day, up to 10 channels in the pipeline and full access to the trends tools.' },
+      free: { summary: '2 AI generations/day', credits: '1 channel · text tools', desc: 'To test the platform: SEO reports, Niche Fold and AI titles with 2 generations per day, renewing daily, and 1 channel in the pipeline.' },
+      basic: { summary: '8 AI generations/day', credits: '3 channels', desc: 'SEO/CTR reports, Niche Fold and AI titles with 8 generations per day, renewing daily, and up to 3 channels in the pipeline.' },
+      lite: { summary: '20 AI generations/day', credits: '10 channels', desc: 'Everything in Basic with 20 AI generations per day, up to 10 channels in the pipeline and full access to the trends tools.' },
       pro: { summary: 'Unlimited AI per day', credits: 'Unlimited channels', desc: 'For large operations: unlimited AI usage per day, unlimited channels, API and community access.' },
     },
     faq: [
       { q: 'When can I cancel my subscription?', a: 'Whenever you want. Your subscription stays active until the renewal date and there is no cancellation fee.' },
-      { q: 'How do AI generations work?', a: 'Each SEO/CTR report, Niche Fold analysis or batch of titles counts as 1 generation. Each plan has a daily generation limit that renews every day and does not roll over. The Free plan has 5 generations total to test, which do not renew.' },
+      { q: 'How do AI generations work?', a: 'Each SEO/CTR report, Niche Fold analysis or batch of titles counts as 1 generation. Each plan has a daily generation limit that renews every day and does not roll over: Free 2, Basic 8, Lite 20 per day; Pro is unlimited (our system does not cap it, but your own API keys have their own quotas).' },
       { q: 'Am I charged per generation?', a: 'No — the plan is a fixed monthly fee. Generations only consume the included daily limit.' },
       { q: 'Is "unlimited AI" on Pro really unlimited?', a: 'Noctis imposes no usage cap on the Pro plan. But AI runs on YOUR own API keys (Gemini, Groq, YouTube, AssemblyAI), so in practice you follow the limits of your own account on each service. In other words: our system does not limit you, but the APIs you connect may have their own quotas.' },
       { q: 'What is included and how does community access work?', a: 'All paid plans include the management tools, research (Niche Finder, Viral Videos, Niche Fold) and the WhatsApp/Discord community.' },
