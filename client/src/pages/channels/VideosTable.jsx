@@ -24,6 +24,7 @@ import {
   SquareCheckBig,
   Eye,
   PenTool,
+  Lock,
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
@@ -33,7 +34,7 @@ import { useAiLimit } from '../../lib/useAiLimit'
 import { AiLimitBanner } from '../../components/PlanGate'
 import { importChannelVideos } from '../../lib/importVideos'
 import { deriveStatus, isPosted, REQUIRED_STEPS } from '../../lib/videoStatus'
-import { Modal, inputCls, btnPrimary, btnGhost, ScoreRing, ConfirmDialog, EmptyState } from '../../components/ui'
+import { Modal, inputCls, btnPrimary, btnGhost, ScoreRing, ConfirmDialog, EmptyState, LockedButton } from '../../components/ui'
 import { Masked, RestrictedThumb } from '../../components/privacy'
 import { Field } from './ChannelsList'
 import ScriptDrawer from './ScriptDrawer'
@@ -663,11 +664,16 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, canCreat
             </RowBtn>
           )
         )}
-        {canDeleteVideo && (
-          <RowBtn title={t('videos.delete')} danger onClick={onDelete}>
-            <Trash2 size={14} />
-          </RowBtn>
-        )}
+        {!readOnly &&
+          (canDeleteVideo ? (
+            <RowBtn title={t('videos.delete')} danger onClick={onDelete}>
+              <Trash2 size={14} />
+            </RowBtn>
+          ) : (
+            <LockedButton message={t('common.deleteBlocked')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/40 text-slate-700">
+              <Lock size={13} />
+            </LockedButton>
+          ))}
         <button
           onClick={onScript}
           title={t('videos.roteiro')}

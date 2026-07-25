@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n'
 import { api } from '../lib/api'
 import { downloadFile } from '../lib/text'
-import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, ConfirmDialog } from '../components/ui'
+import { Modal, inputCls, btnPrimary, btnGhost, EmptyState, ConfirmDialog, LockedButton } from '../components/ui'
 import { PrivacyScope, PageEye, Masked } from '../components/privacy'
 import { Field } from './channels/ChannelsList'
 import { CollaboratorsModal } from '../components/CollaboratorsModal'
@@ -1093,11 +1093,16 @@ function PromptCard({ prompt: p, category, channelName, canEdit, canDelete, onEd
               <Pencil size={12} />
               {t('prompts.edit')}
             </button>
-            {canDelete && (
+            {canDelete ? (
               <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
                 <Trash2 size={12} />
                 {t('prompts.delete')}
               </button>
+            ) : (
+              <div className="px-2.5 py-1.5 text-[11px] leading-snug text-slate-500">
+                <span className="mb-1 flex items-center gap-2 font-medium text-slate-400"><Lock size={12} /> {t('prompts.delete')}</span>
+                {t('common.deleteBlocked')}
+              </div>
             )}
           </div>
         )}
@@ -1288,10 +1293,14 @@ function CategoriesModal({ open, onClose, categories }) {
         {categories.map((c) => (
           <li key={c.id} className="flex items-center justify-between rounded-lg bg-slate-950 px-3 py-2 text-sm text-slate-300">
             {c.name}
-            {db.canDelete('skills', c) && (
+            {db.canDelete('skills', c) ? (
               <button onClick={() => db.remove('promptCategories', c.id)} className="text-slate-600 hover:text-red-400" title={t('prompts.deleteCategory')}>
                 <X size={14} />
               </button>
+            ) : (
+              <LockedButton message={t('common.deleteBlocked')} className="text-slate-700">
+                <Lock size={14} />
+              </LockedButton>
             )}
           </li>
         ))}

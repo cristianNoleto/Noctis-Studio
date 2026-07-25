@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload, Film } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload, Film, Lock } from 'lucide-react'
 import { api } from '../../lib/api'
 import { deleteFile, setDriveOwner } from '../../lib/drive'
 import { createDrawing } from '../../lib/drawings'
@@ -300,11 +300,16 @@ function SceneCard({ scene: s, videos, isOwner, canEdit, canDeleteScene, onOpen,
               </>
             )}
             {/* Apagar: o dono apaga qualquer um; o editor só o storyboard que ELE criou. */}
-            {canDeleteScene && (
+            {canDeleteScene ? (
               <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10">
                 <Trash2 size={13} /> {t('drawings.delete')}
               </button>
-            )}
+            ) : canEdit ? (
+              <div className="px-2.5 py-1.5 text-[11px] leading-snug text-slate-500">
+                <span className="mb-1 flex items-center gap-2 font-medium text-slate-400"><Lock size={13} /> {t('drawings.delete')}</span>
+                {t('common.deleteBlocked')}
+              </div>
+            ) : null}
             {!canEdit && !isOwner && (
               <p className="px-2.5 py-1.5 text-xs text-slate-500">{t('drawings.viewOnly')}</p>
             )}

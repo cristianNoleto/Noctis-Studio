@@ -376,11 +376,18 @@ function LocalMembersTab() {
               </p>
               <p className="truncate text-xs text-slate-500">{email}</p>
             </div>
-            <select className={`${inputCls} !w-32 !py-1.5 text-xs`} value={u.plan || 'FREE'} onChange={(e) => setPlan(email, e.target.value)}>
-              {PLAN_OPTIONS.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+            {u.plan === 'MASTER' ? (
+              // Fundador: plano fixo (o servidor bloqueia alterar) — sem seletor.
+              <span className="flex h-8 w-32 items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs font-bold text-amber-400">
+                {t('admin.members.founderPlan')}
+              </span>
+            ) : (
+              <select className={`${inputCls} !w-32 !py-1.5 text-xs`} value={u.plan || 'FREE'} onChange={(e) => setPlan(email, e.target.value)}>
+                {PLAN_OPTIONS.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            )}
             {!isThisAdmin && (
               <>
                 <button onClick={() => setTransferTo(email)} className={`${btnGhost} !px-2.5 !py-1.5 text-xs`}>

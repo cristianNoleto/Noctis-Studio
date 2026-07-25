@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react'
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
-import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, GripVertical, LayoutGrid, Minus, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, Settings2, Lightbulb, Package, FileText, CheckSquare, X, GripVertical, LayoutGrid, Minus, ChevronUp, ChevronDown, Lock } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
-import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
+import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog, LockedButton } from '../components/ui'
 import { AnchoredMenu } from '../components/AnchoredMenu'
 import { VisibilityControl, visIcon } from '../components/ItemVisibility'
 
@@ -203,10 +203,14 @@ function Column({ column, cards, readOnly, onRename, onDelete }) {
             <button onClick={onRename} title={t('ideaBoard.configColumn')} className="text-slate-600 hover:text-slate-300">
               <Settings2 size={13} />
             </button>
-            {db.canDelete('board', column) && (
+            {db.canDelete('board', column) ? (
               <button onClick={onDelete} title={t('ideaBoard.deleteColumnTitle')} className="text-slate-600 hover:text-red-400">
                 <Trash2 size={13} />
               </button>
+            ) : (
+              <LockedButton message={t('common.deleteBlocked')} className="text-slate-700">
+                <Lock size={13} />
+              </LockedButton>
             )}
           </div>
         )}
@@ -308,15 +312,20 @@ function Card({ card, readOnly, onMoveUp, onMoveDown, isFirst, isLast }) {
             {card.collapsed ? <Plus size={12} /> : <Minus size={12} />}
           </button>
           {isOwner && <CardVisibility card={card} />}
-          {canDeleteCard && (
-            <button
-              onClick={() => db.remove('boardCards', card.id)}
-              className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
-              title={t('ideaBoard.delete')}
-            >
-              <X size={12} />
-            </button>
-          )}
+          {!readOnly &&
+            (canDeleteCard ? (
+              <button
+                onClick={() => db.remove('boardCards', card.id)}
+                className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                title={t('ideaBoard.delete')}
+              >
+                <X size={12} />
+              </button>
+            ) : (
+              <LockedButton message={t('common.deleteBlocked')} className="text-slate-700 opacity-0 transition-opacity group-hover:opacity-100">
+                <Lock size={11} />
+              </LockedButton>
+            ))}
         </div>
         {card.collapsed ? (
           <p className="mt-2 truncate text-[11px] text-slate-500">{card.content || card.title || t('ideaBoard.emptyNote')}</p>
@@ -379,11 +388,16 @@ function Card({ card, readOnly, onMoveUp, onMoveDown, isFirst, isLast }) {
               <Settings2 size={12} />
             </button>
           )}
-          {canDeleteCard && (
-            <button onClick={() => db.remove('boardCards', card.id)} className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100" title={t('ideaBoard.delete')}>
-              <X size={12} />
-            </button>
-          )}
+          {!readOnly &&
+            (canDeleteCard ? (
+              <button onClick={() => db.remove('boardCards', card.id)} className="text-slate-600 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100" title={t('ideaBoard.delete')}>
+                <X size={12} />
+              </button>
+            ) : (
+              <LockedButton message={t('common.deleteBlocked')} className="text-slate-700 opacity-0 transition-opacity group-hover:opacity-100">
+                <Lock size={11} />
+              </LockedButton>
+            ))}
         </div>
         <p className="mt-2 truncate text-xs font-semibold text-slate-200">{card.title}</p>
         {card.collapsed ? (

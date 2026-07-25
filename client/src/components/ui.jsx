@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useI18n } from '../i18n'
@@ -54,6 +54,38 @@ export function Modal({ open, onClose, title, children, wide, size }) {
         </motion.div>
       )}
     </AnimatePresence>
+  )
+}
+
+// Botão "bloqueado": parece um botão normal mas NÃO executa a ação. Ao clicar
+// (ou passar o mouse), mostra o motivo. Usado quando um colaborador editor tenta
+// excluir algo que ele não criou — o botão fica visível mas travado (o servidor
+// também recusa, isto é só a camada de UX). `children` = ícone; `className` casa
+// com o visual do botão original (deixe em tom apagado/cursor-not-allowed).
+export function LockedButton({ message, className = '', title, children }) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    if (!show) return
+    const id = setTimeout(() => setShow(false), 3400)
+    return () => clearTimeout(id)
+  }, [show])
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        title={title || message}
+        aria-disabled="true"
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setShow((v) => !v) }}
+        className={`cursor-not-allowed ${className}`}
+      >
+        {children}
+      </button>
+      {show && (
+        <span className="absolute right-0 top-full z-[70] mt-1 w-56 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-left text-[11px] font-normal leading-snug text-slate-300 shadow-xl">
+          {message}
+        </span>
+      )}
+    </span>
   )
 }
 

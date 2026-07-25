@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, Plus, Search, Bookmark, MoreVertical, Pencil, ExternalLink, Trash2, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Search, Bookmark, MoreVertical, Pencil, ExternalLink, Trash2, Loader2, Lock } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
 import { api, apiErrorMessage } from '../lib/api'
@@ -175,7 +175,16 @@ function ReferenceCard({ reference: r, readOnly, linkedName, onEdit }) {
       <AnchoredMenu open={menuOpen} anchorRef={btnRef} onClose={() => setMenuOpen(false)} width={176}>
         {!readOnly && <MenuItem icon={Pencil} label={t('references.menuEdit')} onClick={() => { setMenuOpen(false); onEdit() }} />}
         <MenuItem icon={ExternalLink} label={t('references.menuOpen')} onClick={() => { setMenuOpen(false); window.open(url, '_blank') }} />
-        {db.canDelete('references', r) && <MenuItem icon={Trash2} label={t('references.menuDelete')} danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />}
+        {db.canDelete('references', r) ? (
+          <MenuItem icon={Trash2} label={t('references.menuDelete')} danger onClick={() => { setMenuOpen(false); db.remove('referenceChannels', r.id) }} />
+        ) : (
+          !readOnly && (
+            <div className="px-3 py-2 text-[11px] leading-snug text-slate-500">
+              <span className="mb-1 flex items-center gap-2 font-medium text-slate-400"><Lock size={13} /> {t('references.menuDelete')}</span>
+              {t('common.deleteBlocked')}
+            </div>
+          )
+        )}
       </AnchoredMenu>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
