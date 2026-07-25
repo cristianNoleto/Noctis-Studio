@@ -30,8 +30,9 @@ async function getViewer(req, supa) {
   return { email, plan, isFounder: !!email && founderEmails().includes(email) }
 }
 
+// Adicionar colaboradores: fundador ou plano Pro (MASTER = legado do fundador).
 function canManage(v) {
-  return v.isFounder || v.plan === 'MASTER'
+  return v.isFounder || v.plan === 'PRO' || v.plan === 'MASTER'
 }
 
 // Já existe conta com esse e-mail? (base pequena → listUsers)

@@ -36,7 +36,8 @@ export default function Header() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const canManageCollab = isFounder || user?.plan === 'MASTER'
+  // Adicionar colaboradores: fundador ou plano Pro (MASTER = legado do fundador).
+  const canManageCollab = isFounder || ['PRO', 'MASTER'].includes(user?.plan)
   const [collabOpen, setCollabOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)

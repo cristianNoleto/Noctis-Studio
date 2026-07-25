@@ -161,6 +161,7 @@ router.post('/migrate', async (req, res) => {
     if (access.videos === 'edit') ['videos', 'scripts', 'seoReports'].forEach((k) => writable.add(k))
     if (access.references === 'edit') ['referenceFolders', 'referenceChannels'].forEach((k) => writable.add(k))
     if (access.board === 'edit') ['boardSpaces', 'boardColumns', 'boardCards', 'checklistItems'].forEach((k) => writable.add(k))
+    if (access.skills === 'edit') ['promptCategories', 'prompts'].forEach((k) => writable.add(k))
     if (!writable.size) return res.status(403).json({ error: 'forbidden', message: 'Sem permissão de edição.' })
   }
 
@@ -349,17 +350,18 @@ router.get('/snapshot', async (req, res) => {
       out.boardCards = cards
       out.checklistItems = await fetchBy('board_card_checklist_items', 'card_id', cards.map((c) => c.id))
     })(),
-    // Coleções privadas do dono (prompts, transcrições, análises): só no próprio workspace.
+    // Prompts + categorias: dono, ou colaborador com acesso a Skills (a biblioteca
+    // de prompts segue o acesso "Skills" do workspace).
     (async () => {
-      if (!access.self) return
-      const [cats, prompts, transcriptions, niche] = await Promise.all([
-        byOwner('prompt_categories'),
-        byOwner('prompts'),
-        byOwner('transcriptions'),
-        byOwner('niche_doubling_analyses'),
-      ])
+      if (!(access.self || access.skills !== 'none')) return
+      const [cats, prompts] = await Promise.all([byOwner('prompt_categories'), byOwner('prompts')])
       out.promptCategories = cats
       out.prompts = prompts
+    })(),
+    // Coleções PESSOAIS do dono (transcrições, análises da Dobra): só no próprio workspace.
+    (async () => {
+      if (!access.self) return
+      const [transcriptions, niche] = await Promise.all([byOwner('transcriptions'), byOwner('niche_doubling_analyses')])
       out.transcriptions = transcriptions
       out.nicheAnalyses = niche
     })(),

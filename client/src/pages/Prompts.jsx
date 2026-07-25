@@ -195,9 +195,12 @@ export default function Prompts() {
   const { t } = useI18n()
   const { user, isFounder, isLocalMode } = useAuth()
 
-  // Quem pode criar/filtrar skills: fundador + plano mais caro (MASTER).
+  // Quem pode criar/gerenciar a biblioteca de skills do sistema: fundador ou Pro.
   const myEmail = (user?.email || '').toLowerCase()
-  const canManageSkills = isFounder || user?.plan === 'MASTER'
+  const canManageSkills = isFounder || ['PRO', 'MASTER'].includes(user?.plan)
+  // Editar os "Meus Prompts" segue o acesso a Skills do workspace ativo (o dono
+  // sempre pode; colaborador só com Skills=Editar). Viewer vê mas não edita.
+  const canEditPrompts = db.canEdit('skills')
   const [managingCollab, setManagingCollab] = useState(false)
 
   // ------------------------------------------------------------------
@@ -402,10 +405,12 @@ export default function Prompts() {
           <span className="text-sm font-semibold text-slate-100">{t('skillsLib.mySkills')}</span>
           <span className="rounded-full bg-gradient-to-r from-cyan-500 to-sky-500 px-2 py-0.5 text-[10px] font-bold text-white">{prompts.length}</span>
           <span className="flex-1" />
-          <button className={`${btnPrimary} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => setEditPrompt('new')}>
-            <Plus size={13} />
-            {t('skillsLib.newSkill')}
-          </button>
+          {canEditPrompts && (
+            <button className={`${btnPrimary} flex items-center gap-1.5 !px-3 !py-1.5 text-xs`} onClick={() => setEditPrompt('new')}>
+              <Plus size={13} />
+              {t('skillsLib.newSkill')}
+            </button>
+          )}
         </div>
 
         <div className="space-y-4 p-4">
@@ -449,9 +454,11 @@ export default function Prompts() {
                 count={filtered.filter((p) => p.categoryId === cat.id).length}
               />
             ))}
-            <button onClick={() => setManagingCats(true)} className="rounded-full border border-dashed border-slate-700 px-3 py-1.5 text-xs text-slate-500 hover:border-cyan-500/40 hover:text-cyan-400" title={t('prompts.manageCategories')}>
-              <Plus size={12} className="inline" /> {t('prompts.category')}
-            </button>
+            {canEditPrompts && (
+              <button onClick={() => setManagingCats(true)} className="rounded-full border border-dashed border-slate-700 px-3 py-1.5 text-xs text-slate-500 hover:border-cyan-500/40 hover:text-cyan-400" title={t('prompts.manageCategories')}>
+                <Plus size={12} className="inline" /> {t('prompts.category')}
+              </button>
+            )}
           </div>
 
           {inCat.length === 0 ? (
@@ -460,9 +467,11 @@ export default function Prompts() {
               title={t('prompts.emptyTitle')}
               description={t('prompts.emptyDesc')}
               action={
-                <button className={btnPrimary} onClick={() => setEditPrompt('new')}>
-                  {t('prompts.createFirst')}
-                </button>
+                canEditPrompts ? (
+                  <button className={btnPrimary} onClick={() => setEditPrompt('new')}>
+                    {t('prompts.createFirst')}
+                  </button>
+                ) : null
               }
             />
           ) : (
@@ -473,6 +482,7 @@ export default function Prompts() {
                   prompt={p}
                   category={categories.find((c) => c.id === p.categoryId)}
                   channelName={p.channelId ? channels.find((c) => c.id === p.channelId)?.name : null}
+                  canEdit={canEditPrompts}
                   onEdit={() => setEditPrompt(p)}
                   onDelete={() => setDeletePrompt(p)}
                 />
@@ -1036,7 +1046,7 @@ function CatPill({ active, onClick, label, count }) {
   )
 }
 
-function PromptCard({ prompt: p, category, channelName, onEdit, onDelete }) {
+function PromptCard({ prompt: p, category, channelName, canEdit, onEdit, onDelete }) {
   const db = useDb()
   const { t } = useI18n()
   const [copied, setCopied] = useState(false)
@@ -1064,12 +1074,16 @@ function PromptCard({ prompt: p, category, channelName, onEdit, onDelete }) {
           <button onClick={copy} title={t('prompts.copy')} className={copied ? 'text-green-400' : 'text-slate-500 hover:text-slate-200'}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
-          <button onClick={() => db.update('prompts', p.id, { isFavorite: !p.isFavorite })} title={t('prompts.favorite')}>
-            <Star size={14} className={p.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-500 hover:text-amber-400'} />
-          </button>
-          <button onClick={() => setMenuOpen((v) => !v)} className="text-slate-500 hover:text-slate-200">
-            <MoreVertical size={14} />
-          </button>
+          {canEdit && (
+            <button onClick={() => db.update('prompts', p.id, { isFavorite: !p.isFavorite })} title={t('prompts.favorite')}>
+              <Star size={14} className={p.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-500 hover:text-amber-400'} />
+            </button>
+          )}
+          {canEdit && (
+            <button onClick={() => setMenuOpen((v) => !v)} className="text-slate-500 hover:text-slate-200">
+              <MoreVertical size={14} />
+            </button>
+          )}
         </div>
 
         {menuOpen && (
