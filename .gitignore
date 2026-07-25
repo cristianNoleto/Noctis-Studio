@@ -4,3 +4,8 @@ dist/
 .env.local
 *.log
 .DS_Store
+
+# Arquivos temporários da sincronização do Google Drive (a pasta do projeto fica
+# num diretório sincronizado). Não pertencem ao repositório.
+.tmp.driveupload/
+.tmp.drivedownload/
