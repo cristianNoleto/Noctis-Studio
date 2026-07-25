@@ -2,12 +2,14 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang, useI18n as useExcalidrawI18n } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
-import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2, LayoutTemplate, Sparkles } from 'lucide-react'
 import { api } from '../../lib/api'
 import { downloadText, updateFileContent, renameFile, uploadFile, downloadBlob, setDriveOwner } from '../../lib/drive'
 import { optimizeDataUrl, dataUrlBytes, dataUrlToBlob, blobToDataUrl } from '../../lib/imageOptimize'
 import { useDb } from '../../lib/db'
+import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
+import { TemplateBrowser, TemplatePublishModal, remapTemplateElements } from './TemplateLibrary'
 
 // Tela de boas-vindas (placeholder do quadro vazio) TRADUZIDA pelo idioma do
 // quadro. Os componentes de hint/help do Excalidraw usam o `t` estático do
@@ -41,8 +43,12 @@ export default function DrawingEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
   const db = useDb()
+  const { user, isFounder } = useAuth()
   const canEditScene = db.canEdit('drawings') // editor pode salvar; viewer não
+  const canManageTemplates = isFounder || ['PRO', 'MASTER'].includes(user?.plan) // publicar modelos
   const { t } = useI18n()
+  const [showInsertTpl, setShowInsertTpl] = useState(false)
+  const [showPublishTpl, setShowPublishTpl] = useState(false)
   const [initial, setInitial] = useState(null) // dados iniciais da cena
   const [name, setName] = useState('')
   const [status, setStatus] = useState('idle') // idle | saving | saved
@@ -217,6 +223,45 @@ export default function DrawingEditor() {
     } catch {
       return null
     }
+  }
+
+  // Captura a cena atual como MODELO (só os elementos + imagens referenciadas +
+  // miniatura). Usado por "Salvar como modelo".
+  async function captureTemplateScene() {
+    const a = apiRef.current
+    if (!a) return null
+    const elements = a.getSceneElements() // não-deletados
+    if (!elements.length) return null
+    const allFiles = a.getFiles?.() || {}
+    const referenced = new Set(elements.filter((e) => e.fileId).map((e) => e.fileId))
+    const files = {}
+    for (const [fid, f] of Object.entries(allFiles)) if (referenced.has(fid) && f?.dataURL) files[fid] = f
+    const appState = a.getAppState?.() || {}
+    const scene = { elements, appState: { viewBackgroundColor: appState.viewBackgroundColor }, files }
+    const thumbnail = await makeThumbnail(elements, files)
+    return { scene, thumbnail }
+  }
+
+  // Insere um modelo DENTRO da cena atual (ids remapeados p/ não colidir).
+  async function insertTemplate(tpl) {
+    const a = apiRef.current
+    if (!a) return
+    const { template } = await api.templates.get(tpl.id)
+    const s = template.scene || {}
+    const added = remapTemplateElements(s.elements || [])
+    if (!added.length) return
+    a.updateScene({ elements: [...a.getSceneElements(), ...added] })
+    const files = s.files || {}
+    const arr = Object.entries(files)
+      .filter(([, f]) => f?.dataURL)
+      .map(([id, f]) => ({ id, dataURL: f.dataURL, mimeType: f.mimeType, created: f.created || Date.now(), lastRetrieved: Date.now() }))
+    if (arr.length) a.addFiles(arr)
+    try {
+      a.scrollToContent(added, { fitToContent: true, animate: true })
+    } catch {
+      /* ignora */
+    }
+    setShowInsertTpl(false)
   }
 
   const doSave = useCallback(
@@ -488,6 +533,19 @@ export default function DrawingEditor() {
             <MainMenu.DefaultItems.SaveToActiveFile />
             <MainMenu.DefaultItems.Export />
             <MainMenu.DefaultItems.SaveAsImage />
+            {canEditScene && (
+              <>
+                <MainMenu.Separator />
+                <MainMenu.Item onSelect={() => setShowInsertTpl(true)} icon={<LayoutTemplate size={16} />}>
+                  {t('drawings.templates.insert')}
+                </MainMenu.Item>
+                {canManageTemplates && (
+                  <MainMenu.Item onSelect={() => setShowPublishTpl(true)} icon={<Sparkles size={16} />}>
+                    {t('drawings.templates.saveAs')}
+                  </MainMenu.Item>
+                )}
+              </>
+            )}
             <MainMenu.Separator />
             <MainMenu.DefaultItems.SearchMenu />
             <MainMenu.DefaultItems.Help />
@@ -521,6 +579,9 @@ export default function DrawingEditor() {
           <BoardWelcome />
         </Excalidraw>
       </div>
+
+      <TemplateBrowser open={showInsertTpl} onClose={() => setShowInsertTpl(false)} mode="insert" onUse={insertTemplate} />
+      <TemplatePublishModal open={showPublishTpl} onClose={() => setShowPublishTpl(false)} getScene={captureTemplateScene} />
 
       {/* Overlay ao sair: garante ao usuário que estamos salvando antes de fechar */}
       {leaving && (

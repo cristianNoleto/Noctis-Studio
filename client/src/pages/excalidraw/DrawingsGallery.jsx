@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload, Film, Lock } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload, Film, Lock, LayoutTemplate } from 'lucide-react'
 import { api } from '../../lib/api'
 import { deleteFile, setDriveOwner } from '../../lib/drive'
 import { createDrawing } from '../../lib/drawings'
@@ -9,6 +9,7 @@ import { useI18n } from '../../i18n'
 import { btnPrimary, btnGhost, EmptyState, ConfirmDialog } from '../../components/ui'
 import { AnchoredMenu } from '../../components/AnchoredMenu'
 import { VisibilityControl, VisibilityBadge } from '../../components/ItemVisibility'
+import { TemplateBrowser } from './TemplateLibrary'
 import { Eye } from 'lucide-react'
 
 // Rótulo do vídeo com o número da gestão de canais: "Vídeo X — Título".
@@ -40,6 +41,23 @@ export default function DrawingsGallery() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [toDelete, setToDelete] = useState(null)
+  const [showTemplates, setShowTemplates] = useState(false)
+
+  // Cria um projeto NOVO a partir de um modelo da biblioteca.
+  async function useTemplate(tpl) {
+    try {
+      const { template } = await api.templates.get(tpl.id)
+      const s = template.scene || {}
+      const created = await createDrawing(tpl.name, {
+        sceneData: { elements: s.elements || [], appState: { viewBackgroundColor: s.appState?.viewBackgroundColor }, files: s.files || {} },
+        owner,
+      })
+      setShowTemplates(false)
+      navigate(`/desenhos/${created.id}`)
+    } catch (e) {
+      setError(e?.message || 'Erro')
+    }
+  }
 
   async function load() {
     try {
@@ -143,6 +161,10 @@ export default function DrawingsGallery() {
         {canEdit && (
           <div className="flex items-center gap-2">
             <input ref={fileRef} type="file" accept=".excalidraw,application/json" hidden onChange={importFile} />
+            <button className={`${btnGhost} flex items-center gap-2 text-sm`} onClick={() => setShowTemplates(true)}>
+              <LayoutTemplate size={15} />
+              {t('drawings.templates.title')}
+            </button>
             <button className={`${btnGhost} flex items-center gap-2 text-sm`} onClick={() => fileRef.current?.click()} disabled={creating}>
               <Upload size={15} />
               {t('drawings.import')}
@@ -201,6 +223,8 @@ export default function DrawingsGallery() {
         title={t('drawings.deleteTitle')}
         message={t('drawings.deleteMsg', { name: toDelete?.name })}
       />
+
+      <TemplateBrowser open={showTemplates} onClose={() => setShowTemplates(false)} mode="new" onUse={useTemplate} />
     </div>
   )
 }

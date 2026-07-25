@@ -214,6 +214,14 @@ export const api = {
     save: (id, patch, keepalive = false) => authRequest(`/excalidraw/${id}`, { method: 'PUT', body: patch, keepalive }),
     remove: (id) => authRequest(`/excalidraw/${id}`, { method: 'DELETE' }),
   },
+  // Biblioteca de modelos de desenho (fundador/Pro criam; todos usam conforme visibilidade).
+  templates: {
+    list: () => authRequestOptional('/excalidraw-templates'),
+    get: (id) => authRequestOptional(`/excalidraw-templates/${id}`),
+    save: (template) => authRequest('/excalidraw-templates', { method: 'POST', body: { template } }),
+    used: (id) => authRequestOptional(`/excalidraw-templates/${id}/used`, { method: 'POST' }),
+    remove: (id) => authRequest(`/excalidraw-templates/${id}`, { method: 'DELETE' }),
+  },
   // Conexão do Google Drive (OAuth) por usuário.
   drive: {
     connect: () => authRequest('/drive/connect', { method: 'POST' }),
