@@ -1,4 +1,22 @@
 export default {
+  plans: {
+    locked: {
+      badge: 'Disponible en {plan}',
+      current: 'Tu plan actual: {plan}',
+      cta: 'Ver planes',
+    },
+    features: {
+      collabWorkspace: { name: 'Workspace compartido', desc: 'Para acceder al workspace que alguien te compartió, necesitas un plan activo. Suscríbete para colaborar en canales, referencias, tablero y dibujos.' },
+      mediaBank: { name: 'Vídeos e Imágenes', desc: 'Tu banco de medios central: guarda y organiza imágenes y vídeos de referencia de tus canales en un solo lugar.' },
+      transcription: { name: 'Transcripción y Subtítulos', desc: 'Sube un audio y genera los subtítulos (.srt) con los tiempos exactos de cada frase — igual que los subtítulos automáticos de YouTube, en 3 formatos.' },
+      ideaBoard: { name: 'Tablero de Ideas', desc: 'Un kanban visual para planear temas: arrastra ideas entre columnas, marca tareas y sigue tu pipeline de contenido.' },
+      drawings: { name: 'Dibujos y Storyboards', desc: 'Editor de pizarra (Excalidraw) para los storyboards de tus vídeos, guardados en tu Drive y vinculados a cada vídeo.' },
+      nicheFinder: { name: 'Niche Finder', desc: 'Encuentra nichos y canales prometedores para modelar, con datos de YouTube — el punto de partida para escalar canales dark.' },
+      viralVideos: { name: 'Vídeos Virales', desc: 'Descubre vídeos que explotaron en tu nicho para hacer ingeniería inversa de títulos, miniaturas y formatos ganadores.' },
+      nicheDoubling: { name: 'Duplicación de Nicho (IA)', desc: 'Ingeniería inversa con IA del canal semilla: extrae el patrón ganador y genera decenas de ideas, duplicaciones de nicho y adaptaciones de mercado.' },
+      removedChannels: { name: 'Canales Eliminados', desc: 'Una base de canales dark eliminados/desmonetizados para que aprendas qué evitar y extraigas formatos huérfanos.' },
+    },
+  },
   common: {
     cancel: 'Cancelar',
     save: 'Guardar',

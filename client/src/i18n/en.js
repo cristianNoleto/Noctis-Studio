@@ -1,4 +1,22 @@
 export default {
+  plans: {
+    locked: {
+      badge: 'Available on {plan}',
+      current: 'Your current plan: {plan}',
+      cta: 'See plans',
+    },
+    features: {
+      collabWorkspace: { name: 'Shared workspace', desc: 'To access a workspace someone shared with you, you need an active plan. Subscribe to collaborate on channels, references, board and drawings.' },
+      mediaBank: { name: 'Videos & Images', desc: 'Your central media bank: store and organize reference images and videos for your channels in one place.' },
+      transcription: { name: 'Transcription & Captions', desc: 'Upload audio and generate captions (.srt) with the exact timing of each spoken line — just like YouTube auto captions, in 3 formats.' },
+      ideaBoard: { name: 'Idea Board', desc: 'A visual kanban to plan topics: drag ideas across columns, check tasks and track your content pipeline.' },
+      drawings: { name: 'Drawings & Storyboards', desc: 'Whiteboard editor (Excalidraw) for your video storyboards, saved to your Drive and linked to each video.' },
+      nicheFinder: { name: 'Niche Finder', desc: 'Find promising niches and channels to model, with YouTube data — the starting point to scale dark channels.' },
+      viralVideos: { name: 'Viral Videos', desc: 'Discover videos that blew up in your niche to reverse-engineer winning titles, thumbnails and formats.' },
+      nicheDoubling: { name: 'Niche Doubling (AI)', desc: 'AI reverse-engineering of a seed channel: extracts the winning pattern and generates dozens of ideas, niche doublings and market adaptations.' },
+      removedChannels: { name: 'Removed Channels', desc: 'A database of removed/demonetized dark channels so you learn what to avoid and mine orphaned formats.' },
+    },
+  },
   common: {
     cancel: 'Cancel',
     save: 'Save',

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import Layout from './components/layout/Layout'
+import { PlanGate } from './components/PlanGate'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import AcceptInvite from './pages/auth/AcceptInvite'
@@ -85,17 +86,17 @@ export default function App() {
       >
         <Route path="/canais" element={<ChannelsList />} />
         <Route path="/canais/:id" element={<ChannelDetail />} />
-        <Route path="/quadro-ideias" element={<IdeaBoard />} />
-        <Route path="/desenhos" element={<Suspense fallback={<LazyFallback />}><DrawingsGallery /></Suspense>} />
+        <Route path="/quadro-ideias" element={<PlanGate><IdeaBoard /></PlanGate>} />
+        <Route path="/desenhos" element={<PlanGate><Suspense fallback={<LazyFallback />}><DrawingsGallery /></Suspense></PlanGate>} />
         <Route path="/referencias" element={<References />} />
         <Route path="/prompts" element={<Prompts />} />
         <Route path="/perfil" element={<Profile />} />
-        <Route path="/niche-finder" element={<NicheFinder />} />
-        <Route path="/videos-virais" element={<ViralVideos />} />
-        <Route path="/canais-removidos" element={<RemovedChannels />} />
-        <Route path="/dobra-de-nicho" element={<NicheDoubling />} />
-        <Route path="/videos-imagens" element={<MediaBank />} />
-        <Route path="/transcricao" element={<Transcription />} />
+        <Route path="/niche-finder" element={<PlanGate><NicheFinder /></PlanGate>} />
+        <Route path="/videos-virais" element={<PlanGate><ViralVideos /></PlanGate>} />
+        <Route path="/canais-removidos" element={<PlanGate><RemovedChannels /></PlanGate>} />
+        <Route path="/dobra-de-nicho" element={<PlanGate><NicheDoubling /></PlanGate>} />
+        <Route path="/videos-imagens" element={<PlanGate><MediaBank /></PlanGate>} />
+        <Route path="/transcricao" element={<PlanGate><Transcription /></PlanGate>} />
         <Route path="/ferramentas-texto" element={<TextTools />} />
         <Route path="/academia" element={<Academy />} />
         <Route path="/ajuda" element={<Help />} />
@@ -108,9 +109,11 @@ export default function App() {
         path="/desenhos/:id"
         element={
           <Protected>
-            <Suspense fallback={<LazyFallback />}>
-              <DrawingEditor />
-            </Suspense>
+            <PlanGate>
+              <Suspense fallback={<LazyFallback />}>
+                <DrawingEditor />
+              </Suspense>
+            </PlanGate>
           </Protected>
         }
       />
