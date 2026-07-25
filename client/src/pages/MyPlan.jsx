@@ -159,6 +159,7 @@ export default function MyPlan() {
               <p className="mt-1 text-[11px] font-semibold text-slate-300">
                 {isFinite(aiPerDay) ? t('myPlan.aiPerDay', { n: aiPerDay }) : t('myPlan.aiUnlimited')}
               </p>
+              {!isFinite(aiPerDay) && <p className="mt-0.5 text-[10px] leading-snug text-slate-500">{t('myPlan.aiUnlimitedNote')}</p>}
               <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">{t(`myPlan.plans.${p.key}.desc`)}</p>
 
               <button
