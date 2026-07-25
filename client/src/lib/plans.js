@@ -21,6 +21,7 @@ export const PAGE_GATE = {
   '/videos-virais': { min: 'LITE', feature: 'viralVideos' },
   '/dobra-de-nicho': { min: 'PRO', feature: 'nicheDoubling' },
   '/canais-removidos': { min: 'PRO', feature: 'removedChannels' },
+  '/suporte': { min: 'BASIC', feature: 'community' },
 }
 
 export function planRank(plan) {

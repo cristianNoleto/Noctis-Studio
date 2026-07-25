@@ -44,7 +44,7 @@ export function PlanGate({ children }) {
   return children
 }
 
-function UpgradeLock({ feature, min, plan }) {
+export function UpgradeLock({ feature, min, plan }) {
   const { t } = useI18n()
   return (
     <div className="mx-auto mt-6 flex max-w-xl flex-col items-center rounded-2xl border border-cyan-500/20 bg-slate-900/40 p-10 text-center">

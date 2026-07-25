@@ -3,6 +3,7 @@ import { Crown, Check, X, ChevronDown, MessageCircle, Sparkles } from 'lucide-re
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
+import { aiLimitFor, AI_DAILY_LIMIT } from '../lib/plans'
 
 // Página "Meu Plano" — layout do original (uso diário, plano atual, pricing
 // Mensal/Trimestral com features e FAQ), com a marca Noctis.
@@ -34,10 +35,12 @@ export default function MyPlan() {
     db.all('seoReports').filter((r) => new Date(r.createdAt).toDateString() === today).length +
     db.all('nicheAnalyses').filter((r) => new Date(r.createdAt).toDateString() === today).length +
     db.all('transcriptions').filter((r) => new Date(r.createdAt).toDateString() === today).length
-  const LIMIT = 40
-  const pct = Math.min(100, Math.round((usedToday / LIMIT) * 100))
-
   const isFounder = isAdmin
+  const LIMIT = aiLimitFor(user?.plan, isFounder) // limite real do plano
+  const unlimited = !isFinite(LIMIT)
+  const limitLabel = unlimited ? '∞' : LIMIT
+  const pct = unlimited ? 0 : Math.min(100, Math.round((usedToday / LIMIT) * 100))
+
   const planName = isFounder ? t('myPlan.founder') : user?.plan || 'FREE'
   const renewal = new Date(Date.now() + 30 * 86_400_000).toLocaleDateString('pt-BR')
 
@@ -57,7 +60,7 @@ export default function MyPlan() {
               {t('myPlan.aiUsage')}
             </p>
             <span className="text-xs font-semibold text-slate-300">
-              {t('myPlan.usedOfToday', { used: usedToday, limit: LIMIT })}
+              {t('myPlan.usedOfToday', { used: usedToday, limit: limitLabel })}
             </span>
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
@@ -126,6 +129,8 @@ export default function MyPlan() {
         {PLANS.map((p) => {
           const current = p.popular // no modo local o plano equivalente é o Pro
           const value = cycle === 'monthly' ? p.monthly : p.quarterly
+          const planCode = p.key.toUpperCase() // free/basic/lite/pro → FREE/...
+          const aiPerDay = AI_DAILY_LIMIT[planCode] ?? AI_DAILY_LIMIT.FREE
           return (
             <div
               key={p.name}
@@ -151,7 +156,7 @@ export default function MyPlan() {
               <p className="text-[10px] text-slate-600">{p.noCard ? t('myPlan.noCard') : cycle === 'monthly' ? t('myPlan.billedMonthly') : t('myPlan.billedQuarterly')}</p>
 
               <p className="mt-3 text-xs font-semibold text-cyan-300">{t(`myPlan.plans.${p.key}.summary`)}</p>
-              <p className="mt-1 text-[11px] font-semibold text-slate-300">{t(`myPlan.plans.${p.key}.credits`)}</p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-300">{t('myPlan.aiPerDay', { n: aiPerDay })}</p>
               <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">{t(`myPlan.plans.${p.key}.desc`)}</p>
 
               <button
@@ -165,7 +170,8 @@ export default function MyPlan() {
 
               <ul className="mt-4 space-y-1.5 border-t border-slate-800 pt-3.5">
                 {FEATURE_KEYS.map((fk, i) => {
-                  const has = i < p.features
+                  // Comunidade: todo plano PAGO tem (do Basic ao Pro). Demais: por contagem.
+                  const has = fk === 'community' ? !p.noCard : i < p.features
                   return (
                     <li key={fk} className={`flex items-center gap-1.5 text-xs ${has ? 'text-slate-300' : 'text-slate-600'}`}>
                       {has ? <Check size={12} className="shrink-0 text-cyan-400" /> : <X size={12} className="shrink-0 text-slate-700" />}

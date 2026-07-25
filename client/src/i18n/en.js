@@ -19,6 +19,7 @@ export default {
       viralVideos: { name: 'Viral Videos', desc: 'Discover videos that blew up in your niche to reverse-engineer winning titles, thumbnails and formats.' },
       nicheDoubling: { name: 'Niche Doubling (AI)', desc: 'AI reverse-engineering of a seed channel: extracts the winning pattern and generates dozens of ideas, niche doublings and market adaptations.' },
       removedChannels: { name: 'Removed Channels', desc: 'A database of removed/demonetized dark channels so you learn what to avoid and mine orphaned formats.' },
+      community: { name: 'Community', desc: 'Access to the dark-channel creators community: swap strategies, ask questions and follow updates. Available on any paid plan.' },
     },
   },
   common: {
@@ -1283,6 +1284,7 @@ export default {
     title: 'My Plan',
     subtitle: 'Manage your subscription',
     aiUsage: 'AI usage',
+    aiPerDay: '{n} AI uses per day',
     usedOfToday: '{used} of {limit} today',
     usageSources: 'SEO reports · Niche Fold · Titles · Transcriptions',
     renewsDaily: 'Renews every day',

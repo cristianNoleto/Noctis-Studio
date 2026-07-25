@@ -19,6 +19,7 @@ export default {
       viralVideos: { name: 'Vídeos Virais', desc: 'Descubra vídeos que explodiram no seu nicho para engenharia reversa de títulos, thumbnails e formatos vencedores.' },
       nicheDoubling: { name: 'Dobra de Nicho (IA)', desc: 'Engenharia reversa com IA do canal semente: extrai o padrão vencedor e gera dezenas de ideias, dobras de nicho e adaptações de mercado.' },
       removedChannels: { name: 'Canais Removidos', desc: 'Base de canais dark removidos/desmonetizados para você aprender o que evitar e minerar formatos órfãos.' },
+      community: { name: 'Comunidade', desc: 'Acesso à comunidade de criadores de canais dark: troque estratégias, tire dúvidas e acompanhe novidades. Disponível em qualquer plano pago.' },
     },
   },
   common: {
@@ -1283,6 +1284,7 @@ export default {
     title: 'Meu Plano',
     subtitle: 'Gerencie sua assinatura',
     aiUsage: 'Uso de IA',
+    aiPerDay: '{n} usos de IA por dia',
     usedOfToday: '{used} de {limit} hoje',
     usageSources: 'Relatórios SEO · Dobra de Nicho · Títulos · Transcrições',
     renewsDaily: 'Renova todos os dias',

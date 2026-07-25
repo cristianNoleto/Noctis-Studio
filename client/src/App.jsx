@@ -59,7 +59,10 @@ function Protected({ children }) {
 // pelo Google); usuário logado entra no app (Layout + Dashboard).
 function RootRoute() {
   const { user, loading } = useAuth()
-  if (loading) return <Spinner />
+  // Retorno do login Google (redirect p/ a raiz com o token no hash): mostra o
+  // spinner enquanto a sessão é montada, em vez de piscar a landing pública.
+  const oauthReturning = !user && /access_token=|[?&]code=|[#&]state=/.test(`${window.location.hash}${window.location.search}`)
+  if (loading || oauthReturning) return <Spinner />
   if (!user) return <Landing />
   return <Layout />
 }

@@ -223,12 +223,46 @@ export function AuthProvider({ children }) {
     return data.session?.access_token || null
   }, [])
 
+  // Re-emite o token (refreshSession) para pegar mudanças de plano no app_metadata
+  // SEM precisar deslogar. Fallback para getSession se o refresh falhar.
   const refreshUser = useCallback(async () => {
     if (isLocalMode) return
-    const { data } = await supabase.auth.getSession()
-    setUser(sessionToUser(data.session))
+    let session = null
+    try {
+      const { data, error } = await supabase.auth.refreshSession()
+      if (!error) session = data.session
+    } catch {
+      /* ignora e tenta o cache abaixo */
+    }
+    if (!session) {
+      const { data } = await supabase.auth.getSession()
+      session = data.session
+    }
+    setUser(sessionToUser(session))
   }, [])
   refreshUserRef.current = refreshUser
+
+  // Mantém o plano em dia sem relogar: revalida a sessão ao focar a aba e a cada
+  // 5 min (com throttle). Assim um upgrade/downgrade aplica quase na hora.
+  useEffect(() => {
+    if (isLocalMode) return
+    let last = 0
+    const revalidate = () => {
+      const now = Date.now()
+      if (now - last < 60_000) return // no máx. 1x/min
+      last = now
+      refreshUserRef.current?.()
+    }
+    const onFocus = () => document.visibilityState === 'visible' && revalidate()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    const id = setInterval(revalidate, 5 * 60_000)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+      clearInterval(id)
+    }
+  }, [isLocalMode])
 
   // Fundador: e-mail na allowlist VITE_FOUNDER_EMAIL. Blindado — nunca perde acesso.
   // No modo local (sem Supabase) o admin do dispositivo é o dono da instalação,

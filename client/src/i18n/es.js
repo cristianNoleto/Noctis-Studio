@@ -19,6 +19,7 @@ export default {
       viralVideos: { name: 'Vídeos Virales', desc: 'Descubre vídeos que explotaron en tu nicho para hacer ingeniería inversa de títulos, miniaturas y formatos ganadores.' },
       nicheDoubling: { name: 'Duplicación de Nicho (IA)', desc: 'Ingeniería inversa con IA del canal semilla: extrae el patrón ganador y genera decenas de ideas, duplicaciones de nicho y adaptaciones de mercado.' },
       removedChannels: { name: 'Canales Eliminados', desc: 'Una base de canales dark eliminados/desmonetizados para que aprendas qué evitar y extraigas formatos huérfanos.' },
+      community: { name: 'Comunidad', desc: 'Acceso a la comunidad de creadores de canales dark: intercambia estrategias, resuelve dudas y sigue novedades. Disponible en cualquier plan de pago.' },
     },
   },
   common: {
@@ -1283,6 +1284,7 @@ export default {
     title: 'Mi Plan',
     subtitle: 'Gestiona tu suscripción',
     aiUsage: 'Uso de IA',
+    aiPerDay: '{n} usos de IA por día',
     usedOfToday: '{used} de {limit} hoy',
     usageSources: 'Informes SEO · Pliegue de Nicho · Títulos · Transcripciones',
     renewsDaily: 'Se renueva todos los días',
