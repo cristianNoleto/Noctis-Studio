@@ -1,7 +1,16 @@
 import { Router } from 'express'
 import { aiGenerateJson, availableGeminiModels, pingGemini, pingGroq, AiError } from '../lib/gemini.js'
+import { checkAiLimit, recordAiUse } from '../lib/aiLimit.js'
 
 const router = Router()
+
+// Resposta padrão quando o limite diário de IA do plano é atingido.
+function limitReached(res, gate) {
+  return res.status(429).json({
+    error: 'ai_limit_reached',
+    message: `Limite diário de IA do seu plano atingido (${gate.used}/${gate.limit}). Faça upgrade para liberar mais usos por dia.`,
+  })
+}
 
 // GET /api/ai/gemini-models — modelos que a chave do usuário pode usar (alimenta
 // o seletor de modelo na tela de APIs).
@@ -44,6 +53,8 @@ router.post('/seo-report', async (req, res) => {
   try {
     const { title, description = '', tags = [], language = 'pt', channelName = '', channelNotes = '' } = req.body || {}
     if (!title) return res.status(400).json({ error: 'missing_title' })
+    const gate = await checkAiLimit(req)
+    if (gate.over) return limitReached(res, gate)
     const langName = SEO_LANGS[language] || language || 'português (Brasil)'
     const isPt = language === 'pt'
 
@@ -94,6 +105,7 @@ Responda neste formato JSON exato:
     result.score = Math.max(0, Math.min(100, Math.round(Number(result.score) || 0)))
     if (result.ctrScore != null) result.ctrScore = Math.max(0, Math.min(100, Math.round(Number(result.ctrScore) || 0)))
     if (result.seoScore != null) result.seoScore = Math.max(0, Math.min(100, Math.round(Number(result.seoScore) || 0)))
+    if (gate.user) recordAiUse(gate.user, gate.day).catch(() => {})
     res.json(result)
   } catch (err) {
     handleError(res, err)
@@ -105,6 +117,8 @@ router.post('/titles', async (req, res) => {
   try {
     const { idea, niche = '', context = '' } = req.body || {}
     if (!idea) return res.status(400).json({ error: 'missing_idea' })
+    const gate = await checkAiLimit(req)
+    if (gate.over) return limitReached(res, gate)
 
     const result = await aiGenerateJson(req, {
       system:
@@ -120,6 +134,7 @@ CONTEXTO DO PADRÃO VENCEDOR: ${context || '(não informado)'}
 Responda neste formato JSON exato:
 { "titles": ["<título 1>", "<título 2>", "... 10 títulos"] }`,
     })
+    if (gate.user) recordAiUse(gate.user, gate.day).catch(() => {})
     res.json({ titles: (result.titles || []).filter((t) => typeof t === 'string').slice(0, 10) })
   } catch (err) {
     handleError(res, err)
@@ -134,6 +149,8 @@ router.post('/niche-doubling', async (req, res) => {
   try {
     const { channel, topVideos = [] } = req.body || {}
     if (!channel?.title) return res.status(400).json({ error: 'missing_channel' })
+    const gate = await checkAiLimit(req)
+    if (gate.over) return limitReached(res, gate)
 
     // Outlier = quantas vezes o vídeo bate a mediana de views do canal.
     const views = topVideos.map((v) => Number(v.views) || 0).filter(Boolean).sort((a, b) => a - b)
@@ -238,6 +255,7 @@ Responda neste formato JSON exato (sem comentários, sem markdown):
 }
 Regras de contagem: "ideas" = 3 itens; "doubling.items" = 4 itens (nichos DIFERENTES entre si); "market" = 2 a 3 itens.`,
     })
+    if (gate.user) recordAiUse(gate.user, gate.day).catch(() => {})
     res.json(result)
   } catch (err) {
     handleError(res, err)

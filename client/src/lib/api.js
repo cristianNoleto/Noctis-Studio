@@ -47,6 +47,28 @@ async function request(path, { method = 'GET', body, raw } = {}) {
   return data
 }
 
+// Chamada de IA: envia as chaves BYOK (apiHeaders) E o token do Supabase quando
+// houver — o servidor identifica o usuário pelo token para aplicar o limite
+// diário de IA do plano (blindagem server-side). Sem token (modo local), o
+// servidor não conta e libera.
+async function aiRequest(path, { method = 'POST', body } = {}) {
+  const headers = apiHeaders()
+  if (supabase) {
+    const { data } = await supabase.auth.getSession()
+    const token = data?.session?.access_token
+    if (token) headers['Authorization'] = `Bearer ${token}`
+  }
+  let res
+  try {
+    res = await fetch(`/api${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
+  } catch {
+    throw new ApiError('server_offline', 'Servidor local não está rodando (npm run dev em server/).')
+  }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new ApiError(data.error || 'request_failed', data.message)
+  return data
+}
+
 // ---------------------------------------------------------------------------
 // Transcrição — o navegador fala DIRETO com a AssemblyAI (sem passar pelo
 // nosso backend): não há limite de upload de função serverless e funciona
@@ -164,9 +186,10 @@ export const api = {
     test: () => request('/youtube/test'),
   },
   ai: {
-    seoReport: (payload) => request('/ai/seo-report', { method: 'POST', body: payload }),
-    nicheDoubling: (payload) => request('/ai/niche-doubling', { method: 'POST', body: payload }),
-    titles: (payload) => request('/ai/titles', { method: 'POST', body: payload }),
+    // Com token (limite de plano server-side).
+    seoReport: (payload) => aiRequest('/ai/seo-report', { body: payload }),
+    nicheDoubling: (payload) => aiRequest('/ai/niche-doubling', { body: payload }),
+    titles: (payload) => aiRequest('/ai/titles', { body: payload }),
     test: () => request('/ai/test', { method: 'POST', body: {} }),
     geminiModels: () => request('/ai/gemini-models'),
   },
@@ -305,6 +328,9 @@ export function apiErrorMessage(err) {
     assembly_unreachable: 'Não foi possível falar com a AssemblyAI — confira sua conexão com a internet.',
     channel_not_found: 'Canal não encontrado no YouTube. Confira a URL ou o handle.',
     invalid_key: 'A chave de API informada foi rejeitada pelo provedor. Confira em Perfil → APIs.',
+    ai_limit_reached: 'Você atingiu o limite diário de IA do seu plano. Faça upgrade em Meu Plano para liberar mais usos por dia.',
   }
+  // Mensagens do servidor (ex.: limite com números) têm prioridade quando existem.
+  if (err?.code === 'ai_limit_reached' && err?.message) return err.message
   return map[err?.code] || err?.message || 'Algo deu errado. Tente novamente.'
 }
