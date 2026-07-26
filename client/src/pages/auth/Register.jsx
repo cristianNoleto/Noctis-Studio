@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import AuthShell from './AuthShell'
 import GoogleButton from './GoogleButton'
@@ -8,7 +8,7 @@ import { useI18n } from '../../i18n'
 
 export default function Register() {
   const { t } = useI18n()
-  const { signUp, signInWithGoogle } = useAuth()
+  const { signUp, signInWithGoogle, user, loading } = useAuth()
   const navigate = useNavigate()
 
   const [name, setName] = useState('')
@@ -54,6 +54,9 @@ export default function Register() {
 
   const inputClass =
     'w-full rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500'
+
+  // Já logado? Vai direto pro app (evita re-disparar o OAuth do Google).
+  if (!loading && user) return <Navigate to="/" replace />
 
   return (
     <AuthShell>

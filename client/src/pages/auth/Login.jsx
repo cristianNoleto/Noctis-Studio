@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { Eye, EyeOff, X } from 'lucide-react'
 import AuthShell from './AuthShell'
 import GoogleButton from './GoogleButton'
@@ -8,7 +8,7 @@ import { useI18n } from '../../i18n'
 
 export default function Login() {
   const { t } = useI18n()
-  const { signIn, signInWithGoogle, resetPassword, mfa } = useAuth()
+  const { signIn, signInWithGoogle, resetPassword, mfa, user, loading } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -104,6 +104,10 @@ export default function Login() {
       </AuthShell>
     )
   }
+
+  // Já logado? Não mostrar a tela de login (evita disparar um OAuth redundante
+  // ao clicar no Google de novo, que "volta pro Google"). Vai direto pro app.
+  if (!loading && user) return <Navigate to="/" replace />
 
   return (
     <AuthShell>

@@ -227,40 +227,47 @@ export function AuthProvider({ children }) {
   // SEM precisar deslogar. Fallback para getSession se o refresh falhar.
   const refreshUser = useCallback(async () => {
     if (isLocalMode) return
-    let session = null
+    // Tenta re-emitir o token para pegar mudanças de plano. IMPORTANTE: NÃO
+    // deslogar em falha transitória do refresh (corrida com o auto-refresh do
+    // SDK pode retornar erro "refresh token already used"). Só o evento real
+    // SIGNED_OUT (onAuthStateChange) limpa o usuário. Aqui, na dúvida, mantemos.
     try {
       const { data, error } = await supabase.auth.refreshSession()
-      if (!error) session = data.session
+      if (!error && data.session) {
+        setUser(sessionToUser(data.session))
+        return
+      }
     } catch {
-      /* ignora e tenta o cache abaixo */
+      /* ignora — cai no getSession abaixo */
     }
-    if (!session) {
-      const { data } = await supabase.auth.getSession()
-      session = data.session
-    }
-    setUser(sessionToUser(session))
+    const { data } = await supabase.auth.getSession()
+    if (data.session) setUser(sessionToUser(data.session))
+    // Sem sessão aqui = provável falha transitória; NÃO chamamos setUser(null)
+    // para não derrubar um login válido. O logout real vem via SIGNED_OUT.
   }, [])
   refreshUserRef.current = refreshUser
 
-  // Mantém o plano em dia sem relogar: revalida a sessão ao focar a aba e a cada
-  // 5 min (com throttle). Assim um upgrade/downgrade aplica quase na hora.
+  // Mantém o plano em dia sem relogar: revalida a sessão ao FOCAR a aba, com
+  // throttle de 5 min. Antes havia também um intervalo de 5 min chamando
+  // refreshSession — chamadas frequentes de refresh corriam com o auto-refresh
+  // do SDK (rotação do refresh token) e podiam DERRUBAR sessões válidas (contas
+  // Google "não ficavam logadas"). Menos chamadas + refresh não-destrutivo
+  // (refreshUser não desloga em falha) resolvem isso.
   useEffect(() => {
     if (isLocalMode) return
-    let last = 0
+    let last = Date.now() // não revalida logo na montagem (o getSession inicial já cobre)
     const revalidate = () => {
       const now = Date.now()
-      if (now - last < 60_000) return // no máx. 1x/min
+      if (now - last < 5 * 60_000) return // no máx. 1x a cada 5 min
       last = now
       refreshUserRef.current?.()
     }
     const onFocus = () => document.visibilityState === 'visible' && revalidate()
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
-    const id = setInterval(revalidate, 5 * 60_000)
     return () => {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onFocus)
-      clearInterval(id)
     }
   }, [isLocalMode])
 
