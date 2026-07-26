@@ -4,6 +4,8 @@ import { ShieldCheck, Sparkles, Users, GraduationCap, ShieldAlert, Plus, Pencil,
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
+import { persistMedia } from '../lib/storage'
+import { optimizeDataUrl } from '../lib/imageOptimize'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog, formatCompact } from '../components/ui'
 import { Field } from './channels/ChannelsList'
 import { useI18n } from '../i18n'
@@ -427,9 +429,47 @@ function LocalMembersTab() {
 function AcademyTab() {
   const { t } = useI18n()
   const db = useDb()
+  const { isLocalMode } = useAuth()
   const [editing, setEditing] = useState(null)
   const [deleting, setDeleting] = useState(null)
-  const items = [...db.all('academyContent')].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+  const [remote, setRemote] = useState([])
+  const [loading, setLoading] = useState(!isLocalMode)
+
+  async function load() {
+    if (isLocalMode) return
+    setLoading(true)
+    try {
+      const { content } = await api.academy.list()
+      setRemote(content || [])
+    } catch {
+      setRemote([])
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLocalMode])
+
+  const items = (isLocalMode ? [...db.all('academyContent')] : remote).sort(
+    (a, b) => (a.section === 'setup' ? 0 : 1) - (b.section === 'setup' ? 0 : 1) || (a.position ?? 0) - (b.position ?? 0),
+  )
+
+  async function remove(item) {
+    if (isLocalMode) db.remove('academyContent', item.id)
+    else {
+      try {
+        await api.academy.remove(item.id)
+      } catch {
+        /* ignora */
+      }
+      load()
+    }
+    setDeleting(null)
+  }
+
+  const SECTION_LABEL = { setup: t('admin.academyTab.sectionSetup'), page: t('admin.academyTab.sectionPage') }
 
   return (
     <div className="space-y-3">
@@ -440,32 +480,37 @@ function AcademyTab() {
           {t('admin.academyTab.newTutorial')}
         </button>
       </div>
-      {items.map((item) => (
-        <div key={item.id} className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-          <GraduationCap size={16} className="mt-0.5 shrink-0 text-cyan-400" />
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold text-slate-100">{item.title}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>
-            {item.embedUrl ? (
-              <p className="mt-1 truncate text-[10px] text-cyan-400">{item.embedUrl}</p>
-            ) : (
-              <p className="mt-1 text-[10px] text-slate-600">{t('admin.academyTab.noVideo')}</p>
-            )}
+      {loading ? (
+        <p className="text-xs text-slate-500">{t('common.loading')}</p>
+      ) : (
+        items.map((item) => (
+          <div key={item.id} className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+            <GraduationCap size={16} className="mt-0.5 shrink-0 text-cyan-400" />
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-2 font-semibold text-slate-100">
+                {item.title}
+                <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${item.section === 'setup' ? 'bg-amber-500/15 text-amber-400' : 'bg-cyan-500/15 text-cyan-300'}`}>
+                  {SECTION_LABEL[item.section] || SECTION_LABEL.page}
+                </span>
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>
+              {item.embedUrl && <p className="mt-1 truncate text-[10px] text-cyan-400">{item.embedUrl}</p>}
+            </div>
+            <button onClick={() => setEditing(item)} className="text-slate-500 hover:text-slate-200" title={t('admin.academyTab.edit')}>
+              <Pencil size={14} />
+            </button>
+            <button onClick={() => setDeleting(item)} className="text-slate-500 hover:text-red-400" title={t('admin.academyTab.delete')}>
+              <Trash2 size={14} />
+            </button>
           </div>
-          <button onClick={() => setEditing(item)} className="text-slate-500 hover:text-slate-200" title={t('admin.academyTab.edit')}>
-            <Pencil size={14} />
-          </button>
-          <button onClick={() => setDeleting(item)} className="text-slate-500 hover:text-red-400" title={t('admin.academyTab.delete')}>
-            <Trash2 size={14} />
-          </button>
-        </div>
-      ))}
+        ))
+      )}
 
-      <AcademyModal open={editing !== null} onClose={() => setEditing(null)} item={editing === 'new' ? null : editing} nextPosition={items.length} />
+      <AcademyModal open={editing !== null} onClose={() => setEditing(null)} item={editing === 'new' ? null : editing} nextPosition={items.length} isLocalMode={isLocalMode} onSaved={load} />
       <ConfirmDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}
-        onConfirm={() => db.remove('academyContent', deleting.id)}
+        onConfirm={() => remove(deleting)}
         title={t('admin.academyTab.deleteTitle')}
         message={t('admin.academyTab.deleteMsg', { title: deleting?.title })}
       />
@@ -473,32 +518,97 @@ function AcademyTab() {
   )
 }
 
-function AcademyModal({ open, onClose, item, nextPosition }) {
+function AcademyModal({ open, onClose, item, nextPosition, isLocalMode, onSaved }) {
   const { t } = useI18n()
   const db = useDb()
+  const fileRef = useRef(null)
   const [form, setForm] = useState({})
   const [init, setInit] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   if (open && !init) {
-    setForm({ title: item?.title || '', description: item?.description || '', embedUrl: item?.embedUrl || '' })
+    setForm({
+      section: item?.section || 'page',
+      pageKey: item?.pageKey || '',
+      title: item?.title || '',
+      description: item?.description || '',
+      body: item?.body || '',
+      coverUrl: item?.coverUrl || '',
+      embedUrl: item?.embedUrl || '',
+    })
     setInit(true)
   }
   if (!open && init) setInit(false)
 
-  function save(e) {
+  async function pickCover(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploading(true)
+    try {
+      const dataUrl = await new Promise((res) => {
+        const r = new FileReader()
+        r.onload = () => res(r.result)
+        r.readAsDataURL(file)
+      })
+      const opt = await optimizeDataUrl(dataUrl, file.type).catch(() => ({ dataURL: dataUrl }))
+      const url = await persistMedia(opt.dataURL, { folder: 'academy', ext: 'jpg', contentType: 'image/jpeg' })
+      setForm((f) => ({ ...f, coverUrl: url }))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function save(e) {
     e.preventDefault()
-    if (item) db.update('academyContent', item.id, form)
-    else db.insert('academyContent', { ...form, position: nextPosition })
-    onClose()
+    if (saving) return
+    setSaving(true)
+    try {
+      if (isLocalMode) {
+        if (item) db.update('academyContent', item.id, form)
+        else db.insert('academyContent', { ...form, position: nextPosition })
+      } else {
+        await api.academy.save({ ...form, id: item?.id, position: item?.position ?? nextPosition })
+        onSaved?.()
+      }
+      onClose()
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={item ? t('admin.academyTab.modalEditTitle') : t('admin.academyTab.modalNewTitle')}>
+    <Modal open={open} onClose={onClose} title={item ? t('admin.academyTab.modalEditTitle') : t('admin.academyTab.modalNewTitle')} wide>
       <form onSubmit={save} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t('admin.academyTab.sectionField')}>
+            <select className={inputCls} value={form.section || 'page'} onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}>
+              <option value="page">{t('admin.academyTab.sectionPage')}</option>
+              <option value="setup">{t('admin.academyTab.sectionSetup')}</option>
+            </select>
+          </Field>
+          <Field label={t('admin.academyTab.pageKeyField')}>
+            <input className={inputCls} placeholder="ex.: videos, referencias" value={form.pageKey || ''} onChange={(e) => setForm((f) => ({ ...f, pageKey: e.target.value }))} />
+          </Field>
+        </div>
         <Field label={t('admin.academyTab.titleField')}>
           <input className={inputCls} required value={form.title || ''} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
         </Field>
         <Field label={t('admin.academyTab.descField')}>
           <textarea className={`${inputCls} min-h-16 resize-y`} value={form.description || ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+        </Field>
+        <Field label={t('admin.academyTab.bodyField')}>
+          <textarea className={`${inputCls} min-h-40 resize-y`} placeholder={t('admin.academyTab.bodyPlaceholder')} value={form.body || ''} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} />
+        </Field>
+        <Field label={t('admin.academyTab.coverField')}>
+          <div className="flex items-center gap-2">
+            <input className={inputCls} placeholder="https://... (ou envie uma imagem)" value={form.coverUrl || ''} onChange={(e) => setForm((f) => ({ ...f, coverUrl: e.target.value }))} />
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickCover} />
+            <button type="button" className={`${btnGhost} shrink-0 !px-3 !py-2.5`} onClick={() => fileRef.current?.click()} disabled={uploading}>
+              {uploading ? <Loader2 size={15} className="animate-spin" /> : t('admin.academyTab.upload')}
+            </button>
+          </div>
+          {form.coverUrl && <img src={form.coverUrl} alt="" className="mt-2 h-24 rounded-lg border border-slate-800 object-cover" />}
         </Field>
         <Field label={t('admin.academyTab.embedField')}>
           <input className={inputCls} placeholder="https://www.youtube.com/embed/..." value={form.embedUrl || ''} onChange={(e) => setForm((f) => ({ ...f, embedUrl: e.target.value }))} />
@@ -507,7 +617,8 @@ function AcademyModal({ open, onClose, item, nextPosition }) {
           <button type="button" className={btnGhost} onClick={onClose}>
             {t('admin.cancel')}
           </button>
-          <button type="submit" className={btnPrimary}>
+          <button type="submit" disabled={saving} className={`${btnPrimary} flex items-center gap-2`}>
+            {saving && <Loader2 size={15} className="animate-spin" />}
             {t('admin.save')}
           </button>
         </div>

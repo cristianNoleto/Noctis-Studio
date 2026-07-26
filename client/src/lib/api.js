@@ -222,6 +222,12 @@ export const api = {
     used: (id) => authRequestOptional(`/excalidraw-templates/${id}/used`, { method: 'POST' }),
     remove: (id) => authRequest(`/excalidraw-templates/${id}`, { method: 'DELETE' }),
   },
+  // Academia & Tutoriais — conteúdo global (fundador edita; todos leem).
+  academy: {
+    list: () => authRequestOptional('/academy'),
+    save: (item) => authRequest('/academy', { method: 'POST', body: { item } }),
+    remove: (id) => authRequest(`/academy/${id}`, { method: 'DELETE' }),
+  },
   // Conexão do Google Drive (OAuth) por usuário.
   drive: {
     connect: () => authRequest('/drive/connect', { method: 'POST' }),
