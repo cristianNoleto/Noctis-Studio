@@ -5,6 +5,71 @@ import { useAuth } from '../auth/AuthContext'
 import { api } from '../lib/api'
 import { useI18n } from '../i18n'
 
+// Renderiza **negrito** dentro de uma linha.
+function inline(text) {
+  return String(text).split(/(\*\*[^*]+\*\*)/g).map((p, i) =>
+    p.startsWith('**') && p.endsWith('**') ? (
+      <strong key={i} className="font-semibold text-slate-200">{p.slice(2, -2)}</strong>
+    ) : (
+      <span key={i}>{p}</span>
+    ),
+  )
+}
+
+// Renderizador "markdown-lite" do corpo do tutorial: deixa o texto escaneável.
+//   "## Título"  → subtítulo
+//   "- item"     → lista com marcador
+//   "1. item"    → lista numerada (passos)
+//   linha vazia  → separação
+//   **negrito**  → destaque
+function RichBody({ text }) {
+  const lines = String(text || '').split('\n')
+  const blocks = []
+  let list = null
+  const flush = () => { if (list) { blocks.push(list); list = null } }
+  lines.forEach((raw) => {
+    const line = raw.trim()
+    if (!line) return flush()
+    if (line.startsWith('## ')) { flush(); blocks.push({ __h: line.slice(3) }); return }
+    const b = line.match(/^[-•]\s+(.*)/)
+    if (b) { if (!list || list.__list !== 'ul') { flush(); list = { __list: 'ul', items: [] } } list.items.push(b[1]); return }
+    const n = line.match(/^\d+\.\s+(.*)/)
+    if (n) { if (!list || list.__list !== 'ol') { flush(); list = { __list: 'ol', items: [] } } list.items.push(n[1]); return }
+    flush()
+    blocks.push({ __p: line })
+  })
+  flush()
+  return (
+    <div className="space-y-2.5">
+      {blocks.map((blk, i) => {
+        if (blk.__h) return <h4 key={i} className="mt-1 text-sm font-bold text-slate-100">{inline(blk.__h)}</h4>
+        if (blk.__p) return <p key={i} className="text-sm leading-relaxed text-slate-400">{inline(blk.__p)}</p>
+        if (blk.__list === 'ol')
+          return (
+            <ol key={i} className="space-y-1.5">
+              {blk.items.map((it, j) => (
+                <li key={j} className="flex gap-2.5 text-sm leading-relaxed text-slate-400">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-500/15 text-[11px] font-bold text-cyan-300">{j + 1}</span>
+                  <span className="pt-0.5">{inline(it)}</span>
+                </li>
+              ))}
+            </ol>
+          )
+        return (
+          <ul key={i} className="space-y-1">
+            {blk.items.map((it, j) => (
+              <li key={j} className="flex gap-2 text-sm leading-relaxed text-slate-400">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400" />
+                <span>{inline(it)}</span>
+              </li>
+            ))}
+          </ul>
+        )
+      })}
+    </div>
+  )
+}
+
 // Academia & Tutoriais. O conteúdo é GLOBAL (servidor): o fundador edita em
 // /admin → Academia e todos os usuários veem. Em modo local (dev) cai no seed.
 export default function Academy() {
@@ -125,7 +190,7 @@ export default function Academy() {
             <div className="space-y-4 px-6 py-5">
               {playing.description && <p className="text-sm font-medium text-slate-300">{playing.description}</p>}
               {playing.body ? (
-                <div className="whitespace-pre-line text-sm leading-relaxed text-slate-400">{playing.body}</div>
+                <RichBody text={playing.body} />
               ) : (
                 !playing.embedUrl && !playing.description && <p className="text-sm text-slate-600">{t('academy.comingSoon')}</p>
               )}

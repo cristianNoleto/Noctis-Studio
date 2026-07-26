@@ -581,7 +581,7 @@ export default function DrawingEditor() {
       </div>
 
       <TemplateBrowser open={showInsertTpl} onClose={() => setShowInsertTpl(false)} mode="insert" onUse={insertTemplate} />
-      <TemplatePublishModal open={showPublishTpl} onClose={() => setShowPublishTpl(false)} getScene={captureTemplateScene} />
+      <TemplatePublishModal open={showPublishTpl} onClose={() => setShowPublishTpl(false)} getScene={captureTemplateScene} contextOwner={db.activeWorkspace()} />
 
       {/* Overlay ao sair: garante ao usuário que estamos salvando antes de fechar */}
       {leaving && (

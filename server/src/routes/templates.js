@@ -124,15 +124,32 @@ router.post('/', async (req, res) => {
   if (!viewer) return
   const t = req.body?.template || {}
   if (!t.name?.trim()) return res.status(400).json({ error: 'invalid', message: 'O nome do modelo é obrigatório.' })
-  // Não-fundador não edita modelo de outro dono.
+  // Editar modelo existente: fundador, o DONO do modelo (owner_email) ou quem o
+  // CRIOU (created_by).
   if (t.id && !viewer.isFounder) {
-    const { data: existing } = await supa.from('excalidraw_templates').select('owner_email').eq('id', t.id).single()
-    if (!existing || (existing.owner_email || '').toLowerCase() !== viewer.email) {
-      return res.status(403).json({ error: 'forbidden', message: 'Você só pode editar os seus modelos.' })
-    }
+    const { data: existing } = await supa.from('excalidraw_templates').select('owner_email, created_by').eq('id', t.id).single()
+    const own = existing && ((existing.owner_email || '').toLowerCase() === viewer.email || (existing.created_by || '').toLowerCase() === viewer.email)
+    if (!own) return res.status(403).json({ error: 'forbidden', message: 'Você só pode editar os seus modelos.' })
   }
   let visibility = ['global', 'workspace', 'specific', 'only_me'].includes(t.visibility) ? t.visibility : 'workspace'
-  if (!viewer.isFounder && visibility === 'global') visibility = 'workspace' // só fundador publica no global
+  // Publicar no GLOBAL: liberado para fundador E planos Pro (requireCreator já
+  // garante que é fundador ou Pro/Master).
+
+  // Destino em workspace de OUTRO dono (colaborador publicando no workspace do
+  // dono): exige acesso de EDIÇÃO a Desenhos naquele workspace. Força visibility
+  // 'workspace' (o modelo passa a pertencer àquele workspace).
+  let targetOwner = String(t.targetOwner || '').toLowerCase().trim()
+  if (targetOwner && targetOwner !== viewer.email) {
+    if (!viewer.isFounder) {
+      const { data: collab } = await supa.from('workspace_collaborators').select('drawings_access').eq('owner_email', targetOwner).eq('member_email', viewer.email).maybeSingle()
+      if (!collab || collab.drawings_access !== 'edit') {
+        return res.status(403).json({ error: 'forbidden', message: 'Sem acesso de edição a Desenhos nesse workspace.' })
+      }
+    }
+    visibility = 'workspace'
+  } else {
+    targetOwner = ''
+  }
   const allowed =
     visibility === 'specific' && Array.isArray(t.allowedEmails)
       ? [...new Set(t.allowedEmails.map((e) => String(e).toLowerCase().trim()).filter((e) => e.includes('@')))].slice(0, 50)
@@ -149,7 +166,7 @@ router.post('/', async (req, res) => {
   // A cena só é gravada quando enviada (na criação sempre; na edição de metadados pode faltar).
   if (t.scene !== undefined) row.scene = t.scene || {}
   if (!t.id) {
-    row.owner_email = viewer.email
+    row.owner_email = targetOwner || viewer.email // destino: workspace do dono ou o próprio
     row.created_by = viewer.email
     if (row.scene === undefined) row.scene = {}
   }
@@ -177,10 +194,9 @@ router.delete('/:id', async (req, res) => {
   const viewer = await getViewer(req, supa)
   if (!viewer.email) return res.status(401).json({ error: 'unauthorized' })
   if (!viewer.isFounder) {
-    const { data: existing } = await supa.from('excalidraw_templates').select('owner_email').eq('id', req.params.id).single()
-    if (!existing || (existing.owner_email || '').toLowerCase() !== viewer.email) {
-      return res.status(403).json({ error: 'forbidden', message: 'Você só pode excluir os seus modelos.' })
-    }
+    const { data: existing } = await supa.from('excalidraw_templates').select('owner_email, created_by').eq('id', req.params.id).single()
+    const own = existing && ((existing.owner_email || '').toLowerCase() === viewer.email || (existing.created_by || '').toLowerCase() === viewer.email)
+    if (!own) return res.status(403).json({ error: 'forbidden', message: 'Você só pode excluir os seus modelos.' })
   }
   const { error } = await supa.from('excalidraw_templates').delete().eq('id', req.params.id)
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
