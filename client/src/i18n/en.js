@@ -424,7 +424,7 @@ export default {
       submit: 'Create Channel',
     },
     detail: {
-      back: '← Back to Channels',
+      back: 'Back to Channels',
       editChannel: 'Edit Channel',
       createShortcuts: 'Create Shortcuts',
       share: 'Share',

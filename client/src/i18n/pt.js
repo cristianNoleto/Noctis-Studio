@@ -424,7 +424,7 @@ export default {
       submit: 'Criar Canal',
     },
     detail: {
-      back: '← Voltar para Canais',
+      back: 'Voltar para Canais',
       editChannel: 'Editar Canal',
       createShortcuts: 'Criar Atalhos',
       share: 'Compartilhar',
