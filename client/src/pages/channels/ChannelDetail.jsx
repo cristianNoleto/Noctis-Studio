@@ -35,6 +35,7 @@ import { EditChannelModal, CustomButtonsModal, ShareChannelModal, ChannelPrompts
 import VideosTable from './VideosTable'
 
 const STATS_REFRESH_COOLDOWN_MS = 10 * 60 * 1000 // máx. 1x a cada 10 min (economia de cota)
+const STATS_STALE_MS = 24 * 60 * 60 * 1000 // stats com +24h → atualiza sozinho ao abrir o canal
 
 
 export default function ChannelDetail() {
@@ -60,6 +61,22 @@ export default function ChannelDetail() {
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [])
+
+  // Atualização SILENCIOSA das stats do YouTube ao abrir o canal: se os dados
+  // estão com +24h (ou nunca foram buscados), dispara um refresh em 2º plano —
+  // os números atuais já aparecem na hora e se atualizam quando chegam, sem
+  // loading travando. Só no PRÓPRIO workspace (colaborador não grava canal) e
+  // 1x por canal por montagem. O botão manual continua para forçar na hora.
+  const autoRefreshedRef = useRef(null)
+  useEffect(() => {
+    if (!isOwner || !channel?.youtubeChannelId) return
+    if (autoRefreshedRef.current === id) return
+    const age = channel.ytStatsUpdatedAt ? Date.now() - channel.ytStatsUpdatedAt : Infinity
+    if (age <= STATS_STALE_MS) return
+    autoRefreshedRef.current = id
+    refreshStats() // silencioso (best-effort)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isOwner, channel?.youtubeChannelId])
 
   if (!channel) {
     return <p className="p-10 text-center text-slate-500">Canal não encontrado.</p>
@@ -107,7 +124,20 @@ export default function ChannelDetail() {
     navigate('/canais')
   }
 
-  const statsAge = channel.ytStatsUpdatedAt ? Math.round((Date.now() - channel.ytStatsUpdatedAt) / 60000) : null
+  const statsAge = channel.ytStatsUpdatedAt ? Math.round((Date.now() - channel.ytStatsUpdatedAt) / 60000) : null // em minutos
+  // Rótulo humano: agora / há X min / há X h / há X d.
+  const statsAgoLabel =
+    statsAge == null
+      ? t('channels.detail.neverUpdated')
+      : refreshing
+        ? t('channels.detail.updatingNow')
+        : statsAge < 1
+          ? t('channels.detail.updatedNow')
+          : statsAge < 60
+            ? t('channels.detail.updatedAgo', { n: statsAge })
+            : statsAge < 1440
+              ? t('channels.detail.updatedAgoH', { n: Math.round(statsAge / 60) })
+              : t('channels.detail.updatedAgoD', { n: Math.round(statsAge / 1440) })
 
   const menuItems = [
     { icon: Pencil, label: t('channels.detail.editChannel'), cls: 'text-sky-300', action: () => setModal('edit') },
@@ -246,9 +276,7 @@ export default function ChannelDetail() {
                 {t('channels.detail.ytStats')}
               </p>
               <div className="flex items-center gap-1.5">
-                <span className="text-[9px] text-slate-600">
-                  {statsAge == null ? t('channels.detail.neverUpdated') : statsAge < 1 ? t('channels.detail.updatedNow') : t('channels.detail.updatedAgo', { n: statsAge })}
-                </span>
+                <span className="text-[9px] text-slate-600">{statsAgoLabel}</span>
                 <button
                   onClick={refreshStats}
                   disabled={!canRefresh || refreshing}
