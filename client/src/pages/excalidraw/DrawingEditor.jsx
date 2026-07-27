@@ -227,27 +227,32 @@ export default function DrawingEditor() {
 
   // Captura a cena atual como MODELO (só os elementos + imagens referenciadas +
   // miniatura). Usado por "Salvar como modelo".
-  async function captureTemplateScene() {
+  async function captureTemplateScene(onProgress) {
     const a = apiRef.current
     if (!a) return null
     const elements = a.getSceneElements() // não-deletados
     if (!elements.length) return null
     const allFiles = a.getFiles?.() || {}
     const referenced = new Set(elements.filter((e) => e.fileId).map((e) => e.fileId))
+    const imgEntries = Object.entries(allFiles).filter(([fid, f]) => referenced.has(fid) && f?.dataURL)
+    const total = imgEntries.filter(([, f]) => String(f.mimeType || '').startsWith('image/')).length
+    let done = 0
+    onProgress?.({ phase: 'compress', done: 0, total })
     // O modelo guarda as imagens embutidas (base64) e vai como jsonb — para não
-    // estourar o limite da função serverless, COMPRIME cada imagem na captura
-    // (um modelo é ponto de partida, não precisa de resolução máxima).
+    // estourar o limite da função serverless, COMPRIME cada imagem AO MÁXIMO na
+    // captura (um modelo é ponto de partida, não precisa de resolução máxima).
     const files = {}
-    for (const [fid, f] of Object.entries(allFiles)) {
-      if (!referenced.has(fid) || !f?.dataURL) continue
+    for (const [fid, f] of imgEntries) {
       let entry = f
       if (String(f.mimeType || '').startsWith('image/')) {
         try {
-          const opt = await optimizeDataUrl(f.dataURL, f.mimeType)
+          const opt = await optimizeDataUrl(f.dataURL, f.mimeType, { maxDim: 1200, quality: 0.6, minBytes: 24 * 1024 })
           if (opt?.dataURL) entry = { ...f, dataURL: opt.dataURL, mimeType: opt.mimeType }
         } catch {
           /* mantém a original se a compressão falhar */
         }
+        done += 1
+        onProgress?.({ phase: 'compress', done, total })
       }
       files[fid] = entry
     }
@@ -257,12 +262,11 @@ export default function DrawingEditor() {
     return { scene, thumbnail }
   }
 
-  // Insere um modelo DENTRO da cena atual (ids remapeados p/ não colidir).
-  async function insertTemplate(tpl) {
+  // Insere um modelo DENTRO da cena atual (ids remapeados p/ não colidir). A cena
+  // (banco ou Drive) já vem buscada pelo TemplateBrowser.
+  async function insertTemplate(tpl, s) {
     const a = apiRef.current
     if (!a) return
-    const { template } = await api.templates.get(tpl.id)
-    const s = template.scene || {}
     const added = remapTemplateElements(s.elements || [])
     if (!added.length) return
     a.updateScene({ elements: [...a.getSceneElements(), ...added] })

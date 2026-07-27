@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Trash2, Pencil, LayoutTemplate, Plus, Sparkles, Users, Globe, Eye, Lock } from 'lucide-react'
-import { api } from '../../lib/api'
+import { api, ApiError } from '../../lib/api'
+import { setDriveOwner, ensureTemplatesFolder, uploadJson } from '../../lib/drive'
 import { useI18n } from '../../i18n'
 import { useAuth } from '../../auth/AuthContext'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../../components/ui'
+
+const TEMPLATE_DB_LIMIT = 3.5 * 1024 * 1024 // acima disso → grava no Drive do criador
 
 // ---------------------------------------------------------------------------
 // Biblioteca de MODELOS de Excalidraw. Componentes reutilizados pela galeria
@@ -58,6 +61,7 @@ export function TemplatePublishModal({ open, onClose, initial, getScene, onSaved
   const [category, setCategory] = useState('')
   const [destination, setDestination] = useState('self') // owner | self | private | global
   const [saving, setSaving] = useState(false)
+  const [progress, setProgress] = useState(null) // { phase:'compress'|'upload', done, total }
   const [error, setError] = useState('')
 
   // Destinos disponíveis (onde o modelo vai ficar salvo).
@@ -103,15 +107,29 @@ export function TemplatePublishModal({ open, onClose, initial, getScene, onSaved
         visibility: dest.visibility,
         targetOwner: dest.targetOwner,
       }
-      // Publicação nova (ou "salvar como modelo"): captura a cena atual.
+      // Publicação nova (ou "salvar como modelo"): captura + comprime a cena, com
+      // progresso. Se ficar pequena → banco; se ficar grande → Drive do criador.
       if (getScene) {
-        const captured = await getScene()
+        const captured = await getScene((p) => setProgress(p))
         if (!captured) throw new Error(t('drawings.templates.emptyScene'))
-        // Guarda de tamanho: a cena vai como jsonb (limite prático da função serverless).
-        const bytes = new Blob([JSON.stringify(captured.scene)]).size
-        if (bytes > 3.5 * 1024 * 1024) throw new Error(t('drawings.templates.tooBig'))
-        payload.scene = captured.scene
         payload.thumbnail = captured.thumbnail || undefined
+        const json = JSON.stringify(captured.scene)
+        const bytes = new Blob([json]).size
+        if (bytes <= TEMPLATE_DB_LIMIT) {
+          payload.scene = captured.scene
+        } else {
+          // Modelo grande → Drive do criador. Requer o Drive conectado.
+          setProgress({ phase: 'upload' })
+          const status = await api.drive.status().catch(() => ({ connected: false }))
+          if (!status.connected) throw new Error(t('drawings.templates.needDrive'))
+          setDriveOwner(null) // Drive do próprio criador
+          const folder = await ensureTemplatesFolder()
+          const fileId = await uploadJson({ name: `modelo-${Date.now()}.json`, data: captured.scene, parentId: folder })
+          payload.storage = 'drive'
+          payload.driveFileId = fileId
+          payload.driveFolderId = folder
+          payload.sizeBytes = bytes
+        }
       }
       const { template } = await api.templates.save(payload)
       onSaved?.(template)
@@ -120,7 +138,34 @@ export function TemplatePublishModal({ open, onClose, initial, getScene, onSaved
       setError(err?.message || 'Erro')
     } finally {
       setSaving(false)
+      setProgress(null)
     }
+  }
+
+  // Enquanto comprime/envia, mostra só o progresso (mastigado) no lugar do form.
+  if (open && progress) {
+    const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : null
+    return (
+      <Modal open={open} onClose={() => {}} title={t('drawings.templates.publishTitle')} wide>
+        <div className="flex flex-col items-center gap-4 py-8 text-center">
+          <Loader2 size={30} className="animate-spin text-cyan-400" />
+          <div>
+            <p className="text-sm font-semibold text-slate-100">
+              {progress.phase === 'upload' ? t('drawings.templates.progressUpload') : t('drawings.templates.progressCompress')}
+            </p>
+            {progress.phase === 'compress' && progress.total > 0 && (
+              <p className="mt-1 text-xs text-slate-500">{progress.done}/{progress.total}</p>
+            )}
+          </div>
+          {pct != null && (
+            <div className="h-2 w-56 overflow-hidden rounded-full bg-slate-800">
+              <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500 transition-all" style={{ width: `${pct}%` }} />
+            </div>
+          )}
+          <p className="max-w-xs text-[11px] leading-snug text-slate-500">{t('drawings.templates.progressHint')}</p>
+        </div>
+      </Modal>
+    )
   }
 
   return (
@@ -187,6 +232,8 @@ export function TemplateBrowser({ open, onClose, mode = 'new', onUse }) {
   const [busyId, setBusyId] = useState(null)
   const [editTpl, setEditTpl] = useState(null) // metadados em edição
   const [delTpl, setDelTpl] = useState(null)
+  const [missing, setMissing] = useState(null) // { tpl, mine } quando o arquivo do Drive sumiu
+  const [err, setErr] = useState('')
 
   async function load() {
     try {
@@ -197,14 +244,25 @@ export function TemplateBrowser({ open, onClose, mode = 'new', onUse }) {
     }
   }
   useEffect(() => {
-    if (open) { setList(null); load() }
+    if (open) { setList(null); setErr(''); load() }
   }, [open])
 
   async function use(tpl) {
     setBusyId(tpl.id)
+    setErr('')
     try {
-      await onUse(tpl)
+      // Busca a cena aqui (banco ou Drive). Se o dono apagou o arquivo do Drive,
+      // o servidor devolve 410 file_missing → tratamos com um aviso.
+      const { template } = await api.templates.get(tpl.id)
+      await onUse(tpl, template.scene || {})
       api.templates.used(tpl.id).catch(() => {})
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'file_missing') {
+        setMissing({ tpl, mine: mine(tpl) })
+        load() // reflete o estado atual
+      } else {
+        setErr(e?.message || 'Erro')
+      }
     } finally {
       setBusyId(null)
     }
@@ -225,6 +283,7 @@ export function TemplateBrowser({ open, onClose, mode = 'new', onUse }) {
   return (
     <>
       <Modal open={open} onClose={onClose} title={t('drawings.templates.browseTitle')} size="xl">
+        {err && <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{err}</p>}
         {list === null ? (
           <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-cyan-400" /></div>
         ) : list.length === 0 ? (
@@ -278,6 +337,20 @@ export function TemplateBrowser({ open, onClose, mode = 'new', onUse }) {
         onConfirm={() => remove(delTpl)}
         title={t('drawings.templates.deleteTitle')}
         message={t('drawings.templates.deleteMsg', { name: delTpl?.name })}
+      />
+      {/* Arquivo do modelo apagado do Drive. Do criador: remove da biblioteca
+          (o arquivo não existe mais). De outro: só avisa para pedir o reenvio. */}
+      <ConfirmDialog
+        open={missing !== null}
+        danger={!!missing?.mine}
+        onClose={() => setMissing(null)}
+        onConfirm={async () => {
+          if (missing?.mine) { await api.templates.remove(missing.tpl.id).catch(() => {}); load() }
+          setMissing(null)
+        }}
+        title={t('drawings.templates.missingTitle')}
+        message={missing?.mine ? t('drawings.templates.missingMine', { name: missing?.tpl?.name }) : t('drawings.templates.missingOther')}
+        confirmLabel={missing?.mine ? t('drawings.templates.missingRemove') : t('common.close')}
       />
     </>
   )

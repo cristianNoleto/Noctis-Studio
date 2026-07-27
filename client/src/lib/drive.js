@@ -14,9 +14,11 @@ const APP_ROOT_NAME = 'Noctis Studio - Storyboards (NAO APAGAR)'
 // Nomes antigos: se existir, é renomeado para o novo (preserva os projetos).
 const APP_ROOT_LEGACY = ['Noctis Studio- Site', 'Noctis Studio - Site']
 const PROJECTS_FOLDER_NAME = 'Excalidraw-projects'
+const TEMPLATES_FOLDER_NAME = 'Modelos'
 
 let cachedToken = null // { accessToken, exp }
 let cachedProjectsFolder = null // id da pasta Excalidraw-projects (por sessão)
+let cachedTemplatesFolder = null // id da pasta Modelos (por sessão)
 let driveOwner = null // dono do workspace ativo (null = próprio); porteiro usa o token dele
 
 // Define de QUEM é o Drive nas próximas operações: null = próprio; e-mail de
@@ -28,6 +30,7 @@ export function setDriveOwner(owner) {
     driveOwner = next
     cachedToken = null
     cachedProjectsFolder = null
+    cachedTemplatesFolder = null
   }
 }
 
@@ -92,6 +95,16 @@ export async function ensureProjectsFolder() {
   const projects = await ensureFolder(PROJECTS_FOLDER_NAME, appRoot)
   cachedProjectsFolder = projects
   return projects
+}
+
+// Pasta dos MODELOS de desenho: "<pasta do app>/Modelos". Modelos grandes
+// (> ~3,5 MB) são gravados aqui, no Drive do criador.
+export async function ensureTemplatesFolder() {
+  if (cachedTemplatesFolder) return cachedTemplatesFolder
+  const appRoot = await ensureAppRoot()
+  const folder = await ensureFolder(TEMPLATES_FOLDER_NAME, appRoot)
+  cachedTemplatesFolder = folder
+  return folder
 }
 
 export async function createFolder(name, parentId) {

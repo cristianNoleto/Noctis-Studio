@@ -31,7 +31,7 @@ export function blobToDataUrl(blob) {
   })
 }
 
-function canvasToDataUrl(source, tw, th) {
+function canvasToDataUrl(source, tw, th, quality) {
   const canvas = document.createElement('canvas')
   canvas.width = tw
   canvas.height = th
@@ -39,20 +39,24 @@ function canvasToDataUrl(source, tw, th) {
   if (!ctx) return null
   ctx.drawImage(source, 0, 0, tw, th)
   try {
-    return canvas.toDataURL('image/webp', QUALITY)
+    return canvas.toDataURL('image/webp', quality)
   } catch {
     return null
   }
 }
 
-// Reamostra um dataURL para caber em MAX_DIM e recomprime em WebP. Devolve o
+// Reamostra um dataURL para caber em maxDim e recomprime em WebP. Devolve o
 // novo dataURL + mimeType, ou null se não valer a pena (menor não ficou).
 // Usa createImageBitmap e libera o bitmap na hora para não acumular memória —
 // imagens grandes (7 MB+) chegam a estourar a RAM se ficarem decodificadas.
-export async function optimizeDataUrl(dataURL, mimeType) {
+// `opts`: { maxDim, quality, minBytes } — os modelos usam compressão mais forte.
+export async function optimizeDataUrl(dataURL, mimeType, opts = {}) {
+  const maxDim = opts.maxDim || MAX_DIM
+  const quality = opts.quality || QUALITY
+  const minBytes = opts.minBytes != null ? opts.minBytes : MIN_BYTES
   // SVGs são vetoriais e leves — não reamostrar.
   if (mimeType === 'image/svg+xml') return null
-  if (dataUrlBytes(dataURL) < MIN_BYTES) return null
+  if (dataUrlBytes(dataURL) < minBytes) return null
 
   let blob
   try {
@@ -66,8 +70,8 @@ export async function optimizeDataUrl(dataURL, mimeType) {
     const bmp = await createImageBitmap(blob)
     const { width: w, height: h } = bmp
     if (w && h) {
-      const scale = Math.min(1, MAX_DIM / Math.max(w, h))
-      out = canvasToDataUrl(bmp, Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)))
+      const scale = Math.min(1, maxDim / Math.max(w, h))
+      out = canvasToDataUrl(bmp, Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)), quality)
     }
     bmp.close?.() // libera a memória do bitmap imediatamente
   } catch {

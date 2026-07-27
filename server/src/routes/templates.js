@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { supabaseAdmin } from '../lib/supabaseAdmin.js'
+import { accessTokenForUser } from './drive.js'
 
 // Biblioteca de MODELOS de Excalidraw (desenhos pré-preenchidos).
 //   Leitura: qualquer usuário logado vê os modelos que tem direito (global +
@@ -26,11 +27,11 @@ function founderEmails() {
 
 async function getViewer(req, supa) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
-  if (!token) return { email: '', plan: 'FREE', isFounder: false }
+  if (!token) return { id: null, email: '', plan: 'FREE', isFounder: false }
   const { data } = await supa.auth.getUser(token)
   const email = (data?.user?.email || '').toLowerCase()
   const plan = data?.user?.app_metadata?.plan || 'FREE'
-  return { email, plan, isFounder: !!email && founderEmails().includes(email) }
+  return { id: data?.user?.id || null, email, plan, isFounder: !!email && founderEmails().includes(email) }
 }
 
 // Pode criar/editar modelos: fundador OU plano Pro/Master.
@@ -80,6 +81,8 @@ function toClientMeta(r) {
     visibility: r.visibility || 'workspace',
     allowedEmails: Array.isArray(r.allowed_emails) ? r.allowed_emails : [],
     uses: Number(r.uses) || 0,
+    storage: r.storage || 'db',
+    sizeBytes: Number(r.size_bytes || 0),
     createdAt: r.created_at ? new Date(r.created_at).getTime() : null,
   }
 }
@@ -102,6 +105,31 @@ router.get('/', async (req, res) => {
   res.json({ templates: rows.map(toClientMeta) })
 })
 
+// Carrega a cena de um modelo: do banco ('db') ou do Drive do CRIADOR ('drive').
+// No caso Drive, o servidor baixa com o token do criador (accessTokenForUser) —
+// assim modelos GLOBAIS no Drive de alguém continuam acessíveis a todos, sem
+// expor o token. Se o criador apagou o arquivo, devolve { error:'file_missing' }.
+async function loadScene(supa, r) {
+  if (r.storage === 'drive' && r.drive_file_id) {
+    const tok = r.owner_id ? await accessTokenForUser(supa, r.owner_id) : null
+    if (!tok) return { error: 'drive_unavailable' }
+    let dr
+    try {
+      dr = await fetch(`https://www.googleapis.com/drive/v3/files/${r.drive_file_id}?alt=media`, { headers: { Authorization: `Bearer ${tok.accessToken}` } })
+    } catch {
+      return { error: 'drive_error' }
+    }
+    if (dr.status === 404) return { error: 'file_missing' }
+    if (!dr.ok) return { error: 'drive_error' }
+    try {
+      return { scene: JSON.parse(await dr.text()) }
+    } catch {
+      return { error: 'drive_error' }
+    }
+  }
+  return { scene: r.scene || {} }
+}
+
 // GET /excalidraw-templates/:id — modelo completo (com a cena), se puder ver
 router.get('/:id', async (req, res) => {
   const supa = requireSupabase(res)
@@ -113,7 +141,10 @@ router.get('/:id', async (req, res) => {
     const owners = await templateWorkspaceOwners(supa, viewer.email)
     if (!canSeeRow(r, viewer, owners)) return res.status(403).json({ error: 'forbidden' })
   }
-  res.json({ template: { ...toClientMeta(r), scene: r.scene || {} } })
+  const loaded = await loadScene(supa, r)
+  if (loaded.error === 'file_missing') return res.status(410).json({ error: 'file_missing', creatorEmail: r.created_by || r.owner_email || '' })
+  if (loaded.error) return res.status(502).json({ error: loaded.error, message: 'Não foi possível carregar o modelo do Drive.' })
+  res.json({ template: { ...toClientMeta(r), scene: loaded.scene } })
 })
 
 // POST /excalidraw-templates — cria/atualiza (fundador ou Pro; dono só o seu)
@@ -163,12 +194,23 @@ router.post('/', async (req, res) => {
     allowed_emails: allowed,
     updated_at: new Date().toISOString(),
   }
-  // A cena só é gravada quando enviada (na criação sempre; na edição de metadados pode faltar).
-  if (t.scene !== undefined) row.scene = t.scene || {}
+  // Armazenamento: 'db' (cena no jsonb) ou 'drive' (modelo grande no Drive do criador).
+  const isDrive = t.storage === 'drive' && t.driveFileId
+  if (isDrive) {
+    row.storage = 'drive'
+    row.drive_file_id = t.driveFileId
+    row.drive_folder_id = t.driveFolderId || null
+    row.size_bytes = Number(t.sizeBytes) || 0
+    row.scene = null // a cena vive no Drive
+  } else if (t.scene !== undefined) {
+    row.storage = 'db'
+    row.scene = t.scene || {}
+  }
   if (!t.id) {
     row.owner_email = targetOwner || viewer.email // destino: workspace do dono ou o próprio
     row.created_by = viewer.email
-    if (row.scene === undefined) row.scene = {}
+    row.owner_id = viewer.id // dono do Drive (emite o token no download dos modelos 'drive')
+    if (row.scene === undefined && !isDrive) row.scene = {}
   }
   const query = t.id
     ? supa.from('excalidraw_templates').update(row).eq('id', t.id).select('*').single()
@@ -193,10 +235,20 @@ router.delete('/:id', async (req, res) => {
   if (!supa) return
   const viewer = await getViewer(req, supa)
   if (!viewer.email) return res.status(401).json({ error: 'unauthorized' })
+  const { data: existing } = await supa.from('excalidraw_templates').select('owner_email, created_by, storage, drive_file_id, owner_id').eq('id', req.params.id).maybeSingle()
+  if (!existing) return res.json({ ok: true, already: true })
   if (!viewer.isFounder) {
-    const { data: existing } = await supa.from('excalidraw_templates').select('owner_email, created_by').eq('id', req.params.id).single()
-    const own = existing && ((existing.owner_email || '').toLowerCase() === viewer.email || (existing.created_by || '').toLowerCase() === viewer.email)
+    const own = (existing.owner_email || '').toLowerCase() === viewer.email || (existing.created_by || '').toLowerCase() === viewer.email
     if (!own) return res.status(403).json({ error: 'forbidden', message: 'Você só pode excluir os seus modelos.' })
+  }
+  // Modelo no Drive: apaga também o arquivo no Drive do criador (best-effort).
+  if (existing.storage === 'drive' && existing.drive_file_id && existing.owner_id) {
+    try {
+      const tok = await accessTokenForUser(supa, existing.owner_id)
+      if (tok) await fetch(`https://www.googleapis.com/drive/v3/files/${existing.drive_file_id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${tok.accessToken}` } })
+    } catch {
+      /* segue e remove o índice mesmo assim */
+    }
   }
   const { error } = await supa.from('excalidraw_templates').delete().eq('id', req.params.id)
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })

@@ -43,20 +43,15 @@ export default function DrawingsGallery() {
   const [toDelete, setToDelete] = useState(null)
   const [showTemplates, setShowTemplates] = useState(false)
 
-  // Cria um projeto NOVO a partir de um modelo da biblioteca.
-  async function useTemplate(tpl) {
-    try {
-      const { template } = await api.templates.get(tpl.id)
-      const s = template.scene || {}
-      const created = await createDrawing(tpl.name, {
-        sceneData: { elements: s.elements || [], appState: { viewBackgroundColor: s.appState?.viewBackgroundColor }, files: s.files || {} },
-        owner,
-      })
-      setShowTemplates(false)
-      navigate(`/desenhos/${created.id}`)
-    } catch (e) {
-      setError(e?.message || 'Erro')
-    }
+  // Cria um projeto NOVO a partir de um modelo da biblioteca. A cena (banco ou
+  // Drive) já vem buscada pelo TemplateBrowser (que trata arquivo apagado).
+  async function useTemplate(tpl, s) {
+    const created = await createDrawing(tpl.name, {
+      sceneData: { elements: s.elements || [], appState: { viewBackgroundColor: s.appState?.viewBackgroundColor }, files: s.files || {} },
+      owner,
+    })
+    setShowTemplates(false)
+    navigate(`/desenhos/${created.id}`)
   }
 
   async function load() {
