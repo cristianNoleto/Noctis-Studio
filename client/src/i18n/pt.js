@@ -860,7 +860,7 @@ export default {
       publish: 'Publicar',
       uses: '{n} usos',
       emptyScene: 'O desenho está vazio — adicione algo antes de salvar como modelo.',
-      tooBig: 'Este desenho é grande demais para virar modelo (limite ~3,5 MB). Reduza as imagens.',
+      tooBig: 'Mesmo comprimindo, este desenho ficou grande demais para virar modelo (limite ~3,5 MB). Um modelo é um ponto de partida leve — apague algumas imagens (ou as mais pesadas) e tente de novo. Para projetos cheios de imagens, use "Salvar" normal (vai pro Drive) e duplique-o.',
       deleteTitle: 'Excluir modelo',
       deleteMsg: 'Excluir o modelo "{name}" para sempre?',
       vis: { global: 'Todos', workspace: 'Meu workspace', specific: 'Específicos', onlyMe: 'Só eu' },

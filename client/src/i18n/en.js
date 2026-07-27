@@ -860,7 +860,7 @@ export default {
       publish: 'Publish',
       uses: '{n} uses',
       emptyScene: 'The drawing is empty — add something before saving it as a template.',
-      tooBig: 'This drawing is too large to become a template (~3.5 MB limit). Reduce the images.',
+      tooBig: 'Even after compression, this drawing is too large to become a template (~3.5 MB limit). A template is a lightweight starting point — delete a few images (or the heaviest ones) and try again. For image-heavy projects, use normal "Save" (goes to Drive) and duplicate it.',
       deleteTitle: 'Delete template',
       deleteMsg: 'Delete the template "{name}" forever?',
       vis: { global: 'Everyone', workspace: 'My workspace', specific: 'Specific', onlyMe: 'Only me' },

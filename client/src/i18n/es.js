@@ -860,7 +860,7 @@ export default {
       publish: 'Publicar',
       uses: '{n} usos',
       emptyScene: 'El dibujo está vacío — agrega algo antes de guardarlo como plantilla.',
-      tooBig: 'Este dibujo es demasiado grande para ser plantilla (límite ~3,5 MB). Reduce las imágenes.',
+      tooBig: 'Incluso comprimido, este dibujo es demasiado grande para ser plantilla (límite ~3,5 MB). Una plantilla es un punto de partida ligero — elimina algunas imágenes (o las más pesadas) e inténtalo de nuevo. Para proyectos con muchas imágenes, usa "Guardar" normal (va al Drive) y duplícalo.',
       deleteTitle: 'Eliminar plantilla',
       deleteMsg: '¿Eliminar la plantilla "{name}" para siempre?',
       vis: { global: 'Todos', workspace: 'Mi workspace', specific: 'Específicos', onlyMe: 'Solo yo' },

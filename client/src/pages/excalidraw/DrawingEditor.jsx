@@ -234,8 +234,23 @@ export default function DrawingEditor() {
     if (!elements.length) return null
     const allFiles = a.getFiles?.() || {}
     const referenced = new Set(elements.filter((e) => e.fileId).map((e) => e.fileId))
+    // O modelo guarda as imagens embutidas (base64) e vai como jsonb — para não
+    // estourar o limite da função serverless, COMPRIME cada imagem na captura
+    // (um modelo é ponto de partida, não precisa de resolução máxima).
     const files = {}
-    for (const [fid, f] of Object.entries(allFiles)) if (referenced.has(fid) && f?.dataURL) files[fid] = f
+    for (const [fid, f] of Object.entries(allFiles)) {
+      if (!referenced.has(fid) || !f?.dataURL) continue
+      let entry = f
+      if (String(f.mimeType || '').startsWith('image/')) {
+        try {
+          const opt = await optimizeDataUrl(f.dataURL, f.mimeType)
+          if (opt?.dataURL) entry = { ...f, dataURL: opt.dataURL, mimeType: opt.mimeType }
+        } catch {
+          /* mantém a original se a compressão falhar */
+        }
+      }
+      files[fid] = entry
+    }
     const appState = a.getAppState?.() || {}
     const scene = { elements, appState: { viewBackgroundColor: appState.viewBackgroundColor }, files }
     const thumbnail = await makeThumbnail(elements, files)
