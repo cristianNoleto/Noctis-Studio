@@ -76,6 +76,9 @@ async function searchPexels(key, { type, q, orientation, page }) {
       width: v.width,
       height: v.height,
       duration: v.duration,
+      author: v.user?.name || '',
+      title: v.user?.name ? `Vídeo de ${v.user.name}` : 'Vídeo Pexels',
+      keywords: '', // Pexels não expõe tags de vídeo
       files: (v.video_files || [])
         .filter((f) => f.file_type === 'video/mp4')
         .map((f) => ({ label: f.quality === 'hd' ? 'HD' : f.quality === 'uhd' ? '4K' : 'SD', width: f.width, height: f.height, url: f.link })),
@@ -89,6 +92,9 @@ async function searchPexels(key, { type, q, orientation, page }) {
     thumb: p.src.medium,
     width: p.width,
     height: p.height,
+    author: p.photographer || '',
+    title: p.alt || (p.photographer ? `Foto de ${p.photographer}` : 'Imagem Pexels'),
+    keywords: p.alt || '', // descrição → base da busca "semelhantes"
     files: [
       { label: 'Original', url: p.src.original, width: p.width, height: p.height },
       { label: 'Grande', url: p.src.large2x },
@@ -122,6 +128,9 @@ async function searchPixabay(key, { type, q, orientation, page }) {
       width: v.videos?.large?.width || v.videos?.medium?.width,
       height: v.videos?.large?.height || v.videos?.medium?.height,
       duration: v.duration,
+      author: v.user || '',
+      title: v.tags || (v.user ? `Vídeo de ${v.user}` : 'Vídeo Pixabay'),
+      keywords: v.tags || '',
       files: ['large', 'medium', 'small']
         .filter((s) => v.videos?.[s]?.url)
         .map((s) => ({ label: s === 'large' ? 'HD/4K' : s === 'medium' ? 'HD' : 'SD', width: v.videos[s].width, height: v.videos[s].height, url: v.videos[s].url })),
@@ -135,6 +144,9 @@ async function searchPixabay(key, { type, q, orientation, page }) {
     thumb: p.webformatURL,
     width: p.imageWidth,
     height: p.imageHeight,
+    author: p.user || '',
+    title: p.tags || 'Imagem Pixabay',
+    keywords: p.tags || '', // tags → base da busca "semelhantes"
     files: [
       { label: 'Grande', url: p.largeImageURL, width: p.imageWidth, height: p.imageHeight },
       { label: 'Média', url: p.webformatURL },

@@ -162,7 +162,16 @@ export function TemplatePublishModal({ open, onClose, initial, getScene, onSaved
               <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500 transition-all" style={{ width: `${pct}%` }} />
             </div>
           )}
-          <p className="max-w-xs text-[11px] leading-snug text-slate-500">{t('drawings.templates.progressHint')}</p>
+          {progress.phase === 'upload' ? (
+            <div className="max-w-md space-y-1.5 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-left text-[11px] leading-relaxed text-slate-400">
+              <p className="font-semibold text-cyan-300">{t('drawings.templates.driveInfoTitle')}</p>
+              <p>{t('drawings.templates.driveInfo1')}</p>
+              <p>{t('drawings.templates.driveInfo2')}</p>
+              <p>{t('drawings.templates.driveInfo3')}</p>
+            </div>
+          ) : (
+            <p className="max-w-xs text-[11px] leading-snug text-slate-500">{t('drawings.templates.progressHint')}</p>
+          )}
         </div>
       </Modal>
     )

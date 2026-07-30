@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Search, Loader2, Image as ImageIcon, Film, Download, X } from 'lucide-react'
+import { Search, Loader2, Image as ImageIcon, Film, Download, X, Sparkles } from 'lucide-react'
 import { api, apiErrorMessage } from '../lib/api'
 import { useI18n } from '../i18n'
-import { inputCls, btnPrimary } from '../components/ui'
+import { inputCls, btnPrimary, btnGhost } from '../components/ui'
 
 // Layout do original: pílulas Imagens/Vídeos, busca, FONTES (Pexels/Pixabay
 // multi-seleção) e ORIENTAÇÃO (Horizontal/Vertical/Quadrada/Todas).
@@ -32,10 +32,11 @@ export default function MediaBank() {
     e?.preventDefault()
     const t = overrides.type || type
     const o = overrides.orientation || orientation
+    const qy = overrides.q != null ? overrides.q : query.trim()
     setLoading(true)
     setError('')
     try {
-      const { results } = await api.media.search({ type: t, q: query.trim(), orientation: o })
+      const { results } = await api.media.search({ type: t, q: qy, orientation: o })
       setResults(results)
     } catch (err) {
       setError(apiErrorMessage(err))
@@ -170,21 +171,68 @@ export default function MediaBank() {
         </div>
       )}
 
-      {preview && <PreviewModal item={preview} onClose={() => setPreview(null)} />}
+      {preview && (
+        <PreviewModal
+          item={preview}
+          onClose={() => setPreview(null)}
+          onSimilar={(kw) => {
+            const q = (kw || '').split(',')[0].trim().split(/\s+/).slice(0, 4).join(' ') // 1as palavras da descrição/tags
+            setPreview(null)
+            setQuery(q)
+            search(null, { q })
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function PreviewModal({ item, onClose }) {
+// Nome amigável do arquivo p/ o download (sem barras/acentos estranhos).
+function safeName(item, file) {
+  const base = (item.title || item.source || 'midia').toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'midia'
+  const ext = item.type === 'video' ? 'mp4' : (String(file?.url || '').match(/\.(jpe?g|png|webp)(\?|$)/i)?.[1] || 'jpg')
+  return `noctis-${base}-${String(item.id).replace(/[^a-z0-9-]/gi, '')}.${ext.toLowerCase()}`
+}
+
+function PreviewModal({ item, onClose, onSimilar }) {
   const { t } = useI18n()
   const [file, setFile] = useState(item.files?.[0])
+  const [downloading, setDownloading] = useState(false)
+  const canSimilar = !!(item.keywords && item.keywords.trim())
+
+  // Baixa DE VERDADE no PC (com diálogo de "onde salvar" do navegador): busca o
+  // arquivo como blob e força o download. Se o CORS bloquear, abre em nova aba.
+  async function download() {
+    if (!file?.url || downloading) return
+    setDownloading(true)
+    try {
+      const res = await fetch(file.url)
+      if (!res.ok) throw new Error('http')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = safeName(item, file)
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+    } catch {
+      window.open(file.url, '_blank', 'noopener,noreferrer') // fallback (CORS)
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-6" onClick={onClose}>
       <div className="max-h-full w-full max-w-[1040px] overflow-y-auto rounded-xl border border-slate-800 bg-slate-950" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3.5">
-          <span className="rounded bg-cyan-500/15 px-2 py-0.5 text-[11px] font-bold text-cyan-400">{item.source}</span>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-5 py-3.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 rounded bg-cyan-500/15 px-2 py-0.5 text-[11px] font-bold text-cyan-400">{item.source}</span>
+            <span className="truncate text-sm font-medium text-slate-200">{item.title || '—'}</span>
+          </div>
+          <button onClick={onClose} className="shrink-0 text-slate-500 hover:text-slate-300">
             <X size={18} />
           </button>
         </div>
@@ -195,6 +243,7 @@ function PreviewModal({ item, onClose }) {
             <img src={file?.url || item.thumb} alt="" className="max-h-[60vh] rounded-lg object-contain" />
           )}
         </div>
+        {item.author && <p className="px-5 pt-3 text-xs text-slate-500">{t('media.by', { author: item.author })}</p>}
         <div className="flex flex-wrap items-center gap-3 px-5 py-4">
           <div className="flex flex-wrap gap-1.5">
             {(item.files || []).map((f, i) => (
@@ -210,10 +259,18 @@ function PreviewModal({ item, onClose }) {
               </button>
             ))}
           </div>
-          <a href={file?.url} target="_blank" rel="noopener noreferrer" download className={`${btnPrimary} ml-auto flex items-center gap-2`}>
-            <Download size={15} />
-            {t('media.download')}
-          </a>
+          <div className="ml-auto flex items-center gap-2">
+            {canSimilar && (
+              <button onClick={() => onSimilar?.(item.keywords)} className={`${btnGhost} flex items-center gap-2`} title={t('media.similarHint')}>
+                <Sparkles size={15} />
+                {t('media.similar')}
+              </button>
+            )}
+            <button onClick={download} disabled={downloading} className={`${btnPrimary} flex items-center gap-2`}>
+              {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              {t('media.download')}
+            </button>
+          </div>
         </div>
       </div>
     </div>

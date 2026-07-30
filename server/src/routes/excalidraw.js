@@ -1,6 +1,35 @@
 import { Router } from 'express'
 import { supabaseAdmin } from '../lib/supabaseAdmin.js'
 import { resolveAccess, canSeeRow, userIdByEmail, emailByUserId } from './workspace.js'
+import { accessTokenForUser } from './drive.js'
+
+const TRASH_TTL_MS = 7 * 24 * 60 * 60 * 1000 // storyboards excluídos são purgados após 7 dias
+
+// Purga (de verdade) os storyboards excluídos há mais de 7 dias: apaga a pasta do
+// projeto no Drive do dono (best-effort) e remove a linha. Best-effort e não
+// bloqueia a resposta — roda ao listar. Só o próprio dono dispara a purga do seu.
+async function purgeExpiredTrash(supa, ownerId) {
+  const cutoff = new Date(Date.now() - TRASH_TTL_MS).toISOString()
+  const { data: expired = [] } = await supa
+    .from('excalidraw_scenes')
+    .select('id, storage, drive_folder_id, user_id')
+    .eq('user_id', ownerId)
+    .not('deleted_at', 'is', null)
+    .lt('deleted_at', cutoff)
+  if (!expired.length) return
+  let tok = null
+  for (const row of expired) {
+    if (row.storage === 'drive' && row.drive_folder_id) {
+      try {
+        tok = tok || (await accessTokenForUser(supa, row.user_id))
+        if (tok) await fetch(`https://www.googleapis.com/drive/v3/files/${row.drive_folder_id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${tok.accessToken}` } })
+      } catch {
+        /* segue e remove o índice mesmo assim */
+      }
+    }
+    await supa.from('excalidraw_scenes').delete().eq('id', row.id)
+  }
+}
 
 // Storyboards são uma biblioteca compartilhada: o acesso do colaborador segue o
 // nível de "Desenhos" (drawings_access) do workspace do dono.
@@ -64,10 +93,13 @@ router.get('/', async (req, res) => {
   if (!access.self && access.drawings === 'none') return res.json({ scenes: [] })
   const ownerId = access.self ? user.id : await userIdByEmail(supa, access.owner)
   if (!ownerId) return res.status(404).json({ error: 'owner_not_found' })
+  // Purga preguiçosa dos excluídos há +7 dias (só o próprio dono, best-effort).
+  if (access.self) purgeExpiredTrash(supa, ownerId).catch(() => {})
   const { data = [], error } = await supa
     .from('excalidraw_scenes')
     .select('id, name, thumbnail, storage, drive_folder_id, drive_scene_file_id, size_bytes, video_id, visibility, allowed_emails, created_by, created_at, updated_at')
     .eq('user_id', ownerId)
+    .is('deleted_at', null) // não lista os que estão na "lixeira" (backup de 7 dias)
     .order('updated_at', { ascending: false })
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
   // Colaborador só recebe os storyboards que o dono deixou visíveis pra ele.
@@ -78,7 +110,7 @@ router.get('/', async (req, res) => {
 // Autoriza o requester numa cena existente. Devolve { scene, access, isOwner } ou
 // null se não pode ver. `needEdit` exige nível de edição do colaborador.
 async function authorizeScene(supa, user, sceneId, needEdit = false) {
-  const { data: scene } = await supa.from('excalidraw_scenes').select('*').eq('id', sceneId).maybeSingle()
+  const { data: scene } = await supa.from('excalidraw_scenes').select('*').eq('id', sceneId).is('deleted_at', null).maybeSingle()
   if (!scene) return { notFound: true }
   if (scene.user_id === user.id) return { scene, isOwner: true }
   // Cena de outro usuário: precisa ser colaborador do dono com acesso a Desenhos.
@@ -182,7 +214,10 @@ router.delete('/:id', async (req, res) => {
   const isOwner = scene.user_id === user.id
   const isAuthor = scene.created_by && String(scene.created_by).toLowerCase() === (user.email || '').toLowerCase()
   if (!isOwner && !isAuthor) return res.status(403).json({ error: 'forbidden_not_author', message: 'Você só pode excluir storyboards que você mesmo criou.' })
-  const { error } = await supa.from('excalidraw_scenes').delete().eq('id', req.params.id)
+  // SOFT-DELETE: vai para a "lixeira" (backup). Sai da lista e não abre mais, mas
+  // fica recuperável por 7 dias; depois a purga (ao listar) apaga de vez, inclusive
+  // a pasta no Drive. Não mexemos no arquivo do Drive agora.
+  const { error } = await supa.from('excalidraw_scenes').update({ deleted_at: new Date().toISOString() }).eq('id', req.params.id)
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
   res.json({ ok: true })
 })

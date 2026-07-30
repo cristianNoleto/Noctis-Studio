@@ -51,17 +51,37 @@ export function AuthProvider({ children }) {
       setLoading(false)
       return
     }
+    // ANTI-FLASH: o loading só termina quando a sessão é DEFINITIVAMENTE conhecida.
+    // O getSession() pode devolver null por um instante (antes do refresh do token)
+    // — se tirássemos o loading aí, a landing/login piscava até o onAuthStateChange
+    // confirmar. Então: getSession só resolve o loading se JÁ tiver sessão; caso
+    // contrário esperamos o onAuthStateChange (INITIAL_SESSION), que traz o estado
+    // real. Um timeout curto evita spinner infinito se nada disparar.
+    let resolved = false
+    const resolveLoading = () => {
+      if (!resolved) {
+        resolved = true
+        setLoading(false)
+      }
+    }
     supabase.auth.getSession().then(({ data }) => {
       setUser(sessionToUser(data.session))
-      setLoading(false)
-      if (data.session?.user) pullUserSettings().catch(() => {})
+      if (data.session) {
+        resolveLoading()
+        if (data.session.user) pullUserSettings().catch(() => {})
+      }
     })
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(sessionToUser(session))
+      resolveLoading() // primeira notificação (INITIAL_SESSION inclusive) = estado real
       // Ao logar, baixa as chaves de API salvas no servidor para este dispositivo.
       if (event === 'SIGNED_IN' && session?.user) pullUserSettings().catch(() => {})
     })
-    return () => sub.subscription.unsubscribe()
+    const failsafe = setTimeout(resolveLoading, 2500) // rede lenta → não trava no spinner
+    return () => {
+      sub.subscription.unsubscribe()
+      clearTimeout(failsafe)
+    }
   }, [])
 
   const signIn = useCallback(async (email, password) => {
