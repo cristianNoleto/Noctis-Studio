@@ -832,6 +832,16 @@ export default {
     fullscreen: 'Pantalla completa',
     exitFullscreen: 'Salir de pantalla completa',
     notFound: 'Dibujo no encontrado.',
+    trash: {
+      title: 'Papelera',
+      intro: 'Los storyboards eliminados quedan aquí 7 días antes de borrarse definitivamente. Puedes restaurar o eliminar ahora.',
+      empty: 'La papelera está vacía.',
+      restore: 'Restaurar',
+      deleteNow: 'Eliminar ahora',
+      expiresIn: 'Se borra en {n} día(s)',
+      deleteNowTitle: 'Eliminar definitivamente',
+      deleteNowMsg: '¿Eliminar "{name}" ahora, de forma permanente? Esto no se puede deshacer.',
+    },
     templates: {
       title: 'Plantillas',
       browseTitle: 'Biblioteca de plantillas',

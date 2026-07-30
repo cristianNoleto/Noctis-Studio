@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload, Film, Lock, LayoutTemplate } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, PenTool, MoreVertical, Upload, Film, Lock, LayoutTemplate, RotateCcw, Trash } from 'lucide-react'
 import { api } from '../../lib/api'
 import { deleteFile, setDriveOwner } from '../../lib/drive'
 import { createDrawing } from '../../lib/drawings'
 import { useDb } from '../../lib/db'
 import { useI18n } from '../../i18n'
-import { btnPrimary, btnGhost, EmptyState, ConfirmDialog } from '../../components/ui'
+import { Modal, btnPrimary, btnGhost, EmptyState, ConfirmDialog } from '../../components/ui'
 import { AnchoredMenu } from '../../components/AnchoredMenu'
 import { VisibilityControl, VisibilityBadge } from '../../components/ItemVisibility'
 import { TemplateBrowser } from './TemplateLibrary'
@@ -42,6 +42,7 @@ export default function DrawingsGallery() {
   const [error, setError] = useState('')
   const [toDelete, setToDelete] = useState(null)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showTrash, setShowTrash] = useState(false)
 
   // Cria um projeto NOVO a partir de um modelo da biblioteca. A cena (banco ou
   // Drive) já vem buscada pelo TemplateBrowser (que trata arquivo apagado).
@@ -160,6 +161,12 @@ export default function DrawingsGallery() {
               <LayoutTemplate size={15} />
               {t('drawings.templates.title')}
             </button>
+            {isOwnerSelf && (
+              <button className={`${btnGhost} flex items-center gap-2 text-sm`} onClick={() => setShowTrash(true)} title={t('drawings.trash.title')}>
+                <Trash size={15} />
+                {t('drawings.trash.title')}
+              </button>
+            )}
             <button className={`${btnGhost} flex items-center gap-2 text-sm`} onClick={() => fileRef.current?.click()} disabled={creating}>
               <Upload size={15} />
               {t('drawings.import')}
@@ -220,6 +227,7 @@ export default function DrawingsGallery() {
       />
 
       <TemplateBrowser open={showTemplates} onClose={() => setShowTemplates(false)} mode="new" onUse={useTemplate} />
+      <TrashModal open={showTrash} onClose={() => setShowTrash(false)} onChanged={load} />
     </div>
   )
 }
@@ -336,5 +344,95 @@ function SceneCard({ scene: s, videos, isOwner, canEdit, canDeleteScene, onOpen,
         )}
       </AnchoredMenu>
     </div>
+  )
+}
+
+// Lixeira: storyboards excluídos ficam recuperáveis por 7 dias. Restaurar traz de
+// volta; "Excluir agora" apaga de vez (inclusive a pasta no Drive).
+function TrashModal({ open, onClose, onChanged }) {
+  const { t } = useI18n()
+  const [list, setList] = useState(null)
+  const [busy, setBusy] = useState(null)
+  const [purgeItem, setPurgeItem] = useState(null)
+
+  async function load() {
+    try {
+      const { scenes } = await api.excalidraw.trash()
+      setList(scenes || [])
+    } catch {
+      setList([])
+    }
+  }
+  useEffect(() => {
+    if (open) { setList(null); load() }
+  }, [open])
+
+  const daysLeft = (expiresAt) => (expiresAt ? Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000)) : 0)
+
+  async function restore(s) {
+    setBusy(s.id)
+    try {
+      await api.excalidraw.restore(s.id)
+    } catch {
+      /* ignora */
+    }
+    setBusy(null)
+    load()
+    onChanged?.()
+  }
+  async function purge(s) {
+    setBusy(s.id)
+    try {
+      await api.excalidraw.purge(s.id)
+    } catch {
+      /* ignora */
+    }
+    setBusy(null)
+    setPurgeItem(null)
+    load()
+  }
+
+  return (
+    <>
+      <Modal open={open} onClose={onClose} title={t('drawings.trash.title')} size="xl">
+        <p className="mb-3 text-xs text-slate-500">{t('drawings.trash.intro')}</p>
+        {list === null ? (
+          <div className="flex justify-center py-14"><Loader2 size={24} className="animate-spin text-cyan-400" /></div>
+        ) : list.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-center">
+            <Trash size={28} className="text-slate-700" />
+            <p className="text-sm text-slate-400">{t('drawings.trash.empty')}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {list.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                <div className="flex h-12 w-20 shrink-0 items-center justify-center overflow-hidden rounded border border-slate-800 bg-slate-950">
+                  {s.thumbnail ? <img src={s.thumbnail} alt="" className="h-full w-full object-contain" /> : <PenTool size={16} className="text-slate-700" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-100">{s.name}</p>
+                  <p className="text-[11px] text-slate-500">{t('drawings.trash.expiresIn', { n: daysLeft(s.expiresAt) })}</p>
+                </div>
+                <button onClick={() => restore(s)} disabled={busy === s.id} className={`${btnGhost} flex items-center gap-1.5 !py-1.5 text-xs`}>
+                  {busy === s.id ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                  {t('drawings.trash.restore')}
+                </button>
+                <button onClick={() => setPurgeItem(s)} className="text-slate-500 transition-colors hover:text-red-400" title={t('drawings.trash.deleteNow')}>
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+      <ConfirmDialog
+        open={purgeItem !== null}
+        onClose={() => setPurgeItem(null)}
+        onConfirm={() => purge(purgeItem)}
+        title={t('drawings.trash.deleteNowTitle')}
+        message={t('drawings.trash.deleteNowMsg', { name: purgeItem?.name })}
+      />
+    </>
   )
 }

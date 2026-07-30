@@ -832,6 +832,16 @@ export default {
     fullscreen: 'Fullscreen',
     exitFullscreen: 'Exit fullscreen',
     notFound: 'Drawing not found.',
+    trash: {
+      title: 'Trash',
+      intro: 'Deleted storyboards stay here for 7 days before being permanently removed. You can restore or delete now.',
+      empty: 'The trash is empty.',
+      restore: 'Restore',
+      deleteNow: 'Delete now',
+      expiresIn: 'Deletes in {n} day(s)',
+      deleteNowTitle: 'Delete permanently',
+      deleteNowMsg: 'Delete "{name}" now, permanently? This cannot be undone.',
+    },
     templates: {
       title: 'Templates',
       browseTitle: 'Template library',

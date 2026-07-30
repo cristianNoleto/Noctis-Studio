@@ -107,6 +107,106 @@ router.get('/', async (req, res) => {
   res.json({ scenes: visible.map(toClient) })
 })
 
+// Purga TODOS os storyboards expirados (>7 dias na lixeira). Usado pelo Vercel
+// Cron (1x/dia) — timing garantido, independente de alguém abrir a galeria.
+async function purgeAllExpired(supa) {
+  const cutoff = new Date(Date.now() - TRASH_TTL_MS).toISOString()
+  const { data: expired = [] } = await supa
+    .from('excalidraw_scenes')
+    .select('id, storage, drive_folder_id, user_id')
+    .not('deleted_at', 'is', null)
+    .lt('deleted_at', cutoff)
+  const tokens = new Map() // token do Drive por dono (reutiliza entre arquivos)
+  for (const row of expired) {
+    if (row.storage === 'drive' && row.drive_folder_id) {
+      try {
+        if (!tokens.has(row.user_id)) tokens.set(row.user_id, await accessTokenForUser(supa, row.user_id))
+        const tok = tokens.get(row.user_id)
+        if (tok) await fetch(`https://www.googleapis.com/drive/v3/files/${row.drive_folder_id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${tok.accessToken}` } })
+      } catch {
+        /* segue e remove o índice mesmo assim */
+      }
+    }
+    await supa.from('excalidraw_scenes').delete().eq('id', row.id)
+  }
+  return expired.length
+}
+
+// GET /purge-trash — chamado pelo Vercel Cron. Protegido pelo CRON_SECRET (a
+// Vercel envia "Authorization: Bearer <CRON_SECRET>" quando a env está setada).
+router.get('/purge-trash', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const secret = process.env.CRON_SECRET
+  if (secret && (req.headers.authorization || '') !== `Bearer ${secret}`) return res.status(401).json({ error: 'unauthorized' })
+  const purged = await purgeAllExpired(supa).catch(() => 0)
+  res.json({ ok: true, purged })
+})
+
+// GET /trash — storyboards na LIXEIRA do usuário (recuperáveis por 7 dias).
+router.get('/trash', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const { data = [] } = await supa
+    .from('excalidraw_scenes')
+    .select('id, name, thumbnail, storage, drive_folder_id, drive_scene_file_id, size_bytes, video_id, visibility, allowed_emails, created_by, created_at, updated_at, deleted_at')
+    .eq('user_id', user.id)
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+  const scenes = (data || []).map((r) => ({
+    ...toClient(r),
+    deletedAt: r.deleted_at,
+    expiresAt: r.deleted_at ? new Date(new Date(r.deleted_at).getTime() + TRASH_TTL_MS).toISOString() : null,
+  }))
+  res.json({ scenes })
+})
+
+// Confere se o usuário é dono (user_id) OU autor (created_by) de uma cena.
+async function ownsScene(supa, user, id) {
+  const { data: scene } = await supa.from('excalidraw_scenes').select('user_id, created_by, storage, drive_folder_id').eq('id', id).maybeSingle()
+  if (!scene) return { notFound: true }
+  const ok = scene.user_id === user.id || (scene.created_by && String(scene.created_by).toLowerCase() === (user.email || '').toLowerCase())
+  return ok ? { scene } : { forbidden: true }
+}
+
+// POST /:id/restore — tira o storyboard da lixeira (dono/autor).
+router.post('/:id/restore', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const r = await ownsScene(supa, user, req.params.id)
+  if (r.notFound) return res.status(404).json({ error: 'not_found' })
+  if (r.forbidden) return res.status(403).json({ error: 'forbidden' })
+  const { error } = await supa.from('excalidraw_scenes').update({ deleted_at: null }).eq('id', req.params.id)
+  if (error) return res.status(500).json({ error: 'db_error', message: error.message })
+  res.json({ ok: true })
+})
+
+// DELETE /:id/purge — exclui AGORA de vez (dono/autor), inclusive a pasta no Drive.
+router.delete('/:id/purge', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const r = await ownsScene(supa, user, req.params.id)
+  if (r.notFound) return res.json({ ok: true, already: true })
+  if (r.forbidden) return res.status(403).json({ error: 'forbidden' })
+  if (r.scene.storage === 'drive' && r.scene.drive_folder_id) {
+    try {
+      const tok = await accessTokenForUser(supa, r.scene.user_id || user.id)
+      if (tok) await fetch(`https://www.googleapis.com/drive/v3/files/${r.scene.drive_folder_id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${tok.accessToken}` } })
+    } catch {
+      /* segue */
+    }
+  }
+  const { error } = await supa.from('excalidraw_scenes').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ error: 'db_error', message: error.message })
+  res.json({ ok: true })
+})
+
 // Autoriza o requester numa cena existente. Devolve { scene, access, isOwner } ou
 // null se não pode ver. `needEdit` exige nível de edição do colaborador.
 async function authorizeScene(supa, user, sceneId, needEdit = false) {

@@ -832,6 +832,16 @@ export default {
     fullscreen: 'Tela cheia',
     exitFullscreen: 'Sair da tela cheia',
     notFound: 'Desenho não encontrado.',
+    trash: {
+      title: 'Lixeira',
+      intro: 'Storyboards excluídos ficam aqui por 7 dias antes de serem apagados de vez. Você pode restaurar ou excluir agora.',
+      empty: 'A lixeira está vazia.',
+      restore: 'Restaurar',
+      deleteNow: 'Excluir agora',
+      expiresIn: 'Apaga em {n} dia(s)',
+      deleteNowTitle: 'Excluir definitivamente',
+      deleteNowMsg: 'Excluir "{name}" agora, de forma permanente? Isso não pode ser desfeito.',
+    },
     templates: {
       title: 'Modelos',
       browseTitle: 'Biblioteca de modelos',

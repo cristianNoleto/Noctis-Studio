@@ -236,6 +236,10 @@ export const api = {
     create: (body) => authRequest('/excalidraw', { method: 'POST', body }),
     save: (id, patch, keepalive = false) => authRequest(`/excalidraw/${id}`, { method: 'PUT', body: patch, keepalive }),
     remove: (id) => authRequest(`/excalidraw/${id}`, { method: 'DELETE' }),
+    // Lixeira (backup de 7 dias): listar, restaurar e excluir de vez.
+    trash: () => authRequest('/excalidraw/trash'),
+    restore: (id) => authRequest(`/excalidraw/${id}/restore`, { method: 'POST' }),
+    purge: (id) => authRequest(`/excalidraw/${id}/purge`, { method: 'DELETE' }),
   },
   // Biblioteca de modelos de desenho (fundador/Pro criam; todos usam conforme visibilidade).
   templates: {

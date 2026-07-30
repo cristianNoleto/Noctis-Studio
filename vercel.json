@@ -11,5 +11,11 @@
       "source": "/((?!api).*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/excalidraw/purge-trash",
+      "schedule": "0 4 * * *"
+    }
   ]
 }
