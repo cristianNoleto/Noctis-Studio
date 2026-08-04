@@ -64,12 +64,17 @@ export function AuthProvider({ children }) {
         setLoading(false)
       }
     }
+    // FONTE ÚNICA do usuário = onAuthStateChange (dispara INITIAL_SESSION no load
+    // e toda mudança). O getSession NÃO seta o usuário se o onAuthStateChange já
+    // resolveu — senão, quando o getSession resolve DEPOIS e devolve null por um
+    // instante (janela de refresh do token), ele SOBRESCREVIA o usuário bom com
+    // null e a landing/login piscava. Aqui ele só serve de fallback + puxar chaves.
     supabase.auth.getSession().then(({ data }) => {
-      setUser(sessionToUser(data.session))
-      if (data.session) {
+      if (!resolved && data.session) {
+        setUser(sessionToUser(data.session))
         resolveLoading()
-        if (data.session.user) pullUserSettings().catch(() => {})
       }
+      if (data.session?.user) pullUserSettings().catch(() => {})
     })
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(sessionToUser(session))
