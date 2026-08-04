@@ -518,10 +518,15 @@ export default function DrawingEditor() {
           readOnly={!canEditScene}
           className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-100 hover:border-slate-800 focus:border-cyan-500/50 focus:outline-none read-only:hover:border-transparent"
         />
-        {realtime.peers > 1 && (
-          <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-green-500/10 px-2.5 py-1 text-[11px] font-semibold text-green-400" title={t('drawings.liveEditingHint')}>
-            <span className="online-dot h-1.5 w-1.5 rounded-full bg-green-400" />
-            {t('drawings.liveEditing', { n: realtime.peers })}
+        {realtime.connected && (
+          <span
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+              realtime.peers > 1 ? 'bg-green-500/10 text-green-400' : 'bg-slate-800 text-slate-400'
+            }`}
+            title={t('drawings.liveEditingHint')}
+          >
+            <span className={`online-dot h-1.5 w-1.5 rounded-full ${realtime.peers > 1 ? 'bg-green-400' : 'bg-slate-500'}`} />
+            {realtime.peers > 1 ? t('drawings.liveEditing', { n: realtime.peers }) : t('drawings.liveConnected')}
           </span>
         )}
         <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-slate-500">

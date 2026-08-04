@@ -833,6 +833,7 @@ export default {
     exitFullscreen: 'Salir de pantalla completa',
     notFound: 'Dibujo no encontrado.',
     liveEditing: '{n} editando',
+    liveConnected: 'En vivo',
     liveEditingHint: 'Personas con este storyboard abierto ahora — los cambios aparecen en tiempo real.',
     trash: {
       title: 'Papelera',

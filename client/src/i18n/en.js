@@ -833,6 +833,7 @@ export default {
     exitFullscreen: 'Exit fullscreen',
     notFound: 'Drawing not found.',
     liveEditing: '{n} editing',
+    liveConnected: 'Live',
     liveEditingHint: 'People with this storyboard open right now — changes appear in real time.',
     trash: {
       title: 'Trash',

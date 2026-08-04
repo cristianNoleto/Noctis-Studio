@@ -35,7 +35,9 @@ function reconcile(local, remote) {
 // Retorna { peers, broadcast, applyingRef }.
 export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
   const [peers, setPeers] = useState(1)
+  const [connected, setConnected] = useState(false)
   const channelRef = useRef(null)
+  const subscribedRef = useRef(false) // só envia depois de SUBSCRIBED (senão é descartado)
   const applyingRef = useRef(false) // true enquanto aplicamos algo remoto (não re-broadcasta)
   const pendingRef = useRef(null)
   const timerRef = useRef(null)
@@ -43,11 +45,15 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
   useEffect(() => {
     if (!enabled || !supabase || !sceneId) return
     let channel
+    subscribedRef.current = false
     try {
       channel = supabase.channel(`excalidraw:${sceneId}`, {
         config: { broadcast: { self: false }, presence: { key: crypto.randomUUID() } },
       })
-      channel.on('broadcast', { event: 'scene' }, ({ payload }) => applyRemote(payload))
+      channel.on('broadcast', { event: 'scene' }, ({ payload }) => {
+        console.log('[realtime] rx', { els: payload?.elements?.length, files: payload?.files?.length })
+        applyRemote(payload)
+      })
       channel.on('presence', { event: 'sync' }, () => {
         try {
           setPeers(Math.max(1, Object.keys(channel.presenceState() || {}).length))
@@ -55,15 +61,34 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
           /* ignora */
         }
       })
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') channel.track({ name: selfName || 'Alguém', at: Date.now() }).catch(() => {})
+      channel.subscribe((status, err) => {
+        console.log('[realtime] status', status, err || '')
+        if (status === 'SUBSCRIBED') {
+          subscribedRef.current = true
+          setConnected(true)
+          channel.track({ name: selfName || 'Alguém', at: Date.now() }).catch(() => {})
+          // Envia o estado atual assim que conecta (garante que o outro receba
+          // mesmo que a 1ª alteração tenha ocorrido antes de conectar).
+          try {
+            const a = apiRef.current
+            if (a) sendNow(a.getSceneElements(), a.getFiles?.())
+          } catch {
+            /* ignora */
+          }
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          subscribedRef.current = false
+          setConnected(false)
+        }
       })
       channelRef.current = channel
-    } catch {
+    } catch (e) {
+      console.log('[realtime] erro ao criar canal', e)
       /* Realtime indisponível → editor segue normal, sem tempo real */
     }
     return () => {
       clearTimeout(timerRef.current)
+      subscribedRef.current = false
+      setConnected(false)
       try {
         if (channel) supabase.removeChannel(channel)
       } catch {
@@ -98,7 +123,7 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
 
   function sendNow(elements, files) {
     const ch = channelRef.current
-    if (!ch) return
+    if (!ch || !subscribedRef.current) return // ainda não conectou → não envia (seria descartado)
     try {
       const payload = { elements }
       if (files) {
@@ -114,9 +139,10 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
       // Se estourar o teto da mensagem, manda só os elementos (as imagens grandes
       // aparecem pro outro no reload, via Drive) — não perde nem trava.
       if (JSON.stringify(payload).length > PAYLOAD_MAX) delete payload.files
+      console.log('[realtime] tx', { els: payload.elements?.length, files: payload.files?.length || 0 })
       ch.send({ type: 'broadcast', event: 'scene', payload })
-    } catch {
-      /* ignora */
+    } catch (e) {
+      console.log('[realtime] tx erro', e)
     }
   }
 
@@ -134,5 +160,5 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
     }, 150)
   }
 
-  return { peers, broadcast, applyingRef }
+  return { peers, connected, broadcast, applyingRef }
 }
