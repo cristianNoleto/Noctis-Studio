@@ -832,6 +832,8 @@ export default {
     fullscreen: 'Pantalla completa',
     exitFullscreen: 'Salir de pantalla completa',
     notFound: 'Dibujo no encontrado.',
+    liveEditing: '{n} editando',
+    liveEditingHint: 'Personas con este storyboard abierto ahora — los cambios aparecen en tiempo real.',
     trash: {
       title: 'Papelera',
       intro: 'Los storyboards eliminados quedan aquí 7 días antes de borrarse definitivamente. Puedes restaurar o eliminar ahora.',

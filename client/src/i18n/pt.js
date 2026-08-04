@@ -832,6 +832,8 @@ export default {
     fullscreen: 'Tela cheia',
     exitFullscreen: 'Sair da tela cheia',
     notFound: 'Desenho não encontrado.',
+    liveEditing: '{n} editando',
+    liveEditingHint: 'Pessoas com este storyboard aberto agora — as mudanças aparecem em tempo real.',
     trash: {
       title: 'Lixeira',
       intro: 'Storyboards excluídos ficam aqui por 7 dias antes de serem apagados de vez. Você pode restaurar ou excluir agora.',

@@ -9,6 +9,7 @@ import { optimizeDataUrl, dataUrlBytes, dataUrlToBlob, blobToDataUrl } from '../
 import { useDb } from '../../lib/db'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
+import { useSceneRealtime } from '../../lib/sceneRealtime'
 import { TemplateBrowser, TemplatePublishModal, remapTemplateElements } from './TemplateLibrary'
 
 // Tela de boas-vindas (placeholder do quadro vazio) TRADUZIDA pelo idioma do
@@ -54,6 +55,11 @@ export default function DrawingEditor() {
   const [status, setStatus] = useState('idle') // idle | saving | saved
   const [error, setError] = useState('')
   const apiRef = useRef(null)
+  // Colaboração ao vivo (Supabase Realtime). Camada isolada: se falhar, o editor
+  // segue normal. Liga só depois que a cena carregou (initial pronto).
+  const realtime = useSceneRealtime({ sceneId: id, apiRef, selfName: user?.name, enabled: !!initial && initial !== false })
+  const realtimeRef = useRef(realtime)
+  realtimeRef.current = realtime
   const saveTimer = useRef(null)
   const lastSaved = useRef('')
   const rootRef = useRef(null)
@@ -401,6 +407,10 @@ export default function DrawingEditor() {
   const onChange = useCallback(
     (elements, appState, files) => {
       latestRef.current = { elements, appState, files }
+      // Tempo real: transmite a mudança local — MAS não quando estamos aplicando
+      // algo que chegou de outro colaborador (senão vira eco infinito).
+      const rt = realtimeRef.current
+      if (rt && !rt.applyingRef.current) rt.broadcast(elements, files)
       if (!canEditScene) return // viewer: não salva nem otimiza
       optimizeNewImages(files)
       const sig = JSON.stringify(elements)
@@ -508,6 +518,12 @@ export default function DrawingEditor() {
           readOnly={!canEditScene}
           className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-100 hover:border-slate-800 focus:border-cyan-500/50 focus:outline-none read-only:hover:border-transparent"
         />
+        {realtime.peers > 1 && (
+          <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-green-500/10 px-2.5 py-1 text-[11px] font-semibold text-green-400" title={t('drawings.liveEditingHint')}>
+            <span className="online-dot h-1.5 w-1.5 rounded-full bg-green-400" />
+            {t('drawings.liveEditing', { n: realtime.peers })}
+          </span>
+        )}
         <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-slate-500">
           {loadingImages ? (
             <>

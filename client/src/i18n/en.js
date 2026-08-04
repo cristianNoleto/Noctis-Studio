@@ -832,6 +832,8 @@ export default {
     fullscreen: 'Fullscreen',
     exitFullscreen: 'Exit fullscreen',
     notFound: 'Drawing not found.',
+    liveEditing: '{n} editing',
+    liveEditingHint: 'People with this storyboard open right now — changes appear in real time.',
     trash: {
       title: 'Trash',
       intro: 'Deleted storyboards stay here for 7 days before being permanently removed. You can restore or delete now.',
