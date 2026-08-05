@@ -58,7 +58,7 @@ export default function DrawingEditor() {
   const apiRef = useRef(null)
   // Colaboração ao vivo (Supabase Realtime). Camada isolada: se falhar, o editor
   // segue normal. Liga só depois que a cena carregou (initial pronto).
-  const realtime = useSceneRealtime({ sceneId: id, apiRef, selfName: user?.name, enabled: !!initial && initial !== false })
+  const realtime = useSceneRealtime({ sceneId: id, apiRef, selfName: user?.name, enabled: !!initial && initial !== false, onFileRef: fetchRemoteFile })
   const realtimeRef = useRef(realtime)
   realtimeRef.current = realtime
   const saveTimer = useRef(null)
@@ -204,6 +204,25 @@ export default function DrawingEditor() {
     }
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, entries.length) }, worker))
     setLoadingImages(null)
+  }
+
+  // Tempo real: um colaborador adicionou uma imagem grande (foi pro Drive) e nos
+  // mandou a referência — buscamos do Drive (com cache) e mostramos na hora.
+  async function fetchRemoteFile(fid, driveFileId, mimeType) {
+    if (!fid || !driveFileId) return
+    try {
+      const have = apiRef.current?.getFiles?.()?.[fid]
+      if (have?.dataURL) return // já temos a imagem
+      let blob = await getCachedImage(driveFileId)
+      if (!blob) {
+        blob = await downloadBlob(driveFileId)
+        putCachedImage(driveFileId, blob).catch(() => {})
+      }
+      const dataURL = await blobToDataUrl(blob)
+      apiRef.current?.addFiles([{ id: fid, dataURL, mimeType: mimeType || blob.type, created: Date.now(), lastRetrieved: Date.now() }])
+    } catch {
+      /* imagem indisponível → aparece no reload */
+    }
   }
 
   // Dispara o lazy-load só quando a API do Excalidraw já existe (addFiles) e há
@@ -359,6 +378,9 @@ export default function DrawingEditor() {
         const driveFileId = await uploadFile({ name: `img_${fid}`, mimeType: f.mimeType, blob, parentId: driveFolderRef.current })
         uploadedRef.current[fid] = { driveFileId, mimeType: f.mimeType, created: f.created, bytes: blob.size }
         imagesBytes += blob.size
+        // Tempo real: avisa os colaboradores que essa imagem já está no Drive → eles
+        // buscam de lá e ela aparece na hora (não trafega o arquivo pesado no canal).
+        realtimeRef.current?.broadcastFile?.(fid, driveFileId, f.mimeType)
       } catch {
         embedFallback[fid] = f // falhou → mantém embutida; tenta de novo depois
         imagesBytes += dataUrlBytes(f.dataURL)

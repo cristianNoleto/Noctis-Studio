@@ -44,9 +44,11 @@ function reconcile(local, remote) {
 //   selfName — nome exibido na presença
 //   enabled  — liga só quando faz sentido (produção, cena carregada)
 // Retorna { peers, broadcast, applyingRef }.
-export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
+export function useSceneRealtime({ sceneId, apiRef, selfName, enabled, onFileRef }) {
   const [peers, setPeers] = useState(1)
   const [connected, setConnected] = useState(false)
+  const onFileRefRef = useRef(onFileRef)
+  onFileRefRef.current = onFileRef
   const channelRef = useRef(null)
   const subscribedRef = useRef(false) // só envia depois de SUBSCRIBED (senão é descartado)
   const applyingRef = useRef(false) // true enquanto aplicamos algo remoto (não re-broadcasta)
@@ -82,6 +84,10 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
       })
       channel.on('broadcast', { event: 'scene' }, ({ payload }) => applyRemote(payload))
       channel.on('broadcast', { event: 'pointer' }, ({ payload }) => applyPointer(payload))
+      // Referência de imagem grande: o outro busca do Drive (não passa pelo Realtime).
+      channel.on('broadcast', { event: 'fileref' }, ({ payload }) => {
+        if (payload?.fid && payload?.driveFileId) onFileRefRef.current?.(payload.fid, payload.driveFileId, payload.mimeType)
+      })
       channel.on('presence', { event: 'sync' }, () => {
         try {
           const state = channel.presenceState() || {}
@@ -266,5 +272,16 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
     }, 150)
   }
 
-  return { peers, connected, broadcast, onPointerUpdate, applyingRef }
+  // Avisa os outros que uma imagem grande foi para o Drive (eles buscam de lá).
+  function broadcastFile(fid, driveFileId, mimeType) {
+    const ch = channelRef.current
+    if (!ch || !subscribedRef.current || !fid || !driveFileId) return
+    try {
+      ch.send({ type: 'broadcast', event: 'fileref', payload: { fid, driveFileId, mimeType } })
+    } catch {
+      /* ignora */
+    }
+  }
+
+  return { peers, connected, broadcast, onPointerUpdate, broadcastFile, applyingRef }
 }
