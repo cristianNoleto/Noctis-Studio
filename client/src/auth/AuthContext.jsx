@@ -39,9 +39,26 @@ function readLocalSession() {
   }
 }
 
+// Existe um token do Supabase salvo neste navegador? (chave sb-<ref>-auth-token).
+// Sincrono: usado para SABER, já no 1º render, que há um login provável — assim
+// seguramos o spinner (em vez de piscar a landing) até a sessão real chegar,
+// mesmo que o Supabase emita um `null` transitório enquanto renova o token.
+function hasStoredSupabaseSession() {
+  try {
+    return Object.keys(localStorage).some(
+      (k) => /^sb-.*-auth-token$/.test(k) && localStorage.getItem(k) && localStorage.getItem(k) !== 'null',
+    )
+  } catch {
+    return false
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Já no 1º render sabemos se há um token salvo → seguramos o spinner até a
+  // sessão real chegar (nada de piscar a landing por um `null` transitório).
+  const [maybeLoggedIn] = useState(() => !isLocalMode && hasStoredSupabaseSession())
 
   useEffect(() => {
     if (isLocalMode) {
@@ -78,7 +95,11 @@ export function AuthProvider({ children }) {
     })
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(sessionToUser(session))
-      resolveLoading() // primeira notificação (INITIAL_SESSION inclusive) = estado real
+      // Se há token salvo mas o evento veio SEM sessão (janela de refresh), NÃO
+      // resolve o loading ainda — espera a sessão renovada (ou o failsafe). Assim
+      // não pisca a landing nesse micro-instante. Com sessão, ou sem token salvo,
+      // resolve normalmente.
+      if (session || !maybeLoggedIn) resolveLoading()
       // Ao logar, baixa as chaves de API salvas no servidor para este dispositivo.
       if (event === 'SIGNED_IN' && session?.user) pullUserSettings().catch(() => {})
     })
@@ -320,6 +341,7 @@ export function AuthProvider({ children }) {
     () => ({
       user: exposedUser,
       loading,
+      maybeLoggedIn,
       isFounder,
       signIn,
       signUp,
@@ -336,7 +358,7 @@ export function AuthProvider({ children }) {
       isLocalMode,
       isAdmin,
     }),
-    [exposedUser, isFounder, loading, signIn, signUp, signInWithGoogle, resetPassword, signOut, linkGoogle, unlinkIdentity, updateEmail, updatePassword, getAccessToken, refreshUser, mfa, isAdmin],
+    [exposedUser, isFounder, loading, maybeLoggedIn, signIn, signUp, signInWithGoogle, resetPassword, signOut, linkGoogle, unlinkIdentity, updateEmail, updatePassword, getAccessToken, refreshUser, mfa, isAdmin],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

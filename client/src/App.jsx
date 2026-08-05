@@ -50,6 +50,8 @@ function Spinner() {
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
+  // `loading` fica true até a sessão ser definitiva (o AuthContext segura um `null`
+  // transitório quando há token salvo) → nada de piscar a landing.
   if (loading) return <Spinner />
   if (!user) return <Navigate to="/login" replace />
   return children
