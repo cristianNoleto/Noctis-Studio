@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, MailCheck } from 'lucide-react'
 import AuthShell from './AuthShell'
 import GoogleButton from './GoogleButton'
 import Captcha, { captchaEnabled } from '../../auth/Captcha'
@@ -21,6 +21,7 @@ export default function Register() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [captchaToken, setCaptchaToken] = useState('')
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false)
   const captchaRef = useRef(null)
 
   async function handleSubmit(e) {
@@ -36,8 +37,11 @@ export default function Register() {
     }
     setSubmitting(true)
     try {
-      await signUp(name, email, password, captchaToken)
-      navigate('/')
+      const res = await signUp(name, email, password, captchaToken)
+      // Confirmação de e-mail ligada? Mostra a tela de aviso em vez de cair na
+      // landing (o usuário ainda não tem sessão até clicar no link do e-mail).
+      if (res?.needsConfirmation) setAwaitingConfirm(true)
+      else navigate('/')
     } catch {
       setError(t('auth.errors.generic'))
       captchaRef.current?.resetCaptcha?.()
@@ -62,6 +66,25 @@ export default function Register() {
 
   // Já logado? Vai direto pro app (evita re-disparar o OAuth do Google).
   if (!loading && user) return <Navigate to="/" replace />
+
+  // Conta criada, aguardando o usuário confirmar o e-mail.
+  if (awaitingConfirm) {
+    return (
+      <AuthShell>
+        <div className="flex flex-col items-center text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-cyan-500/15 text-cyan-400">
+            <MailCheck size={28} />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-100">{t('auth.confirmTitle')}</h2>
+          <p className="mt-3 text-sm text-slate-400">{t('auth.confirmDesc', { email })}</p>
+          <p className="mt-4 rounded-lg bg-slate-900 px-3 py-2 text-xs text-slate-500">{t('auth.confirmSpam')}</p>
+          <Link to="/login" className="mt-6 text-sm font-medium text-cyan-400 hover:text-cyan-300">
+            {t('auth.confirmBackToLogin')}
+          </Link>
+        </div>
+      </AuthShell>
+    )
+  }
 
   return (
     <AuthShell>

@@ -136,14 +136,17 @@ export function AuthProvider({ children }) {
       localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(session))
       ensureLocalAdmin(email)
       setUser(session)
-      return
+      return { needsConfirmation: false }
     }
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { display_name: name }, captchaToken },
     })
     if (error) throw new Error('generic')
+    // Sem sessão = a confirmação de e-mail está ligada no Supabase → o usuário
+    // precisa clicar no link do e-mail antes de entrar (mostramos a tela de aviso).
+    return { needsConfirmation: !data.session }
   }, [])
 
   const signInWithGoogle = useCallback(async () => {
