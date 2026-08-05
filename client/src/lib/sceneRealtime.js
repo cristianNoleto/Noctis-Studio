@@ -64,10 +64,7 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
       channel = supabase.channel(`excalidraw:${sceneId}`, {
         config: { broadcast: { self: false }, presence: { key: crypto.randomUUID() } },
       })
-      channel.on('broadcast', { event: 'scene' }, ({ payload }) => {
-        console.log('[realtime] rx', { els: payload?.elements?.length, files: payload?.files?.length })
-        applyRemote(payload)
-      })
+      channel.on('broadcast', { event: 'scene' }, ({ payload }) => applyRemote(payload))
       channel.on('presence', { event: 'sync' }, () => {
         try {
           setPeers(Math.max(1, Object.keys(channel.presenceState() || {}).length))
@@ -75,8 +72,7 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
           /* ignora */
         }
       })
-      channel.subscribe((status, err) => {
-        console.log('[realtime] status', status, err || '')
+      channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           subscribedRef.current = true
           setConnected(true)
@@ -96,8 +92,7 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
         }
       })
       channelRef.current = channel
-    } catch (e) {
-      console.log('[realtime] erro ao criar canal', e)
+    } catch {
       /* Realtime indisponível → editor segue normal, sem tempo real */
     }
     return () => {
@@ -162,11 +157,10 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
       if (fs.length && JSON.stringify({ elements: slice, files: fs }).length <= PAYLOAD_MAX) payload.files = fs
       try {
         ch.send({ type: 'broadcast', event: 'scene', payload })
-      } catch (e) {
-        console.log('[realtime] tx erro', e)
+      } catch {
+        /* ignora */
       }
     }
-    console.log('[realtime] tx delta', { changed: changed.length })
   }
 
   // Throttle com "trailing": manda no máx. a cada 150 ms, mas sempre envia o

@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2, LayoutTem
 import { api } from '../../lib/api'
 import { downloadText, updateFileContent, renameFile, uploadFile, downloadBlob, setDriveOwner } from '../../lib/drive'
 import { optimizeDataUrl, dataUrlBytes, dataUrlToBlob, blobToDataUrl } from '../../lib/imageOptimize'
+import { getCachedImage, putCachedImage } from '../../lib/imageCache'
 import { useDb } from '../../lib/db'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
@@ -172,25 +173,36 @@ export default function DrawingEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, t])
 
-  // Carrega SOB DEMANDA as imagens que estão como arquivos separados no Drive:
-  // o quadro abre na hora (só a planta) e as imagens entram uma a uma, com
-  // progresso — é isso que torna viável abrir projetos de centenas de MB.
+  // Carrega SOB DEMANDA as imagens que estão como arquivos separados no Drive.
+  // Rápido: (1) CACHE local por driveFileId — reabrir o mesmo storyboard carrega
+  // instantâneo, sem rebaixar do Drive; (2) baixa VÁRIAS em paralelo (não uma a
+  // uma). O Drive continua a fonte: a 1ª vez baixa de lá e guarda no cache.
   async function lazyLoadImages(meta) {
     const entries = Object.entries(meta)
     if (!entries.length) return
     setLoadingImages({ done: 0, total: entries.length })
     let done = 0
-    for (const [fid, m] of entries) {
-      try {
-        const blob = await downloadBlob(m.driveFileId)
-        const dataURL = await blobToDataUrl(blob)
-        apiRef.current?.addFiles([{ id: fid, dataURL, mimeType: m.mimeType || blob.type, created: m.created || Date.now(), lastRetrieved: Date.now() }])
-      } catch {
-        /* imagem indisponível → segue as demais */
+    let idx = 0
+    const CONCURRENCY = 5
+    async function worker() {
+      while (idx < entries.length) {
+        const [fid, m] = entries[idx++]
+        try {
+          let blob = await getCachedImage(m.driveFileId) // cache-first (instantâneo)
+          if (!blob) {
+            blob = await downloadBlob(m.driveFileId) // 1ª vez → baixa do Drive
+            putCachedImage(m.driveFileId, blob).catch(() => {}) // guarda p/ as próximas
+          }
+          const dataURL = await blobToDataUrl(blob)
+          apiRef.current?.addFiles([{ id: fid, dataURL, mimeType: m.mimeType || blob.type, created: m.created || Date.now(), lastRetrieved: Date.now() }])
+        } catch {
+          /* imagem indisponível → segue as demais */
+        }
+        done += 1
+        setLoadingImages({ done, total: entries.length })
       }
-      done += 1
-      setLoadingImages({ done, total: entries.length })
     }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, entries.length) }, worker))
     setLoadingImages(null)
   }
 
