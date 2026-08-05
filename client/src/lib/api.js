@@ -202,7 +202,7 @@ export const api = {
     list: (params) => request(`/channels/list?${new URLSearchParams(params)}`),
     categories: () => request('/channels/categories'),
     stats: () => request('/channels/stats'),
-    upsert: (channels) => request('/channels/upsert', { method: 'POST', body: { channels } }),
+    upsert: (channels) => authRequestOptional('/channels/upsert', { method: 'POST', body: { channels } }),
   },
   skills: {
     // Biblioteca de Skills do sistema — a listagem manda o token (quando houver)

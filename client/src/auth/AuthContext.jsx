@@ -110,7 +110,7 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const signIn = useCallback(async (email, password) => {
+  const signIn = useCallback(async (email, password, captchaToken) => {
     if (isLocalMode) {
       const users = JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '{}')
       const found = users[email]
@@ -123,11 +123,11 @@ export function AuthProvider({ children }) {
       setUser(session)
       return
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken } })
     if (error) throw new Error('invalid_credentials')
   }, [])
 
-  const signUp = useCallback(async (name, email, password) => {
+  const signUp = useCallback(async (name, email, password, captchaToken) => {
     if (isLocalMode) {
       const users = JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '{}')
       users[email] = { name, password }
@@ -141,7 +141,7 @@ export function AuthProvider({ children }) {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: name } },
+      options: { data: { display_name: name }, captchaToken },
     })
     if (error) throw new Error('generic')
   }, [])
@@ -160,10 +160,11 @@ export function AuthProvider({ children }) {
     if (error) throw new Error('generic')
   }, [])
 
-  const resetPassword = useCallback(async (email) => {
+  const resetPassword = useCallback(async (email, captchaToken) => {
     if (isLocalMode) return
     await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/login`,
+      captchaToken,
     })
   }, [])
 

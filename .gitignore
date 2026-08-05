@@ -9,3 +9,6 @@ dist/
 # num diretório sincronizado). Não pertencem ao repositório.
 .tmp.driveupload/
 .tmp.drivedownload/
+
+# Backups locais do banco (contem dados reais - nunca versionar)
+backups/

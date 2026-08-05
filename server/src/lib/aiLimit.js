@@ -38,9 +38,11 @@ async function userFromReq(req, supa) {
 // Em modo local/sem service key ou sem token, libera (não há identidade p/ contar).
 export async function checkAiLimit(req) {
   const supa = supabaseAdmin()
-  if (!supa) return { ok: true, over: false }
+  if (!supa) return { ok: true, over: false } // modo local (sem service key) → sem identidade, libera
   const user = await userFromReq(req, supa)
-  if (!user) return { ok: true, over: false } // sem token → não conta (BYOK do próprio usuário)
+  // Com o Supabase configurado (produção), exigir login: sem isso um usuário FREE
+  // burlaria o limite diário só NÃO enviando o token. Rotas de IA tratam authRequired.
+  if (!user) return { ok: true, over: false, authRequired: true }
   const email = (user.email || '').toLowerCase()
   const plan = user.app_metadata?.plan || 'FREE'
   const isFounder = founderEmails().includes(email)

@@ -12,6 +12,20 @@ function limitReached(res, gate) {
   })
 }
 
+// Valida o portão de limite. Em produção exige login (authRequired) para que o
+// limite por plano não seja burlável omitindo o token. Retorna false se bloqueou.
+function passesGate(res, gate) {
+  if (gate.authRequired) {
+    res.status(401).json({ error: 'unauthorized', message: 'Faça login para usar a IA.' })
+    return false
+  }
+  if (gate.over) {
+    limitReached(res, gate)
+    return false
+  }
+  return true
+}
+
 // GET /api/ai/gemini-models — modelos que a chave do usuário pode usar (alimenta
 // o seletor de modelo na tela de APIs).
 router.get('/gemini-models', async (req, res) => {
@@ -54,7 +68,7 @@ router.post('/seo-report', async (req, res) => {
     const { title, description = '', tags = [], language = 'pt', channelName = '', channelNotes = '' } = req.body || {}
     if (!title) return res.status(400).json({ error: 'missing_title' })
     const gate = await checkAiLimit(req)
-    if (gate.over) return limitReached(res, gate)
+    if (!passesGate(res, gate)) return
     const langName = SEO_LANGS[language] || language || 'português (Brasil)'
     const isPt = language === 'pt'
 
@@ -118,7 +132,7 @@ router.post('/titles', async (req, res) => {
     const { idea, niche = '', context = '' } = req.body || {}
     if (!idea) return res.status(400).json({ error: 'missing_idea' })
     const gate = await checkAiLimit(req)
-    if (gate.over) return limitReached(res, gate)
+    if (!passesGate(res, gate)) return
 
     const result = await aiGenerateJson(req, {
       system:
@@ -150,7 +164,7 @@ router.post('/niche-doubling', async (req, res) => {
     const { channel, topVideos = [] } = req.body || {}
     if (!channel?.title) return res.status(400).json({ error: 'missing_channel' })
     const gate = await checkAiLimit(req)
-    if (gate.over) return limitReached(res, gate)
+    if (!passesGate(res, gate)) return
 
     // Outlier = quantas vezes o vídeo bate a mediana de views do canal.
     const views = topVideos.map((v) => Number(v.views) || 0).filter(Boolean).sort((a, b) => a - b)

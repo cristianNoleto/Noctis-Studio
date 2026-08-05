@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { Eye, EyeOff, X } from 'lucide-react'
 import AuthShell from './AuthShell'
 import GoogleButton from './GoogleButton'
+import Captcha, { captchaEnabled } from '../../auth/Captcha'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
 
@@ -18,6 +19,8 @@ export default function Login() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [recoveryOpen, setRecoveryOpen] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const captchaRef = useRef(null)
   // Desafio 2FA (quando a conta tem app autenticador ativo)
   const [mfaFactorId, setMfaFactorId] = useState(null)
   const [mfaCode, setMfaCode] = useState('')
@@ -27,7 +30,7 @@ export default function Login() {
     setError('')
     setSubmitting(true)
     try {
-      await signIn(email, password)
+      await signIn(email, password, captchaToken)
       // A conta exige 2FA? (aal1 → aal2)
       const aal = await mfa.aal()
       if (aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
@@ -42,6 +45,9 @@ export default function Login() {
       navigate('/')
     } catch (err) {
       setError(t(err.message === 'invalid_credentials' ? 'auth.errors.invalidCredentials' : 'auth.errors.generic'))
+      // Token do hCaptcha é de uso único: zera para a próxima tentativa.
+      captchaRef.current?.resetCaptcha?.()
+      setCaptchaToken('')
     } finally {
       setSubmitting(false)
     }
@@ -184,9 +190,11 @@ export default function Login() {
 
         {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}
 
+        <Captcha ref={captchaRef} onToken={setCaptchaToken} />
+
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || (captchaEnabled && !captchaToken)}
           className="w-full rounded-lg bg-cyan-500 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-60"
         >
           {submitting ? t('common.loading') : t('auth.signIn')}
@@ -215,11 +223,18 @@ function RecoveryModal({ onClose, resetPassword }) {
   const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const captchaRef = useRef(null)
 
   async function handleSend(e) {
     e.preventDefault()
-    await resetPassword(email)
-    setSent(true)
+    try {
+      await resetPassword(email, captchaToken)
+      setSent(true)
+    } catch {
+      captchaRef.current?.resetCaptcha?.()
+      setCaptchaToken('')
+    }
   }
 
   return (
@@ -247,9 +262,11 @@ function RecoveryModal({ onClose, resetPassword }) {
               placeholder="voce@email.com"
               className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
             />
+            <Captcha ref={captchaRef} onToken={setCaptchaToken} />
             <button
               type="submit"
-              className="w-full rounded-lg bg-cyan-500 py-2.5 text-sm font-semibold text-white hover:bg-cyan-600"
+              disabled={captchaEnabled && !captchaToken}
+              className="w-full rounded-lg bg-cyan-500 py-2.5 text-sm font-semibold text-white hover:bg-cyan-600 disabled:opacity-60"
             >
               {t('auth.recoverySend')}
             </button>

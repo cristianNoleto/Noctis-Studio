@@ -58,10 +58,23 @@ function requireSupabase(res) {
   return supa
 }
 
+// Identifica o usuário pelo token (Bearer). A base global é alimentada pelo Niche
+// Finder de qualquer usuário LOGADO — mas nunca por um anônimo (anti-vandalismo).
+async function getUser(req, supa) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+  if (!token) return null
+  const { data } = await supa.auth.getUser(token)
+  return data?.user || null
+}
+
 // POST /api/channels/upsert  { channels: [...] } — grava os canais na base global.
+// Exige usuário logado: a base é colaborativa (qualquer conta contribui), mas
+// um anônimo não pode poluir/sobrescrever a base compartilhada.
 router.post('/upsert', async (req, res) => {
   const supa = requireSupabase(res)
   if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
   const list = Array.isArray(req.body?.channels) ? req.body.channels.filter((c) => c && c.id).slice(0, 60) : []
   if (!list.length) return res.json({ upserted: 0 })
   const { error } = await supa.from('niche_channels').upsert(list.map(toRow), { onConflict: 'id' })

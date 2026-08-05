@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import AuthShell from './AuthShell'
 import GoogleButton from './GoogleButton'
+import Captcha, { captchaEnabled } from '../../auth/Captcha'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
 
@@ -19,6 +20,8 @@ export default function Register() {
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const captchaRef = useRef(null)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -33,10 +36,12 @@ export default function Register() {
     }
     setSubmitting(true)
     try {
-      await signUp(name, email, password)
+      await signUp(name, email, password, captchaToken)
       navigate('/')
     } catch {
       setError(t('auth.errors.generic'))
+      captchaRef.current?.resetCaptcha?.()
+      setCaptchaToken('')
     } finally {
       setSubmitting(false)
     }
@@ -146,9 +151,11 @@ export default function Register() {
 
         {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}
 
+        <Captcha ref={captchaRef} onToken={setCaptchaToken} />
+
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || (captchaEnabled && !captchaToken)}
           className="w-full rounded-lg bg-cyan-500 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-60"
         >
           {submitting ? t('common.loading') : t('auth.signUp')}
