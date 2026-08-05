@@ -69,7 +69,18 @@ export function templateKeyFor(actionType) {
 }
 
 function shell(inner) {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0D0E12;margin:0;padding:32px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  // Documento HTML completo com <body> de fundo escuro → o e-mail fica TODO
+  // escuro (não um card flutuando no branco do cliente de e-mail).
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark only">
+<meta name="supported-color-schemes" content="dark">
+</head>
+<body style="margin:0;padding:0;background:#0D0E12;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0D0E12;margin:0;padding:32px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
   <tr><td align="center">
     <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#16181F;border:1px solid #262A33;border-radius:16px;overflow:hidden;">
       <tr><td style="padding:32px 32px 8px 32px;">
@@ -79,7 +90,9 @@ function shell(inner) {
     </table>
     <p style="margin:16px 0 0 0;font-size:11px;color:#4B5563;">© Noctis Studio · ${DOMAIN}</p>
   </td></tr>
-</table>`
+</table>
+</body>
+</html>`
 }
 
 // Renderiza { subject, html } para um tipo + idioma. `url` (link) OU `code`.

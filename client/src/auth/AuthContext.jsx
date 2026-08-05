@@ -140,7 +140,9 @@ export function AuthProvider({ children }) {
     }
     // Guarda o idioma atual na conta (user_metadata.locale) → o Send Email Hook
     // usa isso para enviar os e-mails de auth no idioma da pessoa (pt/en/es).
-    const locale = (localStorage.getItem('dp_lang') || 'en').slice(0, 2)
+    // dp_lang só existe se a pessoa TROCOU o idioma manualmente; senão usamos o
+    // idioma do navegador (o mesmo que o app usa pra exibir na 1ª visita).
+    const locale = (localStorage.getItem('dp_lang') || navigator.language || 'en').slice(0, 2)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
