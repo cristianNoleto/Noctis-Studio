@@ -41,11 +41,25 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
   const applyingRef = useRef(false) // true enquanto aplicamos algo remoto (não re-broadcasta)
   const pendingRef = useRef(null)
   const timerRef = useRef(null)
+  const knownRef = useRef(new Map()) // id -> última version já enviada/aplicada (base do DELTA)
+
+  // Só os elementos cuja version subiu desde a última vez (o que REALMENTE mudou).
+  function diffChanged(elements) {
+    const changed = []
+    for (const e of elements || []) {
+      if ((knownRef.current.get(e.id) ?? -1) < (e.version || 0)) changed.push(e)
+    }
+    return changed
+  }
+  function markKnown(list) {
+    for (const e of list || []) knownRef.current.set(e.id, e.version || 0)
+  }
 
   useEffect(() => {
     if (!enabled || !supabase || !sceneId) return
     let channel
     subscribedRef.current = false
+    knownRef.current = new Map() // baseline recomeça a cada sala
     try {
       channel = supabase.channel(`excalidraw:${sceneId}`, {
         config: { broadcast: { self: false }, presence: { key: crypto.randomUUID() } },
@@ -67,11 +81,12 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
           subscribedRef.current = true
           setConnected(true)
           channel.track({ name: selfName || 'Alguém', at: Date.now() }).catch(() => {})
-          // Envia o estado atual assim que conecta (garante que o outro receba
-          // mesmo que a 1ª alteração tenha ocorrido antes de conectar).
+          // BASELINE: marca a cena atual como "já conhecida" — assim só transmitimos
+          // o que MUDAR daqui pra frente (delta). O estado inicial o outro já tem do
+          // banco/Drive ao abrir. NÃO enviamos a cena inteira (evita flood/estouro).
           try {
             const a = apiRef.current
-            if (a) sendNow(a.getSceneElements(), a.getFiles?.())
+            if (a) markKnown(a.getSceneElements())
           } catch {
             /* ignora */
           }
@@ -109,41 +124,49 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
       }
       if (Array.isArray(payload.elements)) {
         a.updateScene({ elements: reconcile(a.getSceneElements(), payload.elements) })
+        // Marca o que chegou como conhecido → o onChange disparado pelo updateScene
+        // NÃO vê "mudança nova" e não re-transmite (quebra o eco na raiz).
+        markKnown(payload.elements)
       }
     } catch {
       /* ignora */
     } finally {
-      // Libera no próximo tick: o onChange disparado pelo updateScene acima NÃO
-      // deve re-broadcastar (senão vira eco infinito).
       setTimeout(() => {
         applyingRef.current = false
       }, 0)
     }
   }
 
+  // Envia SÓ o que mudou (delta), em blocos que cabem no limite da mensagem.
   function sendNow(elements, files) {
     const ch = channelRef.current
-    if (!ch || !subscribedRef.current) return // ainda não conectou → não envia (seria descartado)
-    try {
-      const payload = { elements }
-      if (files) {
-        const referenced = new Set((elements || []).filter((e) => e.fileId && !e.isDeleted).map((e) => e.fileId))
-        const small = []
-        for (const [id, f] of Object.entries(files)) {
-          if (referenced.has(id) && f?.dataURL && dataUrlBytes(f.dataURL) < INLINE_FILE_MAX) {
-            small.push({ id, dataURL: f.dataURL, mimeType: f.mimeType, created: f.created })
-          }
-        }
-        if (small.length) payload.files = small
+    if (!ch || !subscribedRef.current) return
+    const changed = diffChanged(elements)
+    if (!changed.length) return // nada novo → não envia (idle não gera tráfego)
+    markKnown(changed)
+    // Arquivos pequenos referenciados pelos elementos que mudaram (imagens novas).
+    const filesById = {}
+    if (files) {
+      const refIds = new Set(changed.filter((e) => e.fileId && !e.isDeleted).map((e) => e.fileId))
+      for (const id of refIds) {
+        const f = files[id]
+        if (f?.dataURL && dataUrlBytes(f.dataURL) < INLINE_FILE_MAX) filesById[id] = { id, dataURL: f.dataURL, mimeType: f.mimeType, created: f.created }
       }
-      // Se estourar o teto da mensagem, manda só os elementos (as imagens grandes
-      // aparecem pro outro no reload, via Drive) — não perde nem trava.
-      if (JSON.stringify(payload).length > PAYLOAD_MAX) delete payload.files
-      console.log('[realtime] tx', { els: payload.elements?.length, files: payload.files?.length || 0 })
-      ch.send({ type: 'broadcast', event: 'scene', payload })
-    } catch (e) {
-      console.log('[realtime] tx erro', e)
     }
+    // Quebra em blocos (~120 elementos ou até caber no teto) para não estourar.
+    const CHUNK = 120
+    for (let i = 0; i < changed.length; i += CHUNK) {
+      const slice = changed.slice(i, i + CHUNK)
+      const payload = { elements: slice }
+      const fs = slice.map((e) => filesById[e.fileId]).filter(Boolean)
+      if (fs.length && JSON.stringify({ elements: slice, files: fs }).length <= PAYLOAD_MAX) payload.files = fs
+      try {
+        ch.send({ type: 'broadcast', event: 'scene', payload })
+      } catch (e) {
+        console.log('[realtime] tx erro', e)
+      }
+    }
+    console.log('[realtime] tx delta', { changed: changed.length })
   }
 
   // Throttle com "trailing": manda no máx. a cada 150 ms, mas sempre envia o
