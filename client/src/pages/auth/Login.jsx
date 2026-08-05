@@ -19,6 +19,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [recoveryOpen, setRecoveryOpen] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   const [captchaToken, setCaptchaToken] = useState('')
   const captchaRef = useRef(null)
   // Desafio 2FA (quando a conta tem app autenticador ativo)
@@ -69,10 +70,13 @@ export default function Login() {
 
   async function handleGoogle() {
     setError('')
+    // Mostra o spinner e deixa o próprio redirect levar ao Google — NÃO navega
+    // para '/', que renderizaria a landing por um instante (o flash).
+    setRedirecting(true)
     try {
       await signInWithGoogle()
-      navigate('/')
     } catch {
+      setRedirecting(false)
       setError(t('auth.errors.generic'))
     }
   }
@@ -108,6 +112,15 @@ export default function Login() {
           </button>
         </form>
       </AuthShell>
+    )
+  }
+
+  // Redirecionando para o Google: spinner em tela cheia (sem piscar a landing).
+  if (redirecting) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-950">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-cyan-500" />
+      </div>
     )
   }
 

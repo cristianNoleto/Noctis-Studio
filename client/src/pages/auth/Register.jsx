@@ -22,6 +22,7 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false)
   const [captchaToken, setCaptchaToken] = useState('')
   const [awaitingConfirm, setAwaitingConfirm] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   const captchaRef = useRef(null)
 
   async function handleSubmit(e) {
@@ -53,16 +54,27 @@ export default function Register() {
 
   async function handleGoogle() {
     setError('')
+    // Spinner + deixa o redirect levar ao Google (sem piscar a landing).
+    setRedirecting(true)
     try {
       await signInWithGoogle()
-      navigate('/')
     } catch {
+      setRedirecting(false)
       setError(t('auth.errors.generic'))
     }
   }
 
   const inputClass =
     'w-full rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500'
+
+  // Redirecionando para o Google: spinner em tela cheia (sem piscar a landing).
+  if (redirecting) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-950">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-cyan-500" />
+      </div>
+    )
+  }
 
   // Já logado? Vai direto pro app (evita re-disparar o OAuth do Google).
   if (!loading && user) return <Navigate to="/" replace />
