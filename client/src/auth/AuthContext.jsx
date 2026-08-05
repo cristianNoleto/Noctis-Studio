@@ -138,10 +138,13 @@ export function AuthProvider({ children }) {
       setUser(session)
       return { needsConfirmation: false }
     }
+    // Guarda o idioma atual na conta (user_metadata.locale) → o Send Email Hook
+    // usa isso para enviar os e-mails de auth no idioma da pessoa (pt/en/es).
+    const locale = (localStorage.getItem('dp_lang') || 'en').slice(0, 2)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: name }, captchaToken },
+      options: { data: { display_name: name, locale }, captchaToken },
     })
     if (error) throw new Error('generic')
     // Sem sessão = a confirmação de e-mail está ligada no Supabase → o usuário

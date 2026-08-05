@@ -13,10 +13,14 @@ import express from 'express'
 import apiRouter from '../server/src/routes/index.js'
 import adminRouter from './_admin.js'
 import { securityHeaders, rateLimit } from '../server/src/lib/security.js'
+import { authEmailHook } from '../server/src/routes/authEmailHook.js'
 
 const app = express()
 
 app.use(securityHeaders)
+// Send Email Hook do Supabase: precisa do corpo CRU p/ validar a assinatura,
+// então vem ANTES do express.json (com seu próprio parser raw).
+app.post('/api/auth/email-hook', express.raw({ type: '*/*', limit: '1mb' }), authEmailHook)
 app.use(express.json({ limit: '4mb' }))
 
 app.get('/api/health', (_req, res) => {

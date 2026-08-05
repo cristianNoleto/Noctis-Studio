@@ -3,12 +3,14 @@ import express from 'express'
 import cors from 'cors'
 import apiRouter from './routes/index.js'
 import { securityHeaders, rateLimit } from './lib/security.js'
+import { authEmailHook } from './routes/authEmailHook.js'
 
 const app = express()
 const port = process.env.PORT || 3001
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }))
 app.use(securityHeaders)
+app.post('/api/auth/email-hook', express.raw({ type: '*/*', limit: '1mb' }), authEmailHook)
 app.use(express.json({ limit: '4mb' }))
 app.use('/api/ai', rateLimit({ name: 'ai', windowMs: 60_000, max: 30 }))
 app.use('/api', rateLimit({ name: 'global', windowMs: 60_000, max: 240 }))
