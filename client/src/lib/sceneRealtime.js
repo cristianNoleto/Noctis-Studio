@@ -16,6 +16,17 @@ import { dataUrlBytes } from './imageOptimize'
 
 const INLINE_FILE_MAX = 180 * 1024 // imagens até ~180 KB vão inline no tempo real
 const PAYLOAD_MAX = 240 * 1024 // teto por mensagem do Realtime (~256 KB)
+const CURSOR_MS = 45 // throttle do cursor (~22 fps)
+const CURSOR_TTL_MS = 8000 // some o cursor de quem parou de enviar
+
+// Paleta de cores para os cursores dos colaboradores (escolhida pelo id da sessão).
+const CURSOR_COLORS = ['#00b8d9', '#36b37e', '#ff5630', '#6554c0', '#ffab00', '#e91e8c', '#0065ff', '#57d9a3']
+function colorFor(key) {
+  let h = 0
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
+  const c = CURSOR_COLORS[h % CURSOR_COLORS.length]
+  return { background: c, stroke: c }
+}
 
 // Mescla os elementos remotos nos locais: por id, vence a maior `version`.
 function reconcile(local, remote) {
@@ -42,6 +53,11 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
   const pendingRef = useRef(null)
   const timerRef = useRef(null)
   const knownRef = useRef(new Map()) // id -> última version já enviada/aplicada (base do DELTA)
+  const myKeyRef = useRef(null)
+  if (!myKeyRef.current) myKeyRef.current = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)
+  const myColorRef = useRef(colorFor(myKeyRef.current))
+  const collabRef = useRef(new Map()) // key -> { at, collaborator } (cursores dos outros)
+  const lastPointerRef = useRef(0)
 
   // Só os elementos cuja version subiu desde a última vez (o que REALMENTE mudou).
   function diffChanged(elements) {
@@ -62,12 +78,19 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
     knownRef.current = new Map() // baseline recomeça a cada sala
     try {
       channel = supabase.channel(`excalidraw:${sceneId}`, {
-        config: { broadcast: { self: false }, presence: { key: crypto.randomUUID() } },
+        config: { broadcast: { self: false }, presence: { key: myKeyRef.current } },
       })
       channel.on('broadcast', { event: 'scene' }, ({ payload }) => applyRemote(payload))
+      channel.on('broadcast', { event: 'pointer' }, ({ payload }) => applyPointer(payload))
       channel.on('presence', { event: 'sync' }, () => {
         try {
-          setPeers(Math.max(1, Object.keys(channel.presenceState() || {}).length))
+          const state = channel.presenceState() || {}
+          setPeers(Math.max(1, Object.keys(state).length))
+          // Remove cursores de quem saiu da sala.
+          for (const key of [...collabRef.current.keys()]) {
+            if (!state[key]) collabRef.current.delete(key)
+          }
+          pushCollaborators()
         } catch {
           /* ignora */
         }
@@ -95,10 +118,29 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
     } catch {
       /* Realtime indisponível → editor segue normal, sem tempo real */
     }
+    // Some o cursor de quem parou de mexer (sem sair da sala).
+    const prune = setInterval(() => {
+      const now = Date.now()
+      let changed = false
+      for (const [key, v] of collabRef.current) {
+        if (now - v.at > CURSOR_TTL_MS) {
+          collabRef.current.delete(key)
+          changed = true
+        }
+      }
+      if (changed) pushCollaborators()
+    }, 3000)
     return () => {
       clearTimeout(timerRef.current)
+      clearInterval(prune)
       subscribedRef.current = false
       setConnected(false)
+      collabRef.current.clear()
+      try {
+        pushCollaborators() // limpa os cursores no canvas ao sair
+      } catch {
+        /* ignora */
+      }
       try {
         if (channel) supabase.removeChannel(channel)
       } catch {
@@ -108,6 +150,53 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId, enabled])
+
+  // Aplica o cursor recebido de outro colaborador (o Excalidraw desenha nativamente).
+  function applyPointer(p) {
+    if (!p || !p.key) return
+    collabRef.current.set(p.key, {
+      at: Date.now(),
+      collaborator: {
+        username: p.name || 'Alguém',
+        pointer: { x: p.x, y: p.y },
+        button: p.button === 'down' ? 'down' : 'up',
+        color: p.color,
+        selectedElementIds: p.sel || {},
+      },
+    })
+    pushCollaborators()
+  }
+
+  // Empurra o mapa de colaboradores para o Excalidraw (ele renderiza os cursores).
+  function pushCollaborators() {
+    const a = apiRef.current
+    if (!a?.updateScene) return
+    const m = new Map()
+    for (const [k, v] of collabRef.current) m.set(k, v.collaborator)
+    try {
+      a.updateScene({ collaborators: m })
+    } catch {
+      /* ignora */
+    }
+  }
+
+  // Transmite a posição do MEU cursor (chamado pelo onPointerUpdate do Excalidraw).
+  function onPointerUpdate(x, y, button, sel) {
+    const ch = channelRef.current
+    if (!ch || !subscribedRef.current) return
+    const now = Date.now()
+    if (now - lastPointerRef.current < CURSOR_MS) return
+    lastPointerRef.current = now
+    try {
+      ch.send({
+        type: 'broadcast',
+        event: 'pointer',
+        payload: { key: myKeyRef.current, name: selfName || 'Alguém', color: myColorRef.current, x, y, button, sel },
+      })
+    } catch {
+      /* ignora */
+    }
+  }
 
   function applyRemote(payload) {
     const a = apiRef.current
@@ -177,5 +266,5 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled }) {
     }, 150)
   }
 
-  return { peers, connected, broadcast, applyingRef }
+  return { peers, connected, broadcast, onPointerUpdate, applyingRef }
 }

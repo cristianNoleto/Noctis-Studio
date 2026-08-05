@@ -577,6 +577,7 @@ export default function DrawingEditor() {
           }}
           initialData={initial}
           onChange={onChange}
+          onPointerUpdate={(p) => realtimeRef.current?.onPointerUpdate?.(p?.pointer?.x, p?.pointer?.y, p?.button)}
           langCode={appliedLang}
           viewModeEnabled={!canEditScene}
         >
