@@ -838,8 +838,11 @@ export default {
     exitFullscreen: 'Sair da tela cheia',
     notFound: 'Desenho não encontrado.',
     liveEditing: '{n} editando',
+    liveViewing: '{n} vendo',
     liveConnected: 'Ao vivo',
     liveEditingHint: 'Pessoas com este storyboard aberto agora — as mudanças aparecem em tempo real.',
+    viewOnlyBanner: 'Modo visualização — suas alterações não serão salvas (sem acesso de editor).',
+    viewOnlyPaste: 'Você não pode adicionar itens: não tem acesso de editor nesta cena. Você pode ver e copiar, mas não alterá-la.',
     trash: {
       title: 'Lixeira',
       intro: 'Storyboards excluídos ficam aqui por 7 dias antes de serem apagados de vez. Você pode restaurar ou excluir agora.',

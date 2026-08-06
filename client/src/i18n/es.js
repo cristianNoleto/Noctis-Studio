@@ -838,8 +838,11 @@ export default {
     exitFullscreen: 'Salir de pantalla completa',
     notFound: 'Dibujo no encontrado.',
     liveEditing: '{n} editando',
+    liveViewing: '{n} viendo',
     liveConnected: 'En vivo',
     liveEditingHint: 'Personas con este storyboard abierto ahora — los cambios aparecen en tiempo real.',
+    viewOnlyBanner: 'Modo visualización — tus cambios no se guardarán (sin acceso de editor).',
+    viewOnlyPaste: 'No puedes agregar elementos: no tienes acceso de editor en esta escena. Puedes ver y copiar, pero no modificarla.',
     trash: {
       title: 'Papelera',
       intro: 'Los storyboards eliminados quedan aquí 7 días antes de borrarse definitivamente. Puedes restaurar o eliminar ahora.',

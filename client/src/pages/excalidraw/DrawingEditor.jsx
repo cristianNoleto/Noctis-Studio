@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang, useI18n as useExcalidrawI18n, convertToExcalidrawElements } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
-import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2, LayoutTemplate, Sparkles, X, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2, LayoutTemplate, Sparkles, X, AlertTriangle, Eye } from 'lucide-react'
 import { api } from '../../lib/api'
 import { downloadText, updateFileContent, renameFile, uploadFile, downloadBlob, setDriveOwner, trashFile } from '../../lib/drive'
 import { optimizeDataUrl, dataUrlBytes, dataUrlToBlob, blobToDataUrl } from '../../lib/imageOptimize'
@@ -73,7 +73,7 @@ export default function DrawingEditor() {
   const apiRef = useRef(null)
   // Colaboração ao vivo (Supabase Realtime). Camada isolada: se falhar, o editor
   // segue normal. Liga só depois que a cena carregou (initial pronto).
-  const realtime = useSceneRealtime({ sceneId: id, apiRef, selfName: user?.name, enabled: !!initial && initial !== false, onFileRef: fetchRemoteFile })
+  const realtime = useSceneRealtime({ sceneId: id, apiRef, selfName: user?.name, enabled: !!initial && initial !== false, onFileRef: fetchRemoteFile, canEdit: canEditScene })
   const realtimeRef = useRef(realtime)
   realtimeRef.current = realtime
   const saveTimer = useRef(null)
@@ -107,6 +107,7 @@ export default function DrawingEditor() {
   const seenFiles = useRef(new Set()) // ids de imagens já avaliadas p/ otimização
   const [optimizing, setOptimizing] = useState(null) // { done, total } ou null
   const [imgLimitWarn, setImgLimitWarn] = useState(null) // nº de imagens tentadas acima do limite
+  const [viewOnlyWarn, setViewOnlyWarn] = useState(false) // aviso ao tentar adicionar sem acesso de editor
   // Manifesto das imagens já subidas ao Drive como arquivos SEPARADOS:
   // fileId (do Excalidraw) → { driveFileId, mimeType }. Assim o scene.json fica
   // leve (só a "planta") e as imagens carregam sob demanda.
@@ -372,8 +373,16 @@ export default function DrawingEditor() {
   // limite, avisa e não insere. Com 0/1 imagem, deixa o Excalidraw tratar.
   const handleMultiImageDrop = useCallback(
     async (e) => {
-      if (!apiRef.current || !canEditScene) return
+      if (!apiRef.current) return
       const imgs = [...(e.dataTransfer?.files || [])].filter((f) => (f.type || '').startsWith('image/'))
+      // Sem acesso de editor: soltar imagem seria ADICIONAR → bloqueia e avisa.
+      if (!canEditScene) {
+        if (!imgs.length) return
+        e.preventDefault()
+        e.stopPropagation()
+        setViewOnlyWarn(true)
+        return
+      }
       if (imgs.length < 2) return // 1 imagem (ou nenhuma) → deixa o Excalidraw cuidar
       e.preventDefault()
       e.stopPropagation()
@@ -394,7 +403,17 @@ export default function DrawingEditor() {
   // inserimos todas no centro da viewport. 0/1 imagem → deixa o Excalidraw.
   useEffect(() => {
     const onPaste = (e) => {
-      if (!apiRef.current || !canEditScene) return
+      if (!apiRef.current) return
+      // Sem acesso de editor: colar (adicionar) é bloqueado com aviso. Copiar
+      // PARA FORA continua livre (isso é Ctrl+C, não dispara este handler).
+      if (!canEditScene) {
+        const hasContent = (e.clipboardData?.files?.length || 0) > 0 || !!e.clipboardData?.getData('text/plain')
+        if (!hasContent) return
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        setViewOnlyWarn(true)
+        return
+      }
       const imgs = [...(e.clipboardData?.files || [])].filter((f) => (f.type || '').startsWith('image/'))
       if (imgs.length < 2) return // texto ou 1 imagem → não interfere
       e.preventDefault()
@@ -417,6 +436,13 @@ export default function DrawingEditor() {
     const t = setTimeout(() => setImgLimitWarn(null), 6000)
     return () => clearTimeout(t)
   }, [imgLimitWarn])
+
+  // O aviso de "só visualização" some sozinho depois de alguns segundos.
+  useEffect(() => {
+    if (!viewOnlyWarn) return
+    const t = setTimeout(() => setViewOnlyWarn(false), 4500)
+    return () => clearTimeout(t)
+  }, [viewOnlyWarn])
 
   const doSave = useCallback(
     async (elements, appState, files) => {
@@ -683,7 +709,11 @@ export default function DrawingEditor() {
             title={t('drawings.liveEditingHint')}
           >
             <span className={`online-dot h-1.5 w-1.5 rounded-full ${realtime.peers > 1 ? 'bg-green-400' : 'bg-slate-500'}`} />
-            {realtime.peers > 1 ? t('drawings.liveEditing', { n: realtime.peers }) : t('drawings.liveConnected')}
+            {realtime.peers > 1
+              ? [realtime.editors > 0 && t('drawings.liveEditing', { n: realtime.editors }), realtime.viewers > 0 && t('drawings.liveViewing', { n: realtime.viewers })]
+                  .filter(Boolean)
+                  .join(' · ')
+              : t('drawings.liveConnected')}
           </span>
         )}
         <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-slate-500">
@@ -712,12 +742,30 @@ export default function DrawingEditor() {
         </button>
       </div>
 
+      {/* Banner fixo para quem só vê: deixa claro que as mudanças não salvam. */}
+      {!canEditScene && (
+        <div className="flex items-center justify-center gap-1.5 border-b border-amber-500/20 bg-amber-500/10 px-3 py-1 text-[11px] font-medium text-amber-300">
+          <Eye size={12} />
+          {t('drawings.viewOnlyBanner')}
+        </div>
+      )}
+
       {/* Quem NÃO pode editar entra no modo interativo (seleciona, arrasta, copia
           texto/imagem via menu do botão direito), mas nada é salvo nem transmitido
           — reseta ao reabrir. Escondemos só as ações destrutivas do menu de
           contexto (recortar/excluir), mantendo copiar/copiar como PNG/SVG/texto. */}
       {!canEditScene && (
         <style>{'[data-testid="cut"],[data-testid="deleteSelectedElements"]{display:none !important;}'}</style>
+      )}
+
+      {/* Aviso (toast) quando quem só vê tenta adicionar algo à cena. */}
+      {viewOnlyWarn && (
+        <div className="pointer-events-none fixed left-1/2 top-20 z-[9999] w-full max-w-md -translate-x-1/2 px-4">
+          <div className="flex items-start gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200 shadow-2xl">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-400" />
+            <span>{t('drawings.viewOnlyPaste')}</span>
+          </div>
+        </div>
       )}
 
       {/* Aviso de limite ao soltar/colar imagens demais de uma vez. Modal central

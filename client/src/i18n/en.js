@@ -838,8 +838,11 @@ export default {
     exitFullscreen: 'Exit fullscreen',
     notFound: 'Drawing not found.',
     liveEditing: '{n} editing',
+    liveViewing: '{n} viewing',
     liveConnected: 'Live',
     liveEditingHint: 'People with this storyboard open right now — changes appear in real time.',
+    viewOnlyBanner: 'View-only mode — your changes will not be saved (no editor access).',
+    viewOnlyPaste: "You can't add items: you don't have editor access to this scene. You can view and copy, but not change it.",
     trash: {
       title: 'Trash',
       intro: 'Deleted storyboards stay here for 7 days before being permanently removed. You can restore or delete now.',

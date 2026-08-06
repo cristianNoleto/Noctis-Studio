@@ -44,11 +44,15 @@ function reconcile(local, remote) {
 //   selfName — nome exibido na presença
 //   enabled  — liga só quando faz sentido (produção, cena carregada)
 // Retorna { peers, broadcast, applyingRef }.
-export function useSceneRealtime({ sceneId, apiRef, selfName, enabled, onFileRef }) {
+export function useSceneRealtime({ sceneId, apiRef, selfName, enabled, onFileRef, canEdit = true }) {
   const [peers, setPeers] = useState(1)
+  const [editors, setEditors] = useState(canEdit ? 1 : 0) // quantos podem EDITAR agora
+  const [viewers, setViewers] = useState(canEdit ? 0 : 1) // quantos estão só VENDO
   const [connected, setConnected] = useState(false)
   const onFileRefRef = useRef(onFileRef)
   onFileRefRef.current = onFileRef
+  const canEditRef = useRef(canEdit)
+  canEditRef.current = canEdit
   const channelRef = useRef(null)
   const subscribedRef = useRef(false) // só envia depois de SUBSCRIBED (senão é descartado)
   const applyingRef = useRef(false) // true enquanto aplicamos algo remoto (não re-broadcasta)
@@ -92,6 +96,16 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled, onFileRef
         try {
           const state = channel.presenceState() || {}
           setPeers(Math.max(1, Object.keys(state).length))
+          // Conta quantos EDITAM e quantos só VÊEM (papel vem no track de cada um).
+          let ed = 0
+          let vw = 0
+          for (const metas of Object.values(state)) {
+            const role = metas?.[0]?.role
+            if (role === 'view') vw++
+            else ed++
+          }
+          setEditors(ed)
+          setViewers(vw)
           // Remove cursores de quem saiu da sala.
           for (const key of [...collabRef.current.keys()]) {
             if (!state[key]) collabRef.current.delete(key)
@@ -105,7 +119,7 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled, onFileRef
         if (status === 'SUBSCRIBED') {
           subscribedRef.current = true
           setConnected(true)
-          channel.track({ name: selfName || 'Alguém', at: Date.now() }).catch(() => {})
+          channel.track({ name: selfName || 'Alguém', at: Date.now(), role: canEditRef.current ? 'edit' : 'view' }).catch(() => {})
           // BASELINE: marca a cena atual como "já conhecida" — assim só transmitimos
           // o que MUDAR daqui pra frente (delta). O estado inicial o outro já tem do
           // banco/Drive ao abrir. NÃO enviamos a cena inteira (evita flood/estouro).
@@ -283,5 +297,5 @@ export function useSceneRealtime({ sceneId, apiRef, selfName, enabled, onFileRef
     }
   }
 
-  return { peers, connected, broadcast, onPointerUpdate, broadcastFile, applyingRef }
+  return { peers, editors, viewers, connected, broadcast, onPointerUpdate, broadcastFile, applyingRef }
 }
