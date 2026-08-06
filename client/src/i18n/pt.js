@@ -830,6 +830,7 @@ export default {
     leavingSaving: 'Salvando seu desenho…',
     leavingHint: 'Aguarde um instante — não feche a aba até terminar.',
     optimizing: 'Otimizando imagens ({done}/{total})',
+    imgLimit: 'Você pode adicionar até {max} imagens por vez (você tentou {count}). Envie em lotes menores.',
     loadingImages: 'Carregando imagens ({done}/{total})',
     welcomeHeading: 'Escolha uma ferramenta e comece a desenhar!',
     language: 'Idioma do quadro',

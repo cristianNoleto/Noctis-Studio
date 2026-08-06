@@ -23,6 +23,11 @@ function imageSizeOf(dataURL) {
   })
 }
 
+// Máximo de imagens adicionadas de uma vez (soltar ou colar). Acima disso, avisa
+// e não insere — o usuário reenvia em lotes menores. Evita travar a UI e estourar
+// o tamanho do projeto/Drive com um monte de uploads simultâneos.
+const MAX_BULK_IMAGES = 20
+
 // Tela de boas-vindas (placeholder do quadro vazio) TRADUZIDA pelo idioma do
 // quadro. Os componentes de hint/help do Excalidraw usam o `t` estático do
 // módulo e NÃO re-renderizam ao trocar idioma (bug do pacote). Aqui usamos o
@@ -101,6 +106,7 @@ export default function DrawingEditor() {
   const [leaving, setLeaving] = useState(false) // overlay ao sair enquanto salva
   const seenFiles = useRef(new Set()) // ids de imagens já avaliadas p/ otimização
   const [optimizing, setOptimizing] = useState(null) // { done, total } ou null
+  const [imgLimitWarn, setImgLimitWarn] = useState(null) // nº de imagens tentadas acima do limite
   // Manifesto das imagens já subidas ao Drive como arquivos SEPARADOS:
   // fileId (do Excalidraw) → { driveFileId, mimeType }. Assim o scene.json fica
   // leve (só a "planta") e as imagens carregam sob demanda.
@@ -330,43 +336,80 @@ export default function DrawingEditor() {
     setShowInsertTpl(false)
   }
 
-  // O Excalidraw nativo insere só a PRIMEIRA imagem quando várias são soltas de
-  // uma vez. Interceptamos o drop de 2+ imagens e inserimos TODAS nós mesmos
-  // (cada uma com seu fileId, empilhadas com um leve deslocamento). Com 0 ou 1
-  // imagem, não fazemos nada e deixamos o Excalidraw tratar normalmente.
+  // Insere uma lista de arquivos de imagem na cena, empilhados a partir de
+  // (baseX, baseY) com um leve deslocamento. Cada um vira um fileId próprio.
+  const insertImageFiles = useCallback(async (imgs, baseX, baseY) => {
+    const apiObj = apiRef.current
+    if (!apiObj) return
+    const skeletons = []
+    for (let i = 0; i < imgs.length; i++) {
+      try {
+        const dataURL = await blobToDataUrl(imgs[i])
+        const { width, height } = await imageSizeOf(dataURL)
+        const max = 320 // não deixa a imagem entrar gigante
+        const scale = Math.max(width, height) > max ? max / Math.max(width, height) : 1
+        const fileId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)).replace(/-/g, '').slice(0, 40)
+        apiObj.addFiles([{ id: fileId, dataURL, mimeType: imgs[i].type, created: Date.now(), lastRetrieved: Date.now() }])
+        skeletons.push({ type: 'image', x: baseX + i * 24, y: baseY + i * 24, width: Math.round(width * scale), height: Math.round(height * scale), fileId, status: 'saved' })
+      } catch {
+        /* ignora esta imagem e segue com as demais */
+      }
+    }
+    if (!skeletons.length) return
+    const els = convertToExcalidrawElements(skeletons)
+    apiObj.updateScene({ elements: [...apiObj.getSceneElements(), ...els] })
+  }, [])
+
+  // O Excalidraw nativo insere só a PRIMEIRA imagem quando várias são soltas/
+  // coladas de uma vez. Interceptamos 2+ imagens e inserimos TODAS. Acima do
+  // limite, avisa e não insere. Com 0/1 imagem, deixa o Excalidraw tratar.
   const handleMultiImageDrop = useCallback(
     async (e) => {
-      const apiObj = apiRef.current
-      if (!apiObj || !canEditScene) return
+      if (!apiRef.current || !canEditScene) return
       const imgs = [...(e.dataTransfer?.files || [])].filter((f) => (f.type || '').startsWith('image/'))
       if (imgs.length < 2) return // 1 imagem (ou nenhuma) → deixa o Excalidraw cuidar
       e.preventDefault()
       e.stopPropagation()
-      // Coordenadas da cena no ponto do drop (mesma fórmula do Excalidraw).
-      const st = apiObj.getAppState()
-      const z = st.zoom?.value || 1
-      const baseX = (e.clientX - (st.offsetLeft || 0)) / z - st.scrollX
-      const baseY = (e.clientY - (st.offsetTop || 0)) / z - st.scrollY
-      const skeletons = []
-      for (let i = 0; i < imgs.length; i++) {
-        try {
-          const dataURL = await blobToDataUrl(imgs[i])
-          const { width, height } = await imageSizeOf(dataURL)
-          const max = 320 // não deixa a imagem entrar gigante
-          const scale = Math.max(width, height) > max ? max / Math.max(width, height) : 1
-          const fileId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)).replace(/-/g, '').slice(0, 40)
-          apiObj.addFiles([{ id: fileId, dataURL, mimeType: imgs[i].type, created: Date.now(), lastRetrieved: Date.now() }])
-          skeletons.push({ type: 'image', x: baseX + i * 24, y: baseY + i * 24, width: Math.round(width * scale), height: Math.round(height * scale), fileId, status: 'saved' })
-        } catch {
-          /* ignora esta imagem e segue com as demais */
-        }
+      if (imgs.length > MAX_BULK_IMAGES) {
+        setImgLimitWarn(imgs.length)
+        return
       }
-      if (!skeletons.length) return
-      const els = convertToExcalidrawElements(skeletons)
-      apiObj.updateScene({ elements: [...apiObj.getSceneElements(), ...els] })
+      // Coordenadas da cena no ponto do drop (mesma fórmula do Excalidraw).
+      const st = apiRef.current.getAppState()
+      const z = st.zoom?.value || 1
+      insertImageFiles(imgs, (e.clientX - (st.offsetLeft || 0)) / z - st.scrollX, (e.clientY - (st.offsetTop || 0)) / z - st.scrollY)
     },
-    [canEditScene],
+    [canEditScene, insertImageFiles],
   )
+
+  // Colar (Ctrl+V) várias imagens: o Excalidraw só cola a 1ª. Interceptamos no
+  // WINDOW (fase de captura, antes do handler do Excalidraw no document) e
+  // inserimos todas no centro da viewport. 0/1 imagem → deixa o Excalidraw.
+  useEffect(() => {
+    const onPaste = (e) => {
+      if (!apiRef.current || !canEditScene) return
+      const imgs = [...(e.clipboardData?.files || [])].filter((f) => (f.type || '').startsWith('image/'))
+      if (imgs.length < 2) return // texto ou 1 imagem → não interfere
+      e.preventDefault()
+      e.stopImmediatePropagation() // bloqueia o handler de colar do Excalidraw
+      if (imgs.length > MAX_BULK_IMAGES) {
+        setImgLimitWarn(imgs.length)
+        return
+      }
+      const st = apiRef.current.getAppState()
+      const z = st.zoom?.value || 1
+      insertImageFiles(imgs, (st.width || 0) / 2 / z - st.scrollX, (st.height || 0) / 2 / z - st.scrollY)
+    }
+    window.addEventListener('paste', onPaste, true)
+    return () => window.removeEventListener('paste', onPaste, true)
+  }, [canEditScene, insertImageFiles])
+
+  // O aviso de limite de imagens some sozinho depois de alguns segundos.
+  useEffect(() => {
+    if (imgLimitWarn == null) return
+    const t = setTimeout(() => setImgLimitWarn(null), 6000)
+    return () => clearTimeout(t)
+  }, [imgLimitWarn])
 
   const doSave = useCallback(
     async (elements, appState, files) => {
@@ -636,6 +679,15 @@ export default function DrawingEditor() {
           {fs ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </button>
       </div>
+
+      {/* Aviso de limite ao soltar/colar imagens demais de uma vez. */}
+      {imgLimitWarn != null && (
+        <div className="pointer-events-none fixed left-1/2 top-16 z-[60] -translate-x-1/2">
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-2.5 text-sm text-amber-200 shadow-lg">
+            {t('drawings.imgLimit', { max: MAX_BULK_IMAGES, count: imgLimitWarn })}
+          </div>
+        </div>
+      )}
 
       {/* Canvas ocupa todo o resto. onDropCapture intercepta o drop de MÚLTIPLAS
           imagens antes do Excalidraw (que só insere a 1ª). */}

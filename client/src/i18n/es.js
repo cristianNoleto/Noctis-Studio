@@ -830,6 +830,7 @@ export default {
     leavingSaving: 'Guardando tu dibujo…',
     leavingHint: 'Espera un momento — no cierres la pestaña hasta terminar.',
     optimizing: 'Optimizando imágenes ({done}/{total})',
+    imgLimit: 'Puedes agregar hasta {max} imágenes a la vez (intentaste {count}). Envíalas en lotes más pequeños.',
     loadingImages: 'Cargando imágenes ({done}/{total})',
     welcomeHeading: '¡Elige una herramienta y empieza a dibujar!',
     language: 'Idioma del tablero',

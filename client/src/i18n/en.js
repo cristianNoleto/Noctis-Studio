@@ -830,6 +830,7 @@ export default {
     leavingSaving: 'Saving your drawing…',
     leavingHint: 'Hang on a moment — don’t close the tab until it finishes.',
     optimizing: 'Optimizing images ({done}/{total})',
+    imgLimit: 'You can add up to {max} images at a time (you tried {count}). Please add them in smaller batches.',
     loadingImages: 'Loading images ({done}/{total})',
     welcomeHeading: 'Pick a tool and start drawing!',
     language: 'Board language',
