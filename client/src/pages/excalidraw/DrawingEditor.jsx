@@ -2,9 +2,9 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang, useI18n as useExcalidrawI18n, convertToExcalidrawElements } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
-import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2, LayoutTemplate, Sparkles } from 'lucide-react'
+import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2, LayoutTemplate, Sparkles, X, AlertTriangle } from 'lucide-react'
 import { api } from '../../lib/api'
-import { downloadText, updateFileContent, renameFile, uploadFile, downloadBlob, setDriveOwner } from '../../lib/drive'
+import { downloadText, updateFileContent, renameFile, uploadFile, downloadBlob, setDriveOwner, trashFile } from '../../lib/drive'
 import { optimizeDataUrl, dataUrlBytes, dataUrlToBlob, blobToDataUrl } from '../../lib/imageOptimize'
 import { getCachedImage, putCachedImage } from '../../lib/imageCache'
 import { useDb } from '../../lib/db'
@@ -358,6 +358,13 @@ export default function DrawingEditor() {
     if (!skeletons.length) return
     const els = convertToExcalidrawElements(skeletons)
     apiObj.updateScene({ elements: [...apiObj.getSceneElements(), ...els] })
+    // Garante a ferramenta de SELEÇÃO ativa depois de inserir (o colar às vezes
+    // deixava presa na "mãozinha", exigindo apertar V/H para destravar).
+    try {
+      apiObj.setActiveTool({ type: 'selection' })
+    } catch {
+      /* ignora */
+    }
   }, [])
 
   // O Excalidraw nativo insere só a PRIMEIRA imagem quando várias são soltas/
@@ -483,6 +490,16 @@ export default function DrawingEditor() {
       const m = uploadedRef.current[fid]
       if (m) fileMeta[fid] = { driveFileId: m.driveFileId, mimeType: m.mimeType, created: m.created, bytes: m.bytes }
     }
+    // Lixeira do Drive: imagem removida da cena vai pra lixeira; se voltar (Ctrl+Z)
+    // é restaurada. Best-effort — não trava o save nem perde nada se falhar.
+    for (const [fid, m] of Object.entries(uploadedRef.current)) {
+      const inScene = referenced.has(fid)
+      if (!inScene && !m.trashed) {
+        try { await trashFile(m.driveFileId, true); m.trashed = true } catch { /* tenta de novo no próximo save */ }
+      } else if (inScene && m.trashed) {
+        try { await trashFile(m.driveFileId, false); m.trashed = false } catch { /* idem */ }
+      }
+    }
     const slim = {
       elements,
       appState: { viewBackgroundColor: appState?.viewBackgroundColor },
@@ -533,9 +550,11 @@ export default function DrawingEditor() {
     (elements, appState, files) => {
       latestRef.current = { elements, appState, files }
       // Tempo real: transmite a mudança local — MAS não quando estamos aplicando
-      // algo que chegou de outro colaborador (senão vira eco infinito).
+      // algo que chegou de outro colaborador (senão vira eco infinito). Quem NÃO
+      // pode editar não transmite (as mudanças dele são locais e não salvam, então
+      // também não podem "vazar" para a cena dos outros pelo tempo real).
       const rt = realtimeRef.current
-      if (rt && !rt.applyingRef.current) rt.broadcast(elements, files)
+      if (rt && !rt.applyingRef.current && canEditScene) rt.broadcast(elements, files)
       if (!canEditScene) return // viewer: não salva nem otimiza
       optimizeNewImages(files)
       const sig = JSON.stringify(elements)
@@ -550,9 +569,20 @@ export default function DrawingEditor() {
   // Sair com segurança: se há mudança pendente ou um save em andamento, mostra
   // o overlay "salvando", garante que a última cena foi gravada e SÓ ENTÃO
   // navega. Assim o usuário nunca sai antes de tudo estar salvo.
+  // Sai do fullscreen do navegador ANTES de trocar de rota. Sem isso, voltar pra
+  // galeria enquanto em tela cheia deixava a página preta até dar F5.
+  async function exitFullscreenSafe() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+    } catch {
+      /* ignora */
+    }
+  }
+
   const goBack = useCallback(async () => {
     const latest = latestRef.current
     const pending = dirtyRef.current || savingRef.current
+    await exitFullscreenSafe()
     if (!pending) {
       navigate('/desenhos')
       return
@@ -587,6 +617,8 @@ export default function DrawingEditor() {
   useEffect(() => {
     return () => {
       clearTimeout(saveTimer.current)
+      // Garante que o navegador saia do fullscreen ao desmontar (evita tela preta).
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
       const latest = latestRef.current
       if (latest && JSON.stringify(latest.elements) !== lastSaved.current) {
         doSave(latest.elements, latest.appState, latest.files)
@@ -680,11 +712,27 @@ export default function DrawingEditor() {
         </button>
       </div>
 
-      {/* Aviso de limite ao soltar/colar imagens demais de uma vez. */}
+      {/* Quem NÃO pode editar entra no modo interativo (seleciona, arrasta, copia
+          texto/imagem via menu do botão direito), mas nada é salvo nem transmitido
+          — reseta ao reabrir. Escondemos só as ações destrutivas do menu de
+          contexto (recortar/excluir), mantendo copiar/copiar como PNG/SVG/texto. */}
+      {!canEditScene && (
+        <style>{'[data-testid="cut"],[data-testid="deleteSelectedElements"]{display:none !important;}'}</style>
+      )}
+
+      {/* Aviso de limite ao soltar/colar imagens demais de uma vez. Modal central
+          com fundo escuro que "trava" a tela; fecha no X, ao clicar fora, ou
+          sozinho em 6s. */}
       {imgLimitWarn != null && (
-        <div className="pointer-events-none fixed left-1/2 top-16 z-[60] -translate-x-1/2">
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-2.5 text-sm text-amber-200 shadow-lg">
-            {t('drawings.imgLimit', { max: MAX_BULK_IMAGES, count: imgLimitWarn })}
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4" onClick={() => setImgLimitWarn(null)}>
+          <div className="relative w-full max-w-sm rounded-xl border border-slate-700 bg-slate-900 p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setImgLimitWarn(null)} aria-label={t('common.close')} className="absolute right-3 top-3 text-slate-500 hover:text-slate-200">
+              <X size={18} />
+            </button>
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-400">
+              <AlertTriangle size={24} />
+            </div>
+            <p className="text-sm leading-relaxed text-slate-200">{t('drawings.imgLimit', { max: MAX_BULK_IMAGES, count: imgLimitWarn })}</p>
           </div>
         </div>
       )}
@@ -702,7 +750,7 @@ export default function DrawingEditor() {
           onChange={onChange}
           onPointerUpdate={(p) => realtimeRef.current?.onPointerUpdate?.(p?.pointer?.x, p?.pointer?.y, p?.button)}
           langCode={appliedLang}
-          viewModeEnabled={!canEditScene}
+          viewModeEnabled={false}
         >
           <MainMenu>
             <MainMenu.DefaultItems.LoadScene />

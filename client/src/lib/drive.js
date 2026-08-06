@@ -149,6 +149,17 @@ export async function deleteFile(fileId) {
   await driveFetch(`${FILES}/${fileId}`, { method: 'DELETE' })
 }
 
+// Manda um arquivo para a LIXEIRA do Drive (trashed:true) ou restaura (false).
+// Diferente de deleteFile (que apaga de vez): o arquivo fica recuperável na
+// lixeira do Drive por ~30 dias. Usado quando uma imagem é removida da cena.
+export async function trashFile(fileId, trashed = true) {
+  await driveFetch(`${FILES}/${fileId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trashed }),
+  })
+}
+
 // Renomeia um arquivo ou pasta no Drive.
 export async function renameFile(fileId, name) {
   await driveFetch(`${FILES}/${fileId}`, {
