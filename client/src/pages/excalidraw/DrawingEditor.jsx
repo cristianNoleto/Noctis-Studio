@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang, useI18n as useExcalidrawI18n } from '@excalidraw/excalidraw'
+import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang, useI18n as useExcalidrawI18n, convertToExcalidrawElements } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2, LayoutTemplate, Sparkles } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -12,6 +12,16 @@ import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
 import { useSceneRealtime } from '../../lib/sceneRealtime'
 import { TemplateBrowser, TemplatePublishModal, remapTemplateElements } from './TemplateLibrary'
+
+// Descobre largura/altura reais de uma imagem (a partir do dataURL).
+function imageSizeOf(dataURL) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve({ width: img.naturalWidth || 1, height: img.naturalHeight || 1 })
+    img.onerror = reject
+    img.src = dataURL
+  })
+}
 
 // Tela de boas-vindas (placeholder do quadro vazio) TRADUZIDA pelo idioma do
 // quadro. Os componentes de hint/help do Excalidraw usam o `t` estático do
@@ -320,6 +330,44 @@ export default function DrawingEditor() {
     setShowInsertTpl(false)
   }
 
+  // O Excalidraw nativo insere só a PRIMEIRA imagem quando várias são soltas de
+  // uma vez. Interceptamos o drop de 2+ imagens e inserimos TODAS nós mesmos
+  // (cada uma com seu fileId, empilhadas com um leve deslocamento). Com 0 ou 1
+  // imagem, não fazemos nada e deixamos o Excalidraw tratar normalmente.
+  const handleMultiImageDrop = useCallback(
+    async (e) => {
+      const apiObj = apiRef.current
+      if (!apiObj || !canEditScene) return
+      const imgs = [...(e.dataTransfer?.files || [])].filter((f) => (f.type || '').startsWith('image/'))
+      if (imgs.length < 2) return // 1 imagem (ou nenhuma) → deixa o Excalidraw cuidar
+      e.preventDefault()
+      e.stopPropagation()
+      // Coordenadas da cena no ponto do drop (mesma fórmula do Excalidraw).
+      const st = apiObj.getAppState()
+      const z = st.zoom?.value || 1
+      const baseX = (e.clientX - (st.offsetLeft || 0)) / z - st.scrollX
+      const baseY = (e.clientY - (st.offsetTop || 0)) / z - st.scrollY
+      const skeletons = []
+      for (let i = 0; i < imgs.length; i++) {
+        try {
+          const dataURL = await blobToDataUrl(imgs[i])
+          const { width, height } = await imageSizeOf(dataURL)
+          const max = 320 // não deixa a imagem entrar gigante
+          const scale = Math.max(width, height) > max ? max / Math.max(width, height) : 1
+          const fileId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)).replace(/-/g, '').slice(0, 40)
+          apiObj.addFiles([{ id: fileId, dataURL, mimeType: imgs[i].type, created: Date.now(), lastRetrieved: Date.now() }])
+          skeletons.push({ type: 'image', x: baseX + i * 24, y: baseY + i * 24, width: Math.round(width * scale), height: Math.round(height * scale), fileId, status: 'saved' })
+        } catch {
+          /* ignora esta imagem e segue com as demais */
+        }
+      }
+      if (!skeletons.length) return
+      const els = convertToExcalidrawElements(skeletons)
+      apiObj.updateScene({ elements: [...apiObj.getSceneElements(), ...els] })
+    },
+    [canEditScene],
+  )
+
   const doSave = useCallback(
     async (elements, appState, files) => {
       // Serializa: se já há um save rodando (upload de imagens pode demorar),
@@ -589,8 +637,9 @@ export default function DrawingEditor() {
         </button>
       </div>
 
-      {/* Canvas ocupa todo o resto */}
-      <div className="min-h-0 flex-1">
+      {/* Canvas ocupa todo o resto. onDropCapture intercepta o drop de MÚLTIPLAS
+          imagens antes do Excalidraw (que só insere a 1ª). */}
+      <div className="min-h-0 flex-1" onDropCapture={handleMultiImageDrop}>
         <Excalidraw
           excalidrawAPI={(a) => {
             apiRef.current = a
