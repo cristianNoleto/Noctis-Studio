@@ -842,6 +842,8 @@ export default {
     liveConnected: 'En vivo',
     liveEditingHint: 'Personas con este storyboard abierto ahora — los cambios aparecen en tiempo real.',
     viewOnlyBanner: 'Modo visualización — tus cambios no se guardarán (sin acceso de editor).',
+    driveDisconnected: 'Google Drive no conectado — las imágenes pueden no cargar ni guardar.',
+    driveConnect: 'Conectar en Perfil',
     viewOnlyPaste: 'No puedes agregar elementos: no tienes acceso de editor en esta escena. Puedes ver y copiar, pero no modificarla.',
     trash: {
       title: 'Papelera',

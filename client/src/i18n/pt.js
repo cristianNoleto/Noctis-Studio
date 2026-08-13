@@ -842,6 +842,8 @@ export default {
     liveConnected: 'Ao vivo',
     liveEditingHint: 'Pessoas com este storyboard aberto agora — as mudanças aparecem em tempo real.',
     viewOnlyBanner: 'Modo visualização — suas alterações não serão salvas (sem acesso de editor).',
+    driveDisconnected: 'Google Drive não conectado — as imagens podem não carregar nem salvar.',
+    driveConnect: 'Conectar no Perfil',
     viewOnlyPaste: 'Você não pode adicionar itens: não tem acesso de editor nesta cena. Você pode ver e copiar, mas não alterá-la.',
     trash: {
       title: 'Lixeira',

@@ -842,6 +842,8 @@ export default {
     liveConnected: 'Live',
     liveEditingHint: 'People with this storyboard open right now — changes appear in real time.',
     viewOnlyBanner: 'View-only mode — your changes will not be saved (no editor access).',
+    driveDisconnected: 'Google Drive not connected — images may not load or save.',
+    driveConnect: 'Connect in Profile',
     viewOnlyPaste: "You can't add items: you don't have editor access to this scene. You can view and copy, but not change it.",
     trash: {
       title: 'Trash',

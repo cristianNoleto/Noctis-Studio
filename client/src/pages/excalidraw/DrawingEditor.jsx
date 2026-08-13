@@ -7,6 +7,7 @@ import { api } from '../../lib/api'
 import { downloadText, updateFileContent, renameFile, uploadFile, downloadBlob, setDriveOwner, trashFile } from '../../lib/drive'
 import { optimizeDataUrl, dataUrlBytes, dataUrlToBlob, blobToDataUrl } from '../../lib/imageOptimize'
 import { getCachedImage, putCachedImage } from '../../lib/imageCache'
+import { isLocalMode } from '../../lib/supabase'
 import { useDb } from '../../lib/db'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n } from '../../i18n'
@@ -108,6 +109,7 @@ export default function DrawingEditor() {
   const [optimizing, setOptimizing] = useState(null) // { done, total } ou null
   const [imgLimitWarn, setImgLimitWarn] = useState(null) // nº de imagens tentadas acima do limite
   const [viewOnlyWarn, setViewOnlyWarn] = useState(false) // aviso ao tentar adicionar sem acesso de editor
+  const [driveDisconnected, setDriveDisconnected] = useState(false) // Drive do próprio usuário desconectado
   // Manifesto das imagens já subidas ao Drive como arquivos SEPARADOS:
   // fileId (do Excalidraw) → { driveFileId, mimeType }. Assim o scene.json fica
   // leve (só a "planta") e as imagens carregam sob demanda.
@@ -444,6 +446,24 @@ export default function DrawingEditor() {
     return () => clearTimeout(t)
   }, [viewOnlyWarn])
 
+  // Avisa se o Google Drive do PRÓPRIO usuário não está conectado (as imagens dos
+  // desenhos vivem no Drive). Colaborador em workspace de outro usa o Drive do
+  // dono (porteiro), então não checamos o dele.
+  useEffect(() => {
+    if (isLocalMode || db.activeWorkspace()) return
+    let alive = true
+    api.drive
+      .status()
+      .then((r) => {
+        if (alive && !r?.connected) setDriveDisconnected(true)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const doSave = useCallback(
     async (elements, appState, files) => {
       // Serializa: se já há um save rodando (upload de imagens pode demorar),
@@ -747,6 +767,17 @@ export default function DrawingEditor() {
         <div className="flex items-center justify-center gap-1.5 border-b border-amber-500/20 bg-amber-500/10 px-3 py-1 text-[11px] font-medium text-amber-300">
           <Eye size={12} />
           {t('drawings.viewOnlyBanner')}
+        </div>
+      )}
+
+      {/* Banner: Google Drive do usuário desconectado (imagens não carregam/salvam). */}
+      {driveDisconnected && (
+        <div className="flex items-center justify-center gap-2 border-b border-red-500/20 bg-red-500/10 px-3 py-1 text-[11px] font-medium text-red-300">
+          <AlertTriangle size={12} />
+          {t('drawings.driveDisconnected')}
+          <button onClick={() => navigate('/perfil')} className="rounded border border-red-400/40 px-1.5 py-0.5 text-red-200 hover:bg-red-500/20">
+            {t('drawings.driveConnect')}
+          </button>
         </div>
       )}
 
