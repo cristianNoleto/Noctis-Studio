@@ -728,7 +728,7 @@ export default {
       doorDesc: '"Pocos Suscriptores, Muchas Vistas" y "Canales Nuevos" muestran canales pequeños llegando a mucha gente — señal de que el algoritmo deja espacio para un canal NUEVO en el nicho.',
       bench: 'Referencia',
       benchDesc: '"Fuera de la Curva" y "Por Categoría" ayudan a mapear los players fuertes y comparar promedios (vistas por suscriptor) antes de decidir.',
-      tip: 'Regla de oro: no decidas por miedo, decide por el próximo número. ¿Quieres aprender el método completo de cuándo empezar, seguir o parar un canal?',
+      tip: '¿Quieres aprender a decidir con claridad cuándo empezar, seguir o parar un canal?',
       learn: 'Ver la clase en la Academia',
       dismiss: 'Entendido',
       reopen: '¿Qué es esto?',

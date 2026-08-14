@@ -728,7 +728,7 @@ export default {
       doorDesc: '"Few Subs, Many Views" and "New Channels" show small channels reaching lots of people — a sign the algorithm is leaving room for a NEW channel in the niche.',
       bench: 'Benchmark',
       benchDesc: '"Outliers" and "By Category" help you map the strong players and compare averages (views per subscriber) before deciding.',
-      tip: "Golden rule: don't decide out of fear, decide by the next number. Want to learn the full method for when to start, continue or kill a channel?",
+      tip: 'Want to learn how to clearly decide when to start, continue or kill a channel?',
       learn: 'See the lesson in the Academy',
       dismiss: 'Got it',
       reopen: 'What is this?',
