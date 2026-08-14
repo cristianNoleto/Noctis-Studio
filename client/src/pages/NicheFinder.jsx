@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   Search,
   Plus,
@@ -27,7 +27,6 @@ import {
   Link2,
   GitBranch,
   Rocket,
-  Lightbulb,
 } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
@@ -142,71 +141,17 @@ const TREND_TABS = [
   { key: 'all', label: 'Todos os Resultados', Icon: LayoutGrid, desc: 'Todos os canais carregados nesta busca', test: () => true },
 ]
 
-// Guia explicativo do Niche Finder: ensina o novato o que é a página e liga cada
-// aba ao método de validação. Dismissível (lembra a escolha em localStorage) e
-// reabrível pelo botão "O que é isso?". Não muda nenhum dado — é só didático.
-function NicheFinderGuide() {
-  const { t } = useI18n()
-  const [open, setOpen] = useState(() => localStorage.getItem('nf_guide_dismissed') !== '1')
-  const close = () => {
-    setOpen(false)
-    try {
-      localStorage.setItem('nf_guide_dismissed', '1')
-    } catch {
-      /* ignora */
-    }
-  }
-  const rows = [
-    { Icon: Flame, k: 'demand', color: 'text-red-400', bg: 'bg-red-500/10' },
-    { Icon: Eye, k: 'door', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-    { Icon: Rocket, k: 'bench', color: 'text-slate-300', bg: 'bg-slate-700/40' },
-  ]
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 self-start rounded-full border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-400 hover:border-cyan-500/50 hover:text-cyan-300"
-      >
-        <Lightbulb size={13} /> {t('niche.guide.reopen')}
-      </button>
-    )
-  }
-  return (
-    <div className="relative rounded-xl border border-cyan-500/25 bg-gradient-to-b from-cyan-500/[0.07] to-transparent p-4 sm:p-5">
-      <button onClick={close} aria-label={t('niche.guide.dismiss')} className="absolute right-3 top-3 text-slate-500 hover:text-slate-200">
-        <X size={16} />
-      </button>
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-400">
-          <Lightbulb size={16} />
-        </div>
-        <h2 className="text-sm font-bold text-slate-100">{t('niche.guide.title')}</h2>
-      </div>
-      <p className="mt-2.5 max-w-3xl text-[13px] leading-relaxed text-slate-400">{t('niche.guide.intro')}</p>
-      <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
-        {rows.map(({ Icon, k, color, bg }) => (
-          <div key={k} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-            <div className="flex items-center gap-2">
-              <span className={`flex h-6 w-6 items-center justify-center rounded-md ${bg} ${color}`}>
-                <Icon size={13} />
-              </span>
-              <span className="text-xs font-bold text-slate-200">{t(`niche.guide.${k}`)}</span>
-            </div>
-            <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-500">{t(`niche.guide.${k}Desc`)}</p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-800 pt-3">
-        <p className="flex-1 text-[12px] text-slate-400">{t('niche.guide.tip')}</p>
-        <Link to="/academia" className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20">
-          <Lightbulb size={13} /> {t('niche.guide.learn')}
-        </Link>
-        <button onClick={close} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100">
-          {t('niche.guide.dismiss')}
-        </button>
-      </div>
-    </div>
-  )
+// Categoria de validação que um canal representa (liga a descoberta ao método):
+// "Porta aberta" (canal pequeno com muito alcance), "Demanda viva" (assunto
+// quente agora) ou "Referência" (player forte pra comparar). Deriva dos dados
+// do próprio canal — sem chamada extra.
+function olharFor(c) {
+  const age = ageDays(c)
+  if (c.subscribers < 1000 && c.views > 50_000) return { key: 'door', color: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' }
+  if (age <= 30 && c.subscribers < 1000) return { key: 'door', color: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' }
+  if (c.subscribers >= 5_000_000 || c.views >= 100_000_000) return { key: 'bench', color: 'border-slate-600 bg-slate-700/40 text-slate-300' }
+  if (age <= 60 && c.views >= 100_000) return { key: 'demand', color: 'border-red-500/40 bg-red-500/10 text-red-300' }
+  return null
 }
 
 // Estimativa "Faceless %" — probabilidade do canal NÃO mostrar rosto. Não existe
@@ -623,9 +568,6 @@ export default function NicheFinder() {
         <PageEye />
       </div>
 
-      {/* Guia didático (o que é o Niche Finder + ligação com o método de validação) */}
-      <NicheFinderGuide />
-
       {/* Abas de tendência */}
       <div className="flex items-center gap-2">
         <div className="flex flex-1 gap-1.5 overflow-x-auto pb-1">
@@ -1038,6 +980,7 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
   const { t } = useI18n()
   // Selo de tendência real do canal — ignora 'all' e o catch-all 'bycategory'
   const badge = TREND_TABS.filter((tb) => tb.key !== 'all' && tb.key !== 'bycategory' && tb.key !== 'outlier').find((tb) => tb.test(c))
+  const olhar = olharFor(c) // categoria de validação (porta aberta / demanda viva / referência)
   const monetized = isMonetized(c)
   // Modo restrito: nome/números/thumbs NÃO entram no DOM — impossível "desborrar"
   const restricted = useRestricted()
@@ -1087,9 +1030,16 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
             <p className="truncate text-[11px] font-medium text-slate-400">
               {(c.topics || []).length > 0 ? c.topics.slice(0, 2).join(' · ') : t('niche.card.noCat')}
             </p>
-            {badge && (
-              <span className="mt-1 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{t(`niche.tabs.${badge.key}.label`)}</span>
-            )}
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {badge && (
+                <span className="inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{t(`niche.tabs.${badge.key}.label`)}</span>
+              )}
+              {olhar && (
+                <span title={t(`niche.guide.${olhar.key}Desc`)} className={`inline-flex cursor-help items-center gap-0.5 rounded-full border px-2 py-0.5 text-[9px] font-bold ${olhar.color}`}>
+                  <Compass size={9} /> {t(`niche.guide.${olhar.key}`)}
+                </span>
+              )}
+            </div>
           </div>
           {/* Ações: copiar link · analisar na Dobra · favoritar */}
           <div className="flex shrink-0 items-center gap-1.5">
@@ -1125,9 +1075,9 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
 
         {/* Stats: Inscritos / Views / Vídeos / Faceless (como no original) */}
         <div className="mt-3 grid grid-cols-4 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
-          <CardStat value={<Masked mask="••">{formatCompact(c.subscribers)}</Masked>} label={t('niche.card.subs')} />
-          <CardStat value={<Masked mask="••">{formatCompact(c.views)}</Masked>} label={t('niche.card.views')} />
-          <CardStat value={<Masked mask="••">{c.videoCount ?? '—'}</Masked>} label={t('niche.card.videos')} />
+          <CardStat value={<Masked mask="••">{formatCompact(c.subscribers)}</Masked>} label={t('niche.card.subs')} title={t('niche.card.subsTip')} />
+          <CardStat value={<Masked mask="••">{formatCompact(c.views)}</Masked>} label={t('niche.card.views')} title={t('niche.card.viewsTip')} />
+          <CardStat value={<Masked mask="••">{c.videoCount ?? '—'}</Masked>} label={t('niche.card.videos')} title={t('niche.card.videosTip')} />
           <CardStat
             value={<Masked mask="••">{`${facelessScore(c)}%`}</Masked>}
             label={t('niche.card.faceless')}
