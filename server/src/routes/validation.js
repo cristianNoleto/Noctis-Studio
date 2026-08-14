@@ -84,6 +84,12 @@ async function authorizeChannel(supa, user, channelId) {
   const ownerEmail = await emailByUserId(supa, channel.owner_id)
   const access = ownerEmail ? await resolveAccess(supa, user, ownerEmail) : null
   if (!access || access.videos === 'none') return { forbidden: true }
+  // Escopo por canal: o nível vale POR CANAL. Sem escopo, usa o nível de vídeos.
+  if (access.channelAccess) {
+    const lvl = access.channelAccess[channelId]
+    if (!lvl) return { forbidden: true } // canal fora do escopo do colaborador
+    return { channel, ownerId: channel.owner_id, isOwner: false, canEdit: lvl === 'edit' }
+  }
   return { channel, ownerId: channel.owner_id, isOwner: false, canEdit: access.videos === 'edit' }
 }
 

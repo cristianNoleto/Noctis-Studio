@@ -194,8 +194,15 @@ router.post('/migrate', async (req, res) => {
   // possam apontar para canais de outro dono.
   if (!access.self) {
     const ownChannels = (await supa.from('channels').select('id').eq('owner_id', ownerId)).data || []
-    inserted['channels'] = new Set(ownChannels.map((c) => c.id))
-    const chIds = ownChannels.map((c) => c.id)
+    // Só entram como "pais válidos" (logo, graváveis) os canais que o colaborador
+    // pode EDITAR. Com escopo por canal, canais 'view' ficam de fora → seus vídeos
+    // caem no filtro de órfão e não podem ser alterados. Sem escopo, vale o nível
+    // de vídeos do workspace (edit = todos os canais).
+    const editableChannels = access.channelAccess
+      ? ownChannels.filter((c) => access.channelAccess[c.id] === 'edit')
+      : (access.videos === 'edit' ? ownChannels : [])
+    const chIds = editableChannels.map((c) => c.id)
+    inserted['channels'] = new Set(chIds)
     const ownVideos = chIds.length ? (await supa.from('channel_videos').select('id').in('channel_id', chIds)).data || [] : []
     inserted['channel_videos'] = new Set(ownVideos.map((v) => v.id))
     const ownFolders = (await supa.from('reference_folders').select('id').eq('user_id', ownerId)).data || []
@@ -321,11 +328,16 @@ export function canSeeRow(row, requesterEmail, isSelf) {
 export async function resolveAccess(supa, requester, ownerEmail) {
   const me = (requester.email || '').toLowerCase()
   const owner = (ownerEmail || me).toLowerCase()
-  if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit', channelIds: null }
+  if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit', channelAccess: null }
   const { data } = await supa.from('workspace_collaborators').select('*').eq('owner_email', owner).eq('member_email', me).maybeSingle()
   if (!data) return null
-  // channelIds = null → todos os canais; array → só estes (escopo por canal).
-  return { owner, self: false, videos: data.videos_access || 'none', skills: data.skills || 'none', references: data.references_access || 'none', board: data.board_access || 'none', drawings: data.drawings_access || 'none', channelIds: Array.isArray(data.channel_ids) && data.channel_ids.length ? data.channel_ids : null }
+  // channelAccess = null → sem escopo (usa videos p/ todos os canais); mapa
+  // {id:'view'|'edit'} → o colaborador só vê esses canais, com o nível de cada.
+  let channelAccess = data.channel_access && typeof data.channel_access === 'object' && !Array.isArray(data.channel_access) ? data.channel_access : null
+  if (!channelAccess && Array.isArray(data.channel_ids) && data.channel_ids.length) {
+    channelAccess = Object.fromEntries(data.channel_ids.map((id) => [id, data.videos_access === 'edit' ? 'edit' : 'view']))
+  }
+  return { owner, self: false, videos: data.videos_access || 'none', skills: data.skills || 'none', references: data.references_access || 'none', board: data.board_access || 'none', drawings: data.drawings_access || 'none', channelAccess }
 }
 
 // GET /workspace/workspaces — workspaces que o usuário pode acessar (próprio + convidados)
@@ -375,9 +387,10 @@ router.get('/snapshot', async (req, res) => {
     (async () => {
       if (!(access.self || access.videos !== 'none')) return
       let { data: channels = [] } = await supa.from('channels').select('*').eq('owner_id', ownerId)
-      // Escopo por canal: colaborador restrito só recebe os canais liberados.
-      if (!access.self && Array.isArray(access.channelIds)) {
-        const allow = new Set(access.channelIds)
+      // Escopo por canal: colaborador restrito só recebe os canais liberados
+      // (tanto os de 'view' quanto os de 'edit').
+      if (!access.self && access.channelAccess) {
+        const allow = new Set(Object.keys(access.channelAccess))
         channels = channels.filter((c) => allow.has(c.id))
       }
       const channelIds = channels.map((c) => c.id)

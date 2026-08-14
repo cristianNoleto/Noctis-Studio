@@ -93,7 +93,8 @@ export default function VideosTable({ channelId, channel }) {
   const navigate = useNavigate()
   const aiLimit = useAiLimit() // limite diário de IA por plano
   // Colaborador com acesso só "Ver" → tudo em modo leitura (sem editar/salvar).
-  const readOnly = !db.canEdit('videos')
+  // Escopo por canal: a permissão é avaliada POR CANAL (ver um, editar outro).
+  const readOnly = !db.canEdit('videos', channelId)
 
   // Storyboards (cenas do Excalidraw) vinculados aos vídeos: mapa videoId → cena.
   // Carregado uma vez; usado para mostrar/abrir o storyboard de cada vídeo.

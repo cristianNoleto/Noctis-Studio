@@ -10,7 +10,7 @@ const AUTOSAVE_DEBOUNCE_MS = 2000
 export default function ScriptDrawer({ video, onClose }) {
   const db = useDb()
   const { t } = useI18n()
-  const readOnly = !db.canEdit('videos') // colaborador "Ver": só leitura
+  const readOnly = !db.canEdit('videos', video.channelId) // colaborador "Ver": só leitura (por canal)
   const existing = db.all('scripts').find((s) => s.videoId === video.id)
   const [content, setContent] = useState(existing?.content || '')
   const [savedAt, setSavedAt] = useState(existing ? Date.now() : null)

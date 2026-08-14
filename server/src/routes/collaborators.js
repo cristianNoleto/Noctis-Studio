@@ -44,16 +44,35 @@ async function userExists(supa, email) {
 
 const ACCESS = ['none', 'view', 'edit']
 
-function toClient(r) {
-  return { id: r.id, memberEmail: r.member_email, skills: r.skills || 'none', references: r.references_access || 'none', videos: r.videos_access || 'none', board: r.board_access || 'none', drawings: r.drawings_access || 'none', channelIds: Array.isArray(r.channel_ids) ? r.channel_ids : null }
+const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+
+// Mapa de acesso POR CANAL {channelId: 'view'|'edit'}. Só UUIDs válidos e níveis
+// conhecidos; vazio → null (= sem escopo por canal). Aceita o legado channel_ids
+// (lista) convertendo para o nível de vídeos informado.
+function cleanChannelAccess(map) {
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return null
+  const out = {}
+  for (const [id, lvl] of Object.entries(map)) {
+    if (isUuid(id) && (lvl === 'view' || lvl === 'edit')) out[id] = lvl
+  }
+  return Object.keys(out).length ? out : null
+}
+// Nível efetivo de vídeos derivado do mapa por canal (para os gates que olham
+// só videos_access): 'edit' se algum canal é editável; senão 'view' se há algum.
+function videosLevelFromAccess(map) {
+  const vals = Object.values(map || {})
+  if (vals.includes('edit')) return 'edit'
+  if (vals.length) return 'view'
+  return null
 }
 
-// Normaliza a lista de canais: só UUIDs; vazio → null (= todos os canais).
-const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-function cleanChannelIds(v) {
-  if (!Array.isArray(v)) return null
-  const ids = [...new Set(v.filter(isUuid))]
-  return ids.length ? ids : null
+function toClient(r) {
+  const channelAccess = (r.channel_access && typeof r.channel_access === 'object' && !Array.isArray(r.channel_access))
+    ? r.channel_access
+    : (Array.isArray(r.channel_ids) && r.channel_ids.length
+        ? Object.fromEntries(r.channel_ids.map((id) => [id, r.videos_access === 'edit' ? 'edit' : 'view']))
+        : null)
+  return { id: r.id, memberEmail: r.member_email, skills: r.skills || 'none', references: r.references_access || 'none', videos: r.videos_access || 'none', board: r.board_access || 'none', drawings: r.drawings_access || 'none', channelAccess }
 }
 
 // GET /collaborators — os colaboradores do usuário logado (como dono)
@@ -82,8 +101,11 @@ router.post('/save', async (req, res) => {
   const videos = ACCESS.includes(c.videos) ? c.videos : 'view'
   const board = ACCESS.includes(c.board) ? c.board : 'none'
   const drawings = ACCESS.includes(c.drawings) ? c.drawings : 'none'
-  const channelIds = cleanChannelIds(c.channelIds)
-  const row = { owner_email: viewer.email, member_email: member, skills, references_access: references, videos_access: videos, board_access: board, drawings_access: drawings, channel_ids: channelIds }
+  // Escopo por canal: se veio um mapa, ele MANDA no nível de vídeos (derivado),
+  // e o legado channel_ids é zerado. Sem mapa → usa videos_access do workspace.
+  const channelAccess = cleanChannelAccess(c.channelAccess)
+  const videosLevel = channelAccess ? videosLevelFromAccess(channelAccess) : videos
+  const row = { owner_email: viewer.email, member_email: member, skills, references_access: references, videos_access: videosLevel, board_access: board, drawings_access: drawings, channel_access: channelAccess, channel_ids: null }
   // upsert por (owner_email, member_email)
   const { data, error } = await supa
     .from('workspace_collaborators')

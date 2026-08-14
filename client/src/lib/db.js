@@ -23,7 +23,7 @@ let selfEmail = null // e-mail do usuário logado
 let activeOwner = null // dono do workspace ativo (null = próprio)
 // Permissão no workspace ativo. No próprio, tudo 'edit'. Em workspace de outro
 // dono, começa conservador ('view') e é atualizado pelo snapshot do servidor.
-let activeAccess = { self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit' }
+let activeAccess = { self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit', channelAccess: null }
 const MANAGED = [
   'channels', 'channelButtons', 'videos', 'scripts', 'seoReports', 'boardSpaces', 'boardColumns',
   'boardCards', 'checklistItems', 'referenceFolders', 'referenceChannels', 'promptCategories',
@@ -191,7 +191,7 @@ async function pullSnapshot() {
     const { migrated, snapshot, access } = await api.workspace.snapshot(owner)
     if (owner !== (activeOwner || undefined)) return // trocou de workspace no meio
     if (access) {
-      activeAccess = { self: !!access.self, videos: access.videos, skills: access.skills, references: access.references, board: access.board, drawings: access.drawings || 'none' }
+      activeAccess = { self: !!access.self, videos: access.videos, skills: access.skills, references: access.references, board: access.board, drawings: access.drawings || 'none', channelAccess: access.channelAccess || null }
     }
     if (migrated && snapshot) {
       // Workspace de OUTRO dono (colaborador): o snapshot é a fonte da verdade
@@ -230,8 +230,8 @@ function loadWorkspace() {
   }
   // Permissão conservadora até o snapshot confirmar (evita editar sem direito).
   activeAccess = activeOwner
-    ? { self: false, videos: 'view', skills: 'view', references: 'view', board: 'view', drawings: 'view' }
-    : { self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit' }
+    ? { self: false, videos: 'view', skills: 'view', references: 'view', board: 'view', drawings: 'view', channelAccess: null }
+    : { self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit', channelAccess: null }
   // Workspace de outro dono NÃO semeia coleções globais (o colaborador só
   // recebe vídeos/referências via snapshot).
   state = activeOwner ? { ...emptyState(), ...(saved || {}) } : seed(saved || {})
@@ -266,14 +266,22 @@ export const db = {
     return activeAccess
   },
   // Pode editar a área ('videos' | 'skills' | 'references')? Dono sempre pode.
-  canEdit(area) {
-    return activeAccess.self || activeAccess[area] === 'edit'
+  // Para 'videos' com escopo por canal, o nível é POR CANAL: passe o channelId.
+  canEdit(area, channelId) {
+    if (activeAccess.self) return true
+    if (area === 'videos' && activeAccess.channelAccess) {
+      // Com escopo por canal, só edita os canais marcados como 'edit'. Sem
+      // channelId (chamada genérica), permite se houver edição em algum canal.
+      if (channelId) return activeAccess.channelAccess[channelId] === 'edit'
+      return Object.values(activeAccess.channelAccess).includes('edit')
+    }
+    return activeAccess[area] === 'edit'
   },
   // Pode EXCLUIR este item? Precisa poder editar a área; o dono apaga qualquer
   // coisa; um colaborador editor só apaga o que ELE criou (createdBy = e-mail
   // dele). Itens sem createdBy (criados pelo dono ou antes do acesso) → só o dono.
   canDelete(area, record) {
-    if (!this.canEdit(area)) return false
+    if (!this.canEdit(area, record?.channelId)) return false
     if (activeAccess.self) return true
     return !!record && !!record.createdBy && record.createdBy === selfEmail
   },

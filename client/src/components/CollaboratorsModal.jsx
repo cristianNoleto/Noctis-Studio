@@ -1,99 +1,113 @@
 import { useCallback, useEffect, useState } from 'react'
-import { UserPlus, Trash2, Tv, ChevronDown, Check } from 'lucide-react'
+import { UserPlus, Trash2, Tv, Check, Layers } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
 import { api } from '../lib/api'
 import { Modal, inputCls, btnPrimary } from './ui'
 
-// Seletor de nível de acesso (Sem acesso / Ver / Editar).
-export function AccessSelect({ label, value, onChange }) {
+// Seletor segmentado de nível de acesso: Sem acesso / Ver / Editar.
+function LevelSelect({ value, onChange }) {
   const { t } = useI18n()
+  const opts = [
+    ['none', t('skillsLib.collab.none'), 'bg-slate-700 text-slate-200'],
+    ['view', t('skillsLib.collab.view'), 'bg-sky-500/20 text-sky-300'],
+    ['edit', t('skillsLib.collab.edit'), 'bg-cyan-500/20 text-cyan-300'],
+  ]
   return (
-    <select className={`${inputCls} !w-full min-w-0 !py-2 text-xs`} title={label} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="none">{t('skillsLib.collab.none')}</option>
-      <option value="view">{t('skillsLib.collab.view')}</option>
-      <option value="edit">{t('skillsLib.collab.edit')}</option>
-    </select>
+    <div className="inline-flex rounded-lg border border-slate-700 bg-slate-950 p-0.5">
+      {opts.map(([v, label, active]) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${(value || 'none') === v ? active : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   )
 }
 
-// Escopo por canal do acesso a Vídeos. value === null → todos os canais (padrão).
-// Array → o colaborador só enxerga esses canais. Aparece só quando há acesso a
-// vídeos. UI: um resumo clicável que expande a lista de canais em checkboxes.
-export function ChannelScope({ channels, value, onChange }) {
-  const { t } = useI18n()
-  const [open, setOpen] = useState(false)
-  const all = value == null
-  const selected = new Set(all ? [] : value)
-  const summary = all
-    ? t('skillsLib.collab.allChannels')
-    : t('skillsLib.collab.someChannels', { n: selected.size, total: channels.length })
-
-  function setAll() {
-    onChange(null)
-  }
-  function toggle(id) {
-    const next = new Set(selected)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    onChange([...next]) // vazio = sem restrição efetiva (servidor trata [] como "todos")
-  }
-
-  if (!channels.length) return null
+// Campo rotulado (rótulo em cima, seletor embaixo) para as áreas.
+function AreaField({ label, value, onChange }) {
   return (
-    <div className="mt-1.5 rounded-lg border border-slate-800 bg-slate-950/60">
-      <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2 px-2.5 py-1.5 text-[11px] text-slate-400 hover:text-slate-200">
-        <Tv size={12} className="text-slate-500" />
-        <span className="font-medium">{t('skillsLib.collab.channels')}:</span>
-        <span className={all ? 'text-slate-400' : 'text-cyan-300'}>{summary}</span>
-        <ChevronDown size={13} className={`ml-auto transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="space-y-0.5 border-t border-slate-800 p-1.5">
-          <button type="button" onClick={setAll} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
-            <span className={`flex h-4 w-4 items-center justify-center rounded border ${all ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-slate-600'}`}>{all && <Check size={11} />}</span>
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2">
+      <span className="text-xs font-medium text-slate-300">{label}</span>
+      <LevelSelect value={value} onChange={onChange} />
+    </div>
+  )
+}
+
+// Permissão de Vídeos por canal: "Todos os canais" (um nível para todos) ou
+// "Por canal" (Ver/Editar/Sem acesso em cada canal — permite ver um e editar
+// outro). value = mapa {channelId:'view'|'edit'} ou null (= todos os canais).
+function ChannelPermissions({ channels, videosLevel, channelAccess, onSetAll, onSetChannel, perMode, onModeChange }) {
+  const { t } = useI18n()
+  const isPer = perMode
+  if (!channels.length) {
+    // Sem canais cadastrados → só o nível geral de vídeos.
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-slate-300">{t('skillsLib.collab.videos')}</span>
+        <LevelSelect value={videosLevel} onChange={onSetAll} />
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+          <Tv size={13} className="text-cyan-400" /> {t('skillsLib.collab.videos')}
+        </span>
+        <div className="inline-flex rounded-lg border border-slate-700 bg-slate-950 p-0.5 text-[11px]">
+          <button type="button" onClick={() => onModeChange(false)} className={`rounded-md px-2.5 py-1 font-semibold transition-colors ${!isPer ? 'bg-slate-700 text-slate-100' : 'text-slate-500 hover:text-slate-300'}`}>
             {t('skillsLib.collab.allChannels')}
           </button>
-          {channels.map((c) => {
-            const on = selected.has(c.id)
-            return (
-              <button key={c.id} type="button" onClick={() => toggle(c.id)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-800">
-                <span className={`flex h-4 w-4 items-center justify-center rounded border ${on ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-slate-600'}`}>{on && <Check size={11} />}</span>
-                <span className="truncate">{c.name || t('skillsLib.collab.untitledChannel')}</span>
-              </button>
-            )
-          })}
-          <p className="px-2 pt-1 text-[10px] leading-snug text-slate-600">{t('skillsLib.collab.channelsHint')}</p>
+          <button type="button" onClick={() => onModeChange(true)} className={`rounded-md px-2.5 py-1 font-semibold transition-colors ${isPer ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-slate-300'}`}>
+            {t('skillsLib.collab.perChannel')}
+          </button>
+        </div>
+      </div>
+
+      {!isPer ? (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2">
+          <span className="text-[11px] text-slate-400">{t('skillsLib.collab.allChannelsHint')}</span>
+          <LevelSelect value={videosLevel === 'none' ? 'view' : videosLevel} onChange={onSetAll} />
+        </div>
+      ) : (
+        <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/50 p-2">
+          {channels.map((ch) => (
+            <div key={ch.id} className="flex items-center justify-between gap-2 rounded-md px-1.5 py-1">
+              <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-300">
+                <Layers size={12} className="shrink-0 text-slate-600" />
+                <span className="truncate">{ch.name || t('skillsLib.collab.untitledChannel')}</span>
+              </span>
+              <LevelSelect value={(channelAccess || {})[ch.id] || 'none'} onChange={(lvl) => onSetChannel(ch.id, lvl)} />
+            </div>
+          ))}
+          <p className="px-1.5 pt-0.5 text-[10px] leading-snug text-slate-600">{t('skillsLib.collab.channelsHint')}</p>
         </div>
       )}
     </div>
   )
 }
 
-// Grid comum ao cabeçalho, ao form e às linhas — mantém tudo alinhado em colunas.
-// Email ocupa o espaço flexível; os 4 seletores e o botão têm largura fixa.
-const ROW = 'grid grid-cols-[minmax(13rem,1fr)_repeat(5,7.25rem)_2.25rem] items-center gap-2.5'
-
 // Gerenciador de colaboradores do workspace: convida por e-mail e define o
-// acesso a Vídeos / Skills / Referências por pessoa. Usado no menu do perfil
-// (hub central) e como atalho na página de Skills.
+// acesso a Vídeos (geral ou por canal) / Referências / Quadro / Desenhos /
+// Skills por pessoa. Usado no menu do perfil e como atalho na página de Skills.
 export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   const db = useDb()
   const { t } = useI18n()
   const [email, setEmail] = useState('')
-  const [skills, setSkills] = useState('view')
-  const [references, setReferences] = useState('none')
-  const [videos, setVideos] = useState('edit')
-  const [board, setBoard] = useState('none')
-  const [drawings, setDrawings] = useState('none')
-  const [channelIds, setChannelIds] = useState(null) // null = todos os canais
+  const [form, setForm] = useState({ videos: 'edit', references: 'none', board: 'none', drawings: 'none', skills: 'view' })
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
-  const [savedId, setSavedId] = useState(null) // colaborador que acabou de salvar
+  const [savedId, setSavedId] = useState(null)
   const [remote, setRemote] = useState([])
+  const [perModeIds, setPerModeIds] = useState(() => new Set()) // cards em modo "por canal"
   const owner = (ownerEmail || '').toLowerCase()
   const mine = isLocalMode ? db.all('collaborators').filter((c) => (c.ownerEmail || '').toLowerCase() === owner) : remote
-  // Canais do dono (não arquivados) para o escopo por canal.
   const ownerChannels = db.all('channels').filter((c) => !c.archived)
 
   const refresh = useCallback(async () => {
@@ -109,6 +123,13 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
     if (open) refresh()
   }, [open, refresh])
 
+  const AREAS = [
+    ['references', t('skillsLib.collab.references')],
+    ['board', t('skillsLib.collab.board')],
+    ['drawings', t('skillsLib.collab.drawings')],
+    ['skills', t('skillsLib.collab.skills')],
+  ]
+
   async function add(e) {
     e.preventDefault()
     const m = email.trim().toLowerCase()
@@ -117,12 +138,11 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
       setError(t('skillsLib.collab.dupe'))
       return
     }
-    // Escopo por canal só faz sentido com acesso a vídeos.
-    const scope = videos !== 'none' ? channelIds : null
-    if (isLocalMode) db.insert('collaborators', { ownerEmail: owner, memberEmail: m, skills, references, videos, board, drawings, channelIds: scope })
+    const payload = { memberEmail: m, ...form, channelAccess: null }
+    if (isLocalMode) db.insert('collaborators', { ownerEmail: owner, ...payload })
     else {
       try {
-        const res = await api.collaborators.save({ memberEmail: m, skills, references, videos, board, drawings, channelIds: scope })
+        const res = await api.collaborators.save(payload)
         setInfo(res?.invited ? t('skillsLib.collab.invited', { email: m }) : '')
         refresh()
       } catch (err) {
@@ -131,37 +151,63 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
       }
     }
     setEmail('')
-    setSkills('view')
-    setReferences('none')
-    setVideos('edit')
-    setBoard('none')
-    setChannelIds(null)
+    setForm({ videos: 'edit', references: 'none', board: 'none', drawings: 'none', skills: 'view' })
     setError('')
   }
 
-  // Confirmação transitória "Alterações salvas ✓" por colaborador.
   function flashSaved(id) {
     setSavedId(id)
     clearTimeout(flashSaved._t)
     flashSaved._t = setTimeout(() => setSavedId((cur) => (cur === id ? null : cur)), 1800)
   }
 
-  async function setAccess(c, field, value) {
+  // Salva o colaborador com um patch mesclado (otimista na nuvem; direto no local).
+  async function saveCollab(c, patch) {
     if (isLocalMode) {
-      db.update('collaborators', c.id, { [field]: value })
+      db.update('collaborators', c.id, patch)
       flashSaved(c.id)
       return
     }
-    // Otimista: atualiza a UI na hora e persiste em seguida (se falhar, reverte).
-    setRemote((list) => list.map((x) => (x.id === c.id ? { ...x, [field]: value } : x)))
+    const merged = { ...c, ...patch }
+    setRemote((list) => list.map((x) => (x.id === c.id ? merged : x)))
     try {
-      // channelIds vai SEMPRE junto (senão o servidor o zeraria ao salvar outro campo).
-      await api.collaborators.save({ memberEmail: c.memberEmail, skills: c.skills, references: c.references, videos: c.videos, board: c.board, drawings: c.drawings, channelIds: c.channelIds ?? null, [field]: value })
+      await api.collaborators.save({
+        memberEmail: c.memberEmail,
+        skills: merged.skills,
+        references: merged.references,
+        videos: merged.videos,
+        board: merged.board,
+        drawings: merged.drawings,
+        channelAccess: merged.channelAccess ?? null,
+      })
       flashSaved(c.id)
     } catch (e) {
       setError(e?.message || 'Erro ao salvar acesso.')
       refresh()
     }
+  }
+
+  // Vídeos: nível geral (modo "todos os canais").
+  function setVideosAll(c, level) {
+    saveCollab(c, { videos: level, channelAccess: null })
+  }
+  // Vídeos: nível de UM canal (modo "por canal").
+  function setChannelLevel(c, channelId, level) {
+    const map = { ...(c.channelAccess || {}) }
+    if (level === 'none') delete map[channelId]
+    else map[channelId] = level
+    const next = Object.keys(map).length ? map : null
+    // videos geral derivado (para os gates que olham só o nível de vídeos).
+    const derived = Object.values(map).includes('edit') ? 'edit' : Object.keys(map).length ? 'view' : 'none'
+    saveCollab(c, { channelAccess: next, videos: derived })
+  }
+  function setMode(c, per) {
+    setPerModeIds((s) => {
+      const n = new Set(s)
+      per ? n.add(c.id) : n.delete(c.id)
+      return n
+    })
+    if (!per) saveCollab(c, { channelAccess: null, videos: c.videos && c.videos !== 'none' ? c.videos : 'view' })
   }
 
   async function removeCollab(c) {
@@ -175,61 +221,75 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   return (
     <Modal open={open} onClose={onClose} title={t('skillsLib.collab.title')} size="2xl">
       <p className="-mt-2 mb-4 text-xs leading-relaxed text-slate-500">{t('skillsLib.collab.subtitle')}</p>
-      {/* Cabeçalho de colunas — rótulos aparecem só uma vez, alinhados ao grid */}
-      <div className={`${ROW} px-1 pb-1.5`}>
-        <span className="text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.email')}</span>
-        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.videos')}</span>
-        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.references')}</span>
-        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.board')}</span>
-        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.drawings')}</span>
-        <span className="text-center text-[11px] font-semibold text-slate-400">{t('skillsLib.collab.skills')}</span>
-        <span />
-      </div>
-      <form onSubmit={add} className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] p-2">
-        <div className={ROW}>
+
+      {/* Convite */}
+      <form onSubmit={add} className="rounded-xl border border-cyan-500/25 bg-cyan-500/[0.04] p-3">
+        <div className="flex items-center gap-2">
           <input className={`${inputCls} !py-2`} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('skillsLib.collab.emailPlaceholder')} />
-          <AccessSelect label={t('skillsLib.collab.videos')} value={videos} onChange={setVideos} />
-          <AccessSelect label={t('skillsLib.collab.references')} value={references} onChange={setReferences} />
-          <AccessSelect label={t('skillsLib.collab.board')} value={board} onChange={setBoard} />
-          <AccessSelect label={t('skillsLib.collab.drawings')} value={drawings} onChange={setDrawings} />
-          <AccessSelect label={t('skillsLib.collab.skills')} value={skills} onChange={setSkills} />
-          <button type="submit" title={t('skillsLib.collab.add')} className={`${btnPrimary} flex h-9 w-9 items-center justify-center !p-0`}>
-            <UserPlus size={15} />
+          <button type="submit" className={`${btnPrimary} flex shrink-0 items-center gap-1.5 !px-3.5`}>
+            <UserPlus size={15} /> {t('skillsLib.collab.add')}
           </button>
         </div>
-        {videos !== 'none' && <ChannelScope channels={ownerChannels} value={channelIds} onChange={setChannelIds} />}
+        <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <AreaField label={t('skillsLib.collab.videos')} value={form.videos} onChange={(v) => setForm((f) => ({ ...f, videos: v }))} />
+          {AREAS.map(([key, label]) => (
+            <AreaField key={key} label={label} value={form[key]} onChange={(v) => setForm((f) => ({ ...f, [key]: v }))} />
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] text-slate-500">{t('skillsLib.collab.perChannelAfter')}</p>
       </form>
+
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
       {info && <p className="mt-2 rounded-lg border border-green-500/25 bg-green-500/10 px-3 py-2 text-xs text-green-400">{info}</p>}
       <p className="mt-3 text-[11px] leading-relaxed text-slate-600">{t('skillsLib.collab.inviteHint')}</p>
 
-      <div className="mt-4 space-y-2">
+      {/* Colaboradores (cards) */}
+      <div className="mt-4 space-y-2.5">
         {mine.length === 0 ? (
           <p className="py-6 text-center text-xs text-slate-600">{t('skillsLib.collab.empty')}</p>
         ) : (
-          mine.map((c) => (
-            <div key={c.id} className="rounded-lg border border-slate-800 bg-slate-950 p-2">
-              <div className={ROW}>
-                <div className="flex min-w-0 items-center gap-2 px-1">
-                  <span className="truncate text-sm text-slate-200" title={c.memberEmail}>{c.memberEmail}</span>
+          mine.map((c) => {
+            const per = perModeIds.has(c.id) || !!c.channelAccess
+            return (
+              <div key={c.id} className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+                {/* Cabeçalho */}
+                <div className="mb-2.5 flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-slate-300">
+                    {(c.memberEmail || '?').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-200" title={c.memberEmail}>{c.memberEmail}</span>
                   {savedId === c.id && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
                       <Check size={10} /> {t('skillsLib.collab.saved')}
                     </span>
                   )}
+                  <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-800 text-slate-500 transition-colors hover:border-red-500/40 hover:text-red-400">
+                    <Trash2 size={13} />
+                  </button>
                 </div>
-                <AccessSelect label={t('skillsLib.collab.videos')} value={c.videos || 'none'} onChange={(v) => setAccess(c, 'videos', v)} />
-                <AccessSelect label={t('skillsLib.collab.references')} value={c.references || 'none'} onChange={(v) => setAccess(c, 'references', v)} />
-                <AccessSelect label={t('skillsLib.collab.board')} value={c.board || 'none'} onChange={(v) => setAccess(c, 'board', v)} />
-                <AccessSelect label={t('skillsLib.collab.drawings')} value={c.drawings || 'none'} onChange={(v) => setAccess(c, 'drawings', v)} />
-                <AccessSelect label={t('skillsLib.collab.skills')} value={c.skills || 'none'} onChange={(v) => setAccess(c, 'skills', v)} />
-                <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 text-slate-500 transition-colors hover:border-red-500/40 hover:text-red-400">
-                  <Trash2 size={13} />
-                </button>
+
+                {/* Vídeos (geral ou por canal) */}
+                <div className="rounded-lg border border-slate-800 bg-slate-900/30 p-2.5">
+                  <ChannelPermissions
+                    channels={ownerChannels}
+                    videosLevel={c.videos || 'none'}
+                    channelAccess={c.channelAccess}
+                    perMode={per}
+                    onModeChange={(p) => setMode(c, p)}
+                    onSetAll={(lvl) => setVideosAll(c, lvl)}
+                    onSetChannel={(chId, lvl) => setChannelLevel(c, chId, lvl)}
+                  />
+                </div>
+
+                {/* Outras áreas */}
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {AREAS.map(([key, label]) => (
+                    <AreaField key={key} label={label} value={c[key] || 'none'} onChange={(v) => saveCollab(c, { [key]: v })} />
+                  ))}
+                </div>
               </div>
-              {(c.videos || 'none') !== 'none' && <ChannelScope channels={ownerChannels} value={c.channelIds ?? null} onChange={(v) => setAccess(c, 'channelIds', v)} />}
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </Modal>
