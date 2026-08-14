@@ -141,16 +141,17 @@ const TREND_TABS = [
   { key: 'all', label: 'Todos os Resultados', Icon: LayoutGrid, desc: 'Todos os canais carregados nesta busca', test: () => true },
 ]
 
-// Categoria de validação que um canal representa (liga a descoberta ao método):
-// "Porta aberta" (canal pequeno com muito alcance), "Demanda viva" (assunto
-// quente agora) ou "Referência" (player forte pra comparar). Deriva dos dados
-// do próprio canal — sem chamada extra.
+// Sinal de OPORTUNIDADE que um canal representa (liga a descoberta ao método),
+// mostrado como selo SÓ quando é acionável: "Porta aberta" (canal pequeno com
+// muito alcance = espaço pra canal novo) ou "Demanda viva" (assunto quente agora,
+// canal jovem estourando). Canal grande/consolidado não recebe selo (seria óbvio
+// e poluiria todos os cards). Deriva dos dados do próprio canal — sem chamada extra.
 function olharFor(c) {
   const age = ageDays(c)
+  // Porta aberta: poucos inscritos alcançando muita gente.
   if (c.subscribers < 1000 && c.views > 50_000) return { key: 'door', color: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' }
-  if (age <= 30 && c.subscribers < 1000) return { key: 'door', color: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' }
-  if (c.subscribers >= 5_000_000 || c.views >= 100_000_000) return { key: 'bench', color: 'border-slate-600 bg-slate-700/40 text-slate-300' }
-  if (age <= 60 && c.views >= 100_000) return { key: 'demand', color: 'border-red-500/40 bg-red-500/10 text-red-300' }
+  // Demanda viva: canal JOVEM (≤60 dias) já com muitas views = assunto quente.
+  if (age <= 60 && c.subscribers < 100_000 && c.views >= 100_000) return { key: 'demand', color: 'border-red-500/40 bg-red-500/10 text-red-300' }
   return null
 }
 
