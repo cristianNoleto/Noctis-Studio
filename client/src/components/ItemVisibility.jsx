@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Lock, Users, Eye, Plus, X } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { inputCls } from './ui'
@@ -77,15 +77,25 @@ export function VisibilityControl({ value = 'workspace', emails = [], onChange }
 function EmailChips({ emails = [], onChange }) {
   const { t } = useI18n()
   const [draft, setDraft] = useState('')
-  const list = Array.isArray(emails) ? emails : []
+  // Cópia local OTIMISTA: a UI reage na hora (chip some/entra instantâneo),
+  // mesmo que o consumidor persista via rede (ex.: Drawings faz save + reload).
+  // Ressincroniza quando o prop muda de fora.
+  const [list, setList] = useState(Array.isArray(emails) ? emails : [])
+  useEffect(() => {
+    setList(Array.isArray(emails) ? emails : [])
+  }, [emails])
 
+  function commit(next) {
+    setList(next)
+    onChange(next)
+  }
   function add() {
     const next = [...new Set([...list, ...parseEmails(draft)])]
-    if (next.length !== list.length) onChange(next)
     setDraft('')
+    if (next.length !== list.length) commit(next)
   }
   function removeAt(i) {
-    onChange(list.filter((_, idx) => idx !== i))
+    commit(list.filter((_, idx) => idx !== i))
   }
   const valid = parseEmails(draft).length > 0
 

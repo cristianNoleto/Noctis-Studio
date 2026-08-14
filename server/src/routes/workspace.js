@@ -318,10 +318,11 @@ export function canSeeRow(row, requesterEmail, isSelf) {
 export async function resolveAccess(supa, requester, ownerEmail) {
   const me = (requester.email || '').toLowerCase()
   const owner = (ownerEmail || me).toLowerCase()
-  if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit' }
+  if (owner === me) return { owner, self: true, videos: 'edit', skills: 'edit', references: 'edit', board: 'edit', drawings: 'edit', channelIds: null }
   const { data } = await supa.from('workspace_collaborators').select('*').eq('owner_email', owner).eq('member_email', me).maybeSingle()
   if (!data) return null
-  return { owner, self: false, videos: data.videos_access || 'none', skills: data.skills || 'none', references: data.references_access || 'none', board: data.board_access || 'none', drawings: data.drawings_access || 'none' }
+  // channelIds = null → todos os canais; array → só estes (escopo por canal).
+  return { owner, self: false, videos: data.videos_access || 'none', skills: data.skills || 'none', references: data.references_access || 'none', board: data.board_access || 'none', drawings: data.drawings_access || 'none', channelIds: Array.isArray(data.channel_ids) && data.channel_ids.length ? data.channel_ids : null }
 }
 
 // GET /workspace/workspaces — workspaces que o usuário pode acessar (próprio + convidados)
@@ -370,7 +371,12 @@ router.get('/snapshot', async (req, res) => {
     // Vídeos: dono, ou colaborador com acesso a vídeos.
     (async () => {
       if (!(access.self || access.videos !== 'none')) return
-      const { data: channels = [] } = await supa.from('channels').select('*').eq('owner_id', ownerId)
+      let { data: channels = [] } = await supa.from('channels').select('*').eq('owner_id', ownerId)
+      // Escopo por canal: colaborador restrito só recebe os canais liberados.
+      if (!access.self && Array.isArray(access.channelIds)) {
+        const allow = new Set(access.channelIds)
+        channels = channels.filter((c) => allow.has(c.id))
+      }
       const channelIds = channels.map((c) => c.id)
       out.channels = channels
       const [buttons, videos] = await Promise.all([

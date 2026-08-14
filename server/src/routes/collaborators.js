@@ -45,7 +45,15 @@ async function userExists(supa, email) {
 const ACCESS = ['none', 'view', 'edit']
 
 function toClient(r) {
-  return { id: r.id, memberEmail: r.member_email, skills: r.skills || 'none', references: r.references_access || 'none', videos: r.videos_access || 'none', board: r.board_access || 'none', drawings: r.drawings_access || 'none' }
+  return { id: r.id, memberEmail: r.member_email, skills: r.skills || 'none', references: r.references_access || 'none', videos: r.videos_access || 'none', board: r.board_access || 'none', drawings: r.drawings_access || 'none', channelIds: Array.isArray(r.channel_ids) ? r.channel_ids : null }
+}
+
+// Normaliza a lista de canais: só UUIDs; vazio → null (= todos os canais).
+const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+function cleanChannelIds(v) {
+  if (!Array.isArray(v)) return null
+  const ids = [...new Set(v.filter(isUuid))]
+  return ids.length ? ids : null
 }
 
 // GET /collaborators — os colaboradores do usuário logado (como dono)
@@ -74,7 +82,8 @@ router.post('/save', async (req, res) => {
   const videos = ACCESS.includes(c.videos) ? c.videos : 'view'
   const board = ACCESS.includes(c.board) ? c.board : 'none'
   const drawings = ACCESS.includes(c.drawings) ? c.drawings : 'none'
-  const row = { owner_email: viewer.email, member_email: member, skills, references_access: references, videos_access: videos, board_access: board, drawings_access: drawings }
+  const channelIds = cleanChannelIds(c.channelIds)
+  const row = { owner_email: viewer.email, member_email: member, skills, references_access: references, videos_access: videos, board_access: board, drawings_access: drawings, channel_ids: channelIds }
   // upsert por (owner_email, member_email)
   const { data, error } = await supa
     .from('workspace_collaborators')
