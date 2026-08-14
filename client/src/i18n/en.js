@@ -309,6 +309,7 @@ export default {
       invited: 'Invite sent to {email}. They will get an email to create their password.',
       dupe: 'That email is already a collaborator.',
       onlyPaid: 'Available for the most expensive plan (MASTER) and the founder.',
+      saved: 'Saved',
       channels: 'Channels',
       allChannels: 'All channels',
       someChannels: '{n} of {total} channels',

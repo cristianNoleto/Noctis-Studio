@@ -89,6 +89,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   const [channelIds, setChannelIds] = useState(null) // null = todos os canais
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
+  const [savedId, setSavedId] = useState(null) // colaborador que acabou de salvar
   const [remote, setRemote] = useState([])
   const owner = (ownerEmail || '').toLowerCase()
   const mine = isLocalMode ? db.all('collaborators').filter((c) => (c.ownerEmail || '').toLowerCase() === owner) : remote
@@ -138,9 +139,17 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
     setError('')
   }
 
+  // Confirmação transitória "Alterações salvas ✓" por colaborador.
+  function flashSaved(id) {
+    setSavedId(id)
+    clearTimeout(flashSaved._t)
+    flashSaved._t = setTimeout(() => setSavedId((cur) => (cur === id ? null : cur)), 1800)
+  }
+
   async function setAccess(c, field, value) {
     if (isLocalMode) {
       db.update('collaborators', c.id, { [field]: value })
+      flashSaved(c.id)
       return
     }
     // Otimista: atualiza a UI na hora e persiste em seguida (se falhar, reverte).
@@ -148,6 +157,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
     try {
       // channelIds vai SEMPRE junto (senão o servidor o zeraria ao salvar outro campo).
       await api.collaborators.save({ memberEmail: c.memberEmail, skills: c.skills, references: c.references, videos: c.videos, board: c.board, drawings: c.drawings, channelIds: c.channelIds ?? null, [field]: value })
+      flashSaved(c.id)
     } catch (e) {
       setError(e?.message || 'Erro ao salvar acesso.')
       refresh()
@@ -200,7 +210,14 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
           mine.map((c) => (
             <div key={c.id} className="rounded-lg border border-slate-800 bg-slate-950 p-2">
               <div className={ROW}>
-                <span className="truncate px-1 text-sm text-slate-200" title={c.memberEmail}>{c.memberEmail}</span>
+                <div className="flex min-w-0 items-center gap-2 px-1">
+                  <span className="truncate text-sm text-slate-200" title={c.memberEmail}>{c.memberEmail}</span>
+                  {savedId === c.id && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                      <Check size={10} /> {t('skillsLib.collab.saved')}
+                    </span>
+                  )}
+                </div>
                 <AccessSelect label={t('skillsLib.collab.videos')} value={c.videos || 'none'} onChange={(v) => setAccess(c, 'videos', v)} />
                 <AccessSelect label={t('skillsLib.collab.references')} value={c.references || 'none'} onChange={(v) => setAccess(c, 'references', v)} />
                 <AccessSelect label={t('skillsLib.collab.board')} value={c.board || 'none'} onChange={(v) => setAccess(c, 'board', v)} />

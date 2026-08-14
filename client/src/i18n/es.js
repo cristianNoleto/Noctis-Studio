@@ -309,6 +309,7 @@ export default {
       invited: 'Invitación enviada a {email}. Recibirá un correo para crear su contraseña.',
       dupe: 'Ese correo ya es colaborador.',
       onlyPaid: 'Disponible para el plan más caro (MASTER) y el fundador.',
+      saved: 'Guardado',
       channels: 'Canales',
       allChannels: 'Todos los canales',
       someChannels: '{n} de {total} canales',
