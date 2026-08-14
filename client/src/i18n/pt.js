@@ -719,6 +719,20 @@ export default {
   },
   niche: {
     subtitle: 'Descubra nichos em crescimento no YouTube',
+    guide: {
+      title: 'Novo por aqui? Entenda o Niche Finder em 30 segundos',
+      intro: 'Esta página varre o YouTube atrás de canais e vídeos que provam onde existe DEMANDA agora. Cada aba acima é um sinal diferente — e cada sinal responde a uma pergunta do método de validação.',
+      demand: 'Demanda viva',
+      demandDesc: '"Explodindo", "Subindo Rápido", "Alta Tração", "Potencial Forte" e "Tração Recente" mostram assuntos que estão bombando agora. Se tem vídeo novo rompendo a base, o assunto está vivo.',
+      door: 'Porta aberta',
+      doorDesc: '"Poucos Inscritos, Muitas Views" e "Canais Novos" mostram canais pequenos alcançando muita gente — sinal de que o algoritmo abre espaço para um canal NOVO no nicho.',
+      bench: 'Referência',
+      benchDesc: '"Fora da Curva" e "Por Categoria" ajudam a mapear os players fortes e comparar médias (views por inscrito) antes de decidir.',
+      tip: 'Regra de ouro: não decida pelo medo, decida pelo próximo número. Quer aprender o método completo de quando começar, seguir ou parar um canal?',
+      learn: 'Ver a aula na Academia',
+      dismiss: 'Entendi',
+      reopen: 'O que é isso?',
+    },
     count: '{n} canais',
     thisWeek: ' · +{n} esta semana',
     tabs: {

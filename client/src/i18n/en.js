@@ -719,6 +719,20 @@ export default {
   },
   niche: {
     subtitle: 'Discover growing niches on YouTube',
+    guide: {
+      title: 'New here? Understand the Niche Finder in 30 seconds',
+      intro: 'This page scans YouTube for channels and videos that prove where DEMAND exists right now. Each tab above is a different signal — and each signal answers a question from the validation method.',
+      demand: 'Live demand',
+      demandDesc: '"Exploding", "Rising Fast", "High Traction", "Strong Potential" and "Recent Traction" show topics booming right now. A fresh video breaking the base means the topic is alive.',
+      door: 'Open door',
+      doorDesc: '"Few Subs, Many Views" and "New Channels" show small channels reaching lots of people — a sign the algorithm is leaving room for a NEW channel in the niche.',
+      bench: 'Benchmark',
+      benchDesc: '"Outliers" and "By Category" help you map the strong players and compare averages (views per subscriber) before deciding.',
+      tip: "Golden rule: don't decide out of fear, decide by the next number. Want to learn the full method for when to start, continue or kill a channel?",
+      learn: 'See the lesson in the Academy',
+      dismiss: 'Got it',
+      reopen: 'What is this?',
+    },
     count: '{n} channels',
     thisWeek: ' · +{n} this week',
     tabs: {
