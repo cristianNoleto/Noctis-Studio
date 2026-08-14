@@ -285,6 +285,7 @@ export function CreateChannelModal({ open, onClose }) {
     const postTimes = form.postTimes.filter(Boolean)
     const channel = db.insert('channels', {
       name: form.name,
+      archived: false,
       language: form.language,
       contactEmail: form.contactEmail,
       defaultPostTime: postTimes[0] || null,

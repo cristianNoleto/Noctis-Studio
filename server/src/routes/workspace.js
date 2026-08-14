@@ -39,7 +39,10 @@ async function ensureProfile(supa, user) {
 const CONFIG = [
   { key: 'channels', table: 'channels', owner: 'owner_id',
     cols: { name: 'name', avatarUrl: 'avatar_url', youtubeChannelId: 'youtube_channel_id', language: 'language', contactEmail: 'contact_email', notes: 'notes', ytSubscribers: 'yt_subscribers', ytTotalViews: 'yt_total_views', ytStatsUpdatedAt: 'yt_stats_updated_at', postTimes: 'post_times', archived: 'archived', postedBaseline: 'posted_baseline', frequency: 'frequency_label', weeklyFrequency: 'weekly_post_frequency', createdAt: 'created_at' },
-    required: { name: 'Canal' } },
+    // Colunas NOT NULL precisam SEMPRE ter valor: no upsert em lote, o supabase-js
+    // usa a UNIÃO das chaves; um canal novo sem `archived`/`post_times`/etc. iria
+    // com null (não pega o default do banco) e derrubaria o lote inteiro.
+    required: { name: 'Canal', language: 'pt', archived: false, postedBaseline: 0, postTimes: [] } },
   { key: 'channelButtons', table: 'channel_custom_buttons', parent: { field: 'channelId', col: 'channel_id' },
     cols: { label: 'label', url: 'url', position: 'position' }, required: { label: '', url: '', position: 0 } },
   { key: 'videos', table: 'channel_videos', parent: { field: 'channelId', col: 'channel_id' }, author: true,
