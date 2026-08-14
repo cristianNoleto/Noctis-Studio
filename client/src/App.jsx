@@ -9,6 +9,7 @@ import AcceptInvite from './pages/auth/AcceptInvite'
 import Dashboard from './pages/Dashboard'
 import ChannelsList from './pages/channels/ChannelsList'
 import ChannelDetail from './pages/channels/ChannelDetail'
+import ChannelValidation from './pages/channels/ChannelValidation'
 import IdeaBoard from './pages/IdeaBoard'
 import References from './pages/References'
 import Prompts from './pages/Prompts'
@@ -91,6 +92,7 @@ export default function App() {
       >
         <Route path="/canais" element={<ChannelsList />} />
         <Route path="/canais/:id" element={<ChannelDetail />} />
+        <Route path="/canais/:id/validacao" element={<ChannelValidation />} />
         <Route path="/quadro-ideias" element={<PlanGate><IdeaBoard /></PlanGate>} />
         <Route path="/desenhos" element={<PlanGate><Suspense fallback={<LazyFallback />}><DrawingsGallery /></Suspense></PlanGate>} />
         <Route path="/referencias" element={<References />} />

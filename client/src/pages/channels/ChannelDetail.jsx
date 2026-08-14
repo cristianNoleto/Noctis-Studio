@@ -23,6 +23,7 @@ import {
   Bookmark,
   Loader2,
   Mail,
+  Compass,
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
 import { api, apiErrorMessage } from '../../lib/api'
@@ -33,7 +34,6 @@ import { PrivacyScope, PageEye, Masked } from '../../components/privacy'
 import { ChannelAvatar } from '../Dashboard'
 import { EditChannelModal, CustomButtonsModal, ShareChannelModal, ChannelPromptsModal, ChannelReferencesModal } from './ChannelModals'
 import VideosTable from './VideosTable'
-import ChannelValidation from './ChannelValidation'
 
 const STATS_REFRESH_COOLDOWN_MS = 10 * 60 * 1000 // máx. 1x a cada 10 min (economia de cota)
 const STATS_STALE_MS = 24 * 60 * 60 * 1000 // stats com +24h → atualiza sozinho ao abrir o canal
@@ -312,8 +312,20 @@ export default function ChannelDetail() {
         </div>
       )}
 
-      {/* Validação do canal (critérios + teste + veredito) — plano Lite+ */}
-      <ChannelValidation channelId={id} />
+      {/* Card de acesso à Validação — abre em página própria (critérios + teste + veredito) */}
+      <button
+        onClick={() => navigate(`/canais/${id}/validacao`)}
+        className="card-hover flex w-full items-center gap-3.5 rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-left transition-colors hover:border-cyan-500/40"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+          <Compass size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-100">Validação do canal</p>
+          <p className="truncate text-xs text-slate-500">Decida com critério e prazo: começar, seguir ou parar. Abre em tela própria.</p>
+        </div>
+        <span className="shrink-0 rounded-lg border border-cyan-500/40 bg-cyan-500/5 px-3 py-1.5 text-xs font-medium text-cyan-300">Abrir →</span>
+      </button>
 
       {/* Títulos & Vídeos */}
       <VideosTable channelId={id} channel={channel} />

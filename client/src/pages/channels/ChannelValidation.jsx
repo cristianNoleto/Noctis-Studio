@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Compass, Save, RotateCcw, Loader2, Lock, Check } from 'lucide-react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { Compass, Save, RotateCcw, Loader2, Lock, Check, ArrowLeft } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useAuth } from '../../auth/AuthContext'
+import { useDb } from '../../lib/db'
 
 // Campos de critério (o "método"). Rótulo + porquê educativo. v1 em PT — i18n
 // completo entra no passo de polimento.
@@ -18,9 +20,13 @@ const FIELDS = [
 
 const LITE_PLANS = ['LITE', 'PRO', 'MASTER']
 
-export default function ChannelValidation({ channelId }) {
+export default function ChannelValidation() {
+  const { id: channelId } = useParams()
+  const navigate = useNavigate()
+  const db = useDb()
   const { user, isFounder } = useAuth()
   const allowed = isFounder || LITE_PLANS.includes(user?.plan)
+  const channel = db.get('channels', channelId)
 
   const [loading, setLoading] = useState(true)
   const [canEdit, setCanEdit] = useState(false)
@@ -28,7 +34,7 @@ export default function ChannelValidation({ channelId }) {
   const [wsDefaults, setWsDefaults] = useState({})
   const [mode, setMode] = useState('workspace') // 'workspace' | 'channel'
   const [criteria, setCriteria] = useState({})
-  const [rest, setRest] = useState({}) // olhares/test/deadline/rule/verdict (preservados no save)
+  const [rest, setRest] = useState({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -61,15 +67,11 @@ export default function ChannelValidation({ channelId }) {
     setCriteria((c) => ({ ...c, [k]: val }))
     setSaved(false)
   }
-
   function switchMode(m) {
     setMode(m)
     setSaved(false)
-    // Ao mudar pra "padrão do workspace", os campos mostram o padrão; pra
-    // "personalizado", partem do que está (o padrão como base do override).
     if (m === 'workspace') setCriteria(wsDefaults)
   }
-
   function resetMethod() {
     setCriteria(method)
     setSaved(false)
@@ -81,72 +83,78 @@ export default function ChannelValidation({ channelId }) {
       const clean = {}
       for (const { k } of FIELDS) if (criteria[k] != null && criteria[k] !== '') clean[k] = Number(criteria[k])
       if (mode === 'workspace') {
-        // Salva o padrão do workspace (vale pra todos os canais no padrão) e tira
-        // o override deste canal (passa a herdar).
         const d = await api.validation.saveDefaults(clean)
         setWsDefaults(d.criteria || clean)
         await api.validation.save(channelId, { criteriaOverride: null, ...rest })
       } else {
-        // Salva só como override deste canal.
         await api.validation.save(channelId, { criteriaOverride: clean, ...rest })
       }
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch {
-      /* mantém o estado; poderia mostrar erro */
+      /* mantém o estado */
     } finally {
       setSaving(false)
     }
   }
 
-  if (!allowed) {
-    return (
-      <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 text-slate-400">
-            <Lock size={16} />
+  return (
+    <div className="mx-auto max-w-4xl space-y-5">
+      {/* Cabeçalho da página */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate(`/canais/${channelId}`)}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:border-slate-700 hover:text-slate-100"
+        >
+          <ArrowLeft size={14} /> Voltar ao canal
+        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
+            <Compass size={22} />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-100">Validação do canal</h2>
-            <p className="text-xs text-slate-500">Decida com número e prazo quando começar, seguir ou parar um canal. Disponível no plano Lite ou superior.</p>
+            <h1 className="text-2xl font-bold text-slate-100">Validação do canal</h1>
+            <p className="text-sm text-slate-500">{channel?.name || 'Decida com número e prazo quando começar, seguir ou parar.'}</p>
           </div>
-        </div>
-      </section>
-    )
-  }
-
-  return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-400">
-          <Compass size={16} />
-        </div>
-        <div className="flex-1">
-          <h2 className="text-sm font-bold text-slate-100">Validação do canal</h2>
-          <p className="text-xs text-slate-500">Sua régua de decisão. Os números já vêm no método recomendado — ajuste ao seu jeito.</p>
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-10 text-slate-500">
-          <Loader2 size={18} className="animate-spin" />
+      {!allowed ? (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-8 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-slate-400">
+            <Lock size={22} />
+          </div>
+          <h2 className="text-base font-bold text-slate-100">Disponível no plano Lite ou superior</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+            A Validação te ajuda a decidir com critério e prazo se vale começar, seguir ou parar um canal — sem chutar pelo medo.
+          </p>
+        </div>
+      ) : loading ? (
+        <div className="flex items-center justify-center py-20 text-slate-500">
+          <Loader2 size={22} className="animate-spin" />
         </div>
       ) : (
-        <>
-          {/* Modo dos critérios */}
-          <div className="mt-4 inline-flex rounded-lg border border-slate-800 bg-slate-950 p-0.5 text-xs">
-            <button
-              onClick={() => switchMode('workspace')}
-              className={`rounded-md px-3 py-1.5 font-medium transition-colors ${mode === 'workspace' ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              Padrão do workspace
-            </button>
-            <button
-              onClick={() => switchMode('channel')}
-              className={`rounded-md px-3 py-1.5 font-medium transition-colors ${mode === 'channel' ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              Só deste canal
-            </button>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-100">Meus critérios</h2>
+              <p className="text-xs text-slate-500">Sua régua de decisão. Já vêm no método recomendado — ajuste ao seu jeito.</p>
+            </div>
+            {/* Modo dos critérios */}
+            <div className="inline-flex rounded-lg border border-slate-800 bg-slate-950 p-0.5 text-xs">
+              <button
+                onClick={() => switchMode('workspace')}
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${mode === 'workspace' ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                Padrão do workspace
+              </button>
+              <button
+                onClick={() => switchMode('channel')}
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${mode === 'channel' ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                Só deste canal
+              </button>
+            </div>
           </div>
           <p className="mt-2 text-[11px] text-slate-500">
             {mode === 'workspace'
@@ -154,12 +162,11 @@ export default function ChannelValidation({ channelId }) {
               : 'Critérios exclusivos deste canal (override). Não afetam os outros canais.'}
           </p>
 
-          {/* Grade de critérios */}
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {FIELDS.map(({ k, label, why, unit, step }) => (
-              <div key={k} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+              <div key={k} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
                 <label className="block text-xs font-semibold text-slate-200">{label}</label>
-                <p className="mb-2 mt-0.5 text-[11px] leading-snug text-slate-500">{why}</p>
+                <p className="mb-2.5 mt-0.5 text-[11px] leading-snug text-slate-500">{why}</p>
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -167,7 +174,7 @@ export default function ChannelValidation({ channelId }) {
                     value={criteria[k] ?? ''}
                     disabled={!canEdit}
                     onChange={(e) => setField(k, e.target.value)}
-                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 disabled:opacity-60"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 disabled:opacity-60"
                   />
                   <span className="whitespace-nowrap text-[10px] text-slate-500">{unit}</span>
                 </div>
@@ -176,26 +183,26 @@ export default function ChannelValidation({ channelId }) {
           </div>
 
           {canEdit && (
-            <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <div className="mt-5 flex flex-wrap items-center gap-2.5">
               <button
                 onClick={save}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-60"
               >
                 {saving ? <Loader2 size={13} className="animate-spin" /> : saved ? <Check size={13} /> : <Save size={13} />}
                 {saved ? 'Salvo' : 'Salvar critérios'}
               </button>
-              <button onClick={resetMethod} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3.5 py-2 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100">
+              <button onClick={resetMethod} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100">
                 <RotateCcw size={13} /> Voltar ao método recomendado
               </button>
             </div>
           )}
 
-          <p className="mt-4 border-t border-slate-800 pt-3 text-[11px] text-slate-600">
-            Em breve nesta seção: os 4 olhares (pré-análise), a tabela de teste com os vídeos reais do canal e o veredito automático.
+          <p className="mt-6 border-t border-slate-800 pt-4 text-[11px] text-slate-600">
+            Em breve nesta tela: os 4 olhares (pré-análise), a tabela de teste com os vídeos reais do canal e o veredito automático.
           </p>
-        </>
+        </div>
       )}
-    </section>
+    </div>
   )
 }
