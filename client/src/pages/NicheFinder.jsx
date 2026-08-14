@@ -141,6 +141,24 @@ const TREND_TABS = [
   { key: 'all', label: 'Todos os Resultados', Icon: LayoutGrid, desc: 'Todos os canais carregados nesta busca', test: () => true },
 ]
 
+// Sinal de OPORTUNIDADE de um canal (liga a descoberta ao método de validação),
+// mostrado como selo SÓ quando é acionável: "Porta aberta" (canal pequeno com
+// muito alcance) ou "Demanda viva" (canal jovem estourando). Canal grande fica
+// sem selo (seria óbvio e poluiria tudo). Defensivo: qualquer erro → sem selo.
+function olharFor(c) {
+  try {
+    if (!c) return null
+    const subs = Number(c.subscribers) || 0
+    const views = Number(c.views) || 0
+    const age = ageDays(c)
+    if (subs < 1000 && views > 50_000) return { key: 'door', color: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300' }
+    if (age <= 60 && subs < 100_000 && views >= 100_000) return { key: 'demand', color: 'border-red-500/40 bg-red-500/10 text-red-300' }
+    return null
+  } catch {
+    return null
+  }
+}
+
 // Estimativa "Faceless %" — probabilidade do canal NÃO mostrar rosto. Não existe
 // API pública de detecção facial; usamos sinais determinísticos do canal:
 // tópicos que costumam ser narrados (sem rosto) somam, tópicos "de rosto"
@@ -967,6 +985,7 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
   const { t } = useI18n()
   // Selo de tendência real do canal — ignora 'all' e o catch-all 'bycategory'
   const badge = TREND_TABS.filter((tb) => tb.key !== 'all' && tb.key !== 'bycategory' && tb.key !== 'outlier').find((tb) => tb.test(c))
+  const olhar = olharFor(c) // sinal de oportunidade (porta aberta / demanda viva)
   const monetized = isMonetized(c)
   // Modo restrito: nome/números/thumbs NÃO entram no DOM — impossível "desborrar"
   const restricted = useRestricted()
@@ -1016,8 +1035,17 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
             <p className="truncate text-[11px] font-medium text-slate-400">
               {(c.topics || []).length > 0 ? c.topics.slice(0, 2).join(' · ') : t('niche.card.noCat')}
             </p>
-            {badge && (
-              <span className="mt-1 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{t(`niche.tabs.${badge.key}.label`)}</span>
+            {(badge || olhar) && (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {badge && (
+                  <span className="inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{t(`niche.tabs.${badge.key}.label`)}</span>
+                )}
+                {olhar && (
+                  <span title={t(`niche.olhar.${olhar.key}Desc`)} className={`inline-flex cursor-help items-center gap-0.5 rounded-full border px-2 py-0.5 text-[9px] font-bold ${olhar.color}`}>
+                    <Compass size={9} /> {t(`niche.olhar.${olhar.key}`)}
+                  </span>
+                )}
+              </div>
             )}
           </div>
           {/* Ações: copiar link · analisar na Dobra · favoritar */}
@@ -1054,9 +1082,9 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
 
         {/* Stats: Inscritos / Views / Vídeos / Faceless (como no original) */}
         <div className="mt-3 grid grid-cols-4 divide-x divide-slate-800 rounded-lg border border-slate-800 py-2 text-center">
-          <CardStat value={<Masked mask="••">{formatCompact(c.subscribers)}</Masked>} label={t('niche.card.subs')} />
-          <CardStat value={<Masked mask="••">{formatCompact(c.views)}</Masked>} label={t('niche.card.views')} />
-          <CardStat value={<Masked mask="••">{c.videoCount ?? '—'}</Masked>} label={t('niche.card.videos')} />
+          <CardStat value={<Masked mask="••">{formatCompact(c.subscribers)}</Masked>} label={t('niche.card.subs')} title={t('niche.card.subsTip')} />
+          <CardStat value={<Masked mask="••">{formatCompact(c.views)}</Masked>} label={t('niche.card.views')} title={t('niche.card.viewsTip')} />
+          <CardStat value={<Masked mask="••">{c.videoCount ?? '—'}</Masked>} label={t('niche.card.videos')} title={t('niche.card.videosTip')} />
           <CardStat
             value={<Masked mask="••">{`${facelessScore(c)}%`}</Masked>}
             label={t('niche.card.faceless')}

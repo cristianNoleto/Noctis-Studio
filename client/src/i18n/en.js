@@ -719,6 +719,12 @@ export default {
   },
   niche: {
     subtitle: 'Discover growing niches on YouTube',
+    olhar: {
+      door: 'Open door',
+      doorDesc: 'Small channel reaching lots of people — a sign the algorithm is leaving room for a NEW channel in this niche.',
+      demand: 'Live demand',
+      demandDesc: 'Young channel already with many views — the topic is hot right now.',
+    },
     count: '{n} channels',
     thisWeek: ' · +{n} this week',
     tabs: {
@@ -792,6 +798,9 @@ export default {
       posting: 'posting', last: 'last', vidMo: 'vid/mo', viewsMo: 'views/mo',
       added: 'Added', updated: 'updated', updatedNow: 'updated now', noCat: 'No category',
       facelessTip: 'Likelihood the channel is faceless. The higher the score, the higher the confidence the channel does not show a face.',
+      subsTip: 'Channel subscribers. Few subs + many views = the algorithm is delivering beyond the base (open door for a new channel).',
+      viewsTip: 'Total channel views. Lots of views in a short lifespan signals hot demand for the topic.',
+      videosTip: 'Total videos published. Few videos with many views shows efficiency — each video pulls a lot.',
       monetTip: 'Monetization-eligible (estimate): 1,000+ subscribers and 100k+ total views, the YouTube Partner Program minimums. YouTube does not expose real monetization status via API, so this is an estimate, not a confirmation.',
       openChannel: 'Open channel on YouTube',
       copyLink: 'Copy channel link',

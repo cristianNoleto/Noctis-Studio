@@ -719,6 +719,12 @@ export default {
   },
   niche: {
     subtitle: 'Descubra nichos em crescimento no YouTube',
+    olhar: {
+      door: 'Porta aberta',
+      doorDesc: 'Canal pequeno alcançando muita gente — sinal de que o algoritmo abre espaço para um canal NOVO neste nicho.',
+      demand: 'Demanda viva',
+      demandDesc: 'Canal jovem já com muitas views — o assunto está quente agora.',
+    },
     count: '{n} canais',
     thisWeek: ' · +{n} esta semana',
     tabs: {
@@ -792,6 +798,9 @@ export default {
       posting: 'postando', last: 'último há', vidMo: 'vid/mês', viewsMo: 'views/mês',
       added: 'Adicionado há', updated: 'atualizado há', updatedNow: 'atualizado agora', noCat: 'Sem categoria',
       facelessTip: 'Probabilidade do canal ser faceless. Quanto maior o score, maior a confiança de que o canal não mostra rosto.',
+      subsTip: 'Inscritos do canal. Poucos inscritos + muitas views = o algoritmo entrega para fora da base (porta aberta pra canal novo).',
+      viewsTip: 'Views totais do canal. Muitas views em pouco tempo de vida indica demanda quente no assunto.',
+      videosTip: 'Total de vídeos publicados. Poucos vídeos com muitas views mostra eficiência — cada vídeo puxa bastante.',
       monetTip: 'Elegível à monetização (estimativa): +1.000 inscritos e +100 mil views totais, os mínimos do YouTube Partner Program. O YouTube não expõe o status real de monetização por API, então isto é uma estimativa, não uma confirmação.',
       openChannel: 'Abrir canal no YouTube',
       copyLink: 'Copiar link do canal',
