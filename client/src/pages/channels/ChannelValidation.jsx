@@ -99,23 +99,20 @@ export default function ChannelValidation() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      {/* Cabeçalho da página */}
+    <div className="mx-auto max-w-[1600px] space-y-4">
+      {/* Navegação superior (igual às outras páginas) */}
+      <button onClick={() => navigate(`/canais/${channelId}`)} className="flex items-center gap-1.5 text-sm text-cyan-400 hover:text-cyan-300">
+        <ArrowLeft size={15} /> Voltar ao canal
+      </button>
+
+      {/* Cabeçalho */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(`/canais/${channelId}`)}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:border-slate-700 hover:text-slate-100"
-        >
-          <ArrowLeft size={14} /> Voltar ao canal
-        </button>
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
-            <Compass size={22} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-100">Validação do canal</h1>
-            <p className="text-sm text-slate-500">{channel?.name || 'Decida com número e prazo quando começar, seguir ou parar.'}</p>
-          </div>
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
+          <Compass size={22} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Validação do canal</h1>
+          <p className="text-sm text-slate-500">{channel?.name || 'Decida com número e prazo quando começar, seguir ou parar.'}</p>
         </div>
       </div>
 
@@ -162,7 +159,7 @@ export default function ChannelValidation() {
               : 'Critérios exclusivos deste canal (override). Não afetam os outros canais.'}
           </p>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {FIELDS.map(({ k, label, why, unit, step }) => (
               <div key={k} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
                 <label className="block text-xs font-semibold text-slate-200">{label}</label>
