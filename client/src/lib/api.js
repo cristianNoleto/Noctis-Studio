@@ -255,6 +255,14 @@ export const api = {
     save: (item) => authRequest('/academy', { method: 'POST', body: { item } }),
     remove: (id) => authRequest(`/academy/${id}`, { method: 'DELETE' }),
   },
+  // Validação de canal: critérios (padrão do workspace + override por canal),
+  // 4 olhares, teste e veredito.
+  validation: {
+    defaults: () => authRequest('/validation/defaults'),
+    saveDefaults: (criteria) => authRequest('/validation/defaults', { method: 'PUT', body: { criteria } }),
+    get: (channelId) => authRequest(`/validation/channel/${channelId}`),
+    save: (channelId, body) => authRequest(`/validation/channel/${channelId}`, { method: 'PUT', body }),
+  },
   // Conexão do Google Drive (OAuth) por usuário.
   drive: {
     connect: () => authRequest('/drive/connect', { method: 'POST' }),

@@ -33,6 +33,7 @@ import { PrivacyScope, PageEye, Masked } from '../../components/privacy'
 import { ChannelAvatar } from '../Dashboard'
 import { EditChannelModal, CustomButtonsModal, ShareChannelModal, ChannelPromptsModal, ChannelReferencesModal } from './ChannelModals'
 import VideosTable from './VideosTable'
+import ChannelValidation from './ChannelValidation'
 
 const STATS_REFRESH_COOLDOWN_MS = 10 * 60 * 1000 // máx. 1x a cada 10 min (economia de cota)
 const STATS_STALE_MS = 24 * 60 * 60 * 1000 // stats com +24h → atualiza sozinho ao abrir o canal
@@ -310,6 +311,9 @@ export default function ChannelDetail() {
           <ReferenceControlCard channelId={id} count={refsCount} onManage={() => setModal('references')} />
         </div>
       )}
+
+      {/* Validação do canal (critérios + teste + veredito) — plano Lite+ */}
+      <ChannelValidation channelId={id} />
 
       {/* Títulos & Vídeos */}
       <VideosTable channelId={id} channel={channel} />

@@ -10,6 +10,7 @@ import excalidrawRouter from './excalidraw.js'
 import templatesRouter from './templates.js'
 import academyRouter from './academy.js'
 import driveRouter from './drive.js'
+import validationRouter from './validation.js'
 
 const router = Router()
 
@@ -24,6 +25,7 @@ router.use('/excalidraw', excalidrawRouter)
 router.use('/excalidraw-templates', templatesRouter)
 router.use('/academy', academyRouter)
 router.use('/drive', driveRouter)
+router.use('/validation', validationRouter)
 // Transcrição não passa mais por aqui: o navegador fala direto com a
 // AssemblyAI (BYOK) — sem limite de upload em função serverless.
 
