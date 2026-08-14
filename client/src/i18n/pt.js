@@ -36,6 +36,7 @@ export default {
     comingSoonDesc: 'Esta funcionalidade está em desenvolvimento e será liberada em uma próxima atualização.',
     seeMore: 'Ver mais',
     manage: 'Gerenciar',
+    add: 'Adicionar',
     online: 'Online',
     langNames: { pt: 'Português', en: 'Inglês', es: 'Espanhol' },
     langFull: { pt: 'Português', en: 'Inglês', es: 'Espanhol', de: 'Alemão', fr: 'Francês', it: 'Italiano', ja: 'Japonês' },

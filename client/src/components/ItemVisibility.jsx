@@ -1,4 +1,5 @@
-import { Lock, Users, Eye } from 'lucide-react'
+import { useState } from 'react'
+import { Lock, Users, Eye, Plus, X } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { inputCls } from './ui'
 
@@ -65,14 +66,66 @@ export function VisibilityControl({ value = 'workspace', emails = [], onChange }
           )
         })}
       </div>
-      {vis === 'specific' && (
+      {vis === 'specific' && <EmailChips emails={emails} onChange={(list) => onChange('specific', list)} />}
+    </div>
+  )
+}
+
+// Campo de e-mails autorizados: digita + Enter (ou botão) adiciona um chip; o
+// commit é IMEDIATO (não depende de blur), então funciona mesmo dentro de menus
+// que fecham ao clicar fora. Cada e-mail vira um chip removível.
+function EmailChips({ emails = [], onChange }) {
+  const { t } = useI18n()
+  const [draft, setDraft] = useState('')
+  const list = Array.isArray(emails) ? emails : []
+
+  function add() {
+    const next = [...new Set([...list, ...parseEmails(draft)])]
+    if (next.length !== list.length) onChange(next)
+    setDraft('')
+  }
+  function removeAt(i) {
+    onChange(list.filter((_, idx) => idx !== i))
+  }
+  const valid = parseEmails(draft).length > 0
+
+  return (
+    <div className="space-y-1.5">
+      {list.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {list.map((e, i) => (
+            <span key={`${e}-${i}`} className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800/60 px-2 py-0.5 text-[11px] text-slate-200">
+              {e}
+              <button type="button" onClick={() => removeAt(i)} className="text-slate-400 hover:text-red-400" aria-label="remover">
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
         <input
+          value={draft}
+          onChange={(ev) => setDraft(ev.target.value)}
+          onKeyDown={(ev) => {
+            if (ev.key === 'Enter' || ev.key === ',') {
+              ev.preventDefault()
+              add()
+            }
+          }}
+          onBlur={add}
           className={`${inputCls} !py-1.5 text-xs`}
           placeholder={t('skillsLib.form.allowedEmails')}
-          defaultValue={(emails || []).join(', ')}
-          onBlur={(e) => onChange('specific', parseEmails(e.target.value))}
         />
-      )}
+        <button
+          type="button"
+          onClick={add}
+          disabled={!valid}
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:opacity-40"
+        >
+          <Plus size={12} /> {t('common.add') || 'Adicionar'}
+        </button>
+      </div>
     </div>
   )
 }

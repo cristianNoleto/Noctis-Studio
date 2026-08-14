@@ -182,6 +182,7 @@ export const api = {
     channelVideos: (channelId, pageToken = '') =>
       request(`/youtube/channel-videos?id=${encodeURIComponent(channelId)}&pageToken=${encodeURIComponent(pageToken)}`),
     checkChannels: (ids) => request(`/youtube/check-channels?ids=${encodeURIComponent(ids.join(','))}`),
+    videoStats: (ids) => request(`/youtube/video-stats?ids=${encodeURIComponent(ids.join(','))}`),
     keysStatus: () => request('/youtube/keys-status'),
     test: () => request('/youtube/test'),
   },

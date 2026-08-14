@@ -209,6 +209,44 @@ router.get('/channel-videos', async (req, res) => {
   }
 })
 
+// GET /api/youtube/video-stats?ids=v1,v2,...  (Validação — dados dos vídeos de teste)
+// Puxa o máximo de dados por vídeo numa chamada só (até 50 ids). Sem cache: a
+// Validação grava snapshots datados, então quer sempre o número mais fresco.
+router.get('/video-stats', async (req, res) => {
+  try {
+    const keys = parseKeys(req)
+    const ids = String(req.query.ids || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 50)
+    if (!ids.length) return res.json({ videos: [] })
+    const data = await ytFetch(keys, 'videos', { part: 'snippet,statistics,contentDetails', id: ids.join(',') })
+    const videos = (data.items || []).map((v) => {
+      const views = Number(v.statistics?.viewCount ?? 0)
+      const likes = Number(v.statistics?.likeCount ?? 0)
+      const comments = Number(v.statistics?.commentCount ?? 0)
+      const publishedAt = v.snippet?.publishedAt || null
+      const hoursSince = publishedAt ? Math.max(1, (Date.now() - new Date(publishedAt).getTime()) / 3600_000) : null
+      return {
+        id: v.id,
+        title: v.snippet?.title || '',
+        thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || null,
+        publishedAt,
+        durationSeconds: parseISODuration(v.contentDetails?.duration),
+        views,
+        likes,
+        comments,
+        vph: hoursSince ? Math.round(views / hoursSince) : null,
+        engagement: views > 0 ? +(((likes + comments) / views) * 100).toFixed(2) : null,
+      }
+    })
+    res.json({ videos })
+  } catch (err) {
+    handleError(res, err)
+  }
+})
+
 // GET /api/youtube/viral?q=&period=&minViews=&durMin=&durMax=&pageToken=  (Vídeos Virais)
 // Busca inteligente: vídeos com mais visualizações primeiro. Cada página traz
 // 50 (limite da API); o client pagina com "Ver mais" até o máx. de 100.
