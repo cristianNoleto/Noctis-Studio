@@ -107,6 +107,47 @@ router.post('/save', async (req, res) => {
   res.json({ collaborator: toClient(data), invited })
 })
 
+// Área do item -> coluna de acesso do colaborador.
+const AREA_COL = { references: 'references_access', board: 'board_access', drawings: 'drawings_access', skills: 'skills', videos: 'videos_access' }
+
+// POST /collaborators/grant — usado pelo campo "usuários específicos": ao liberar
+// um item para um e-mail, garante que a pessoa é colaboradora COM acesso (view)
+// à área daquele item, e — se ainda não tiver conta — dispara o convite. Não
+// rebaixa acessos existentes (só sobe de 'none' para 'view').
+router.post('/grant', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const viewer = await getViewer(req, supa)
+  if (!viewer.email) return res.status(401).json({ error: 'unauthorized' })
+  if (!canManage(viewer)) return res.status(403).json({ error: 'forbidden', message: 'Apenas o fundador e o plano mais caro liberam colaboradores.' })
+  const member = String(req.body?.email || '').toLowerCase().trim()
+  const col = AREA_COL[req.body?.area]
+  if (!member.includes('@')) return res.status(400).json({ error: 'invalid_email' })
+  if (!col) return res.status(400).json({ error: 'invalid_area' })
+
+  // Já é colaborador? Só sobe a área para 'view' se estiver 'none'; preserva o resto.
+  const { data: existing } = await supa.from('workspace_collaborators').select('*').eq('owner_email', viewer.email).eq('member_email', member).maybeSingle()
+  const base = existing || { owner_email: viewer.email, member_email: member, skills: 'none', references_access: 'none', videos_access: 'none', board_access: 'none', drawings_access: 'none', channel_ids: null }
+  if (!base[col] || base[col] === 'none') base[col] = 'view'
+  const { id, created_at, ...row } = base
+  const { data, error } = await supa.from('workspace_collaborators').upsert(row, { onConflict: 'owner_email,member_email' }).select().single()
+  if (error) return res.status(500).json({ error: 'db_error', message: error.message })
+
+  let invited = false
+  let hasAccount = true
+  try {
+    hasAccount = await userExists(supa, member)
+    if (!hasAccount) {
+      const origin = req.headers.origin || process.env.APP_URL || ''
+      await supa.auth.admin.inviteUserByEmail(member, origin ? { redirectTo: `${origin}/aceitar-convite` } : undefined)
+      invited = true
+    }
+  } catch {
+    /* e-mail não configurado / limite → segue sem travar */
+  }
+  res.json({ collaborator: toClient(data), invited, hasAccount })
+})
+
 // DELETE /collaborators/:id — remove (só o dono)
 router.delete('/:id', async (req, res) => {
   const supa = requireSupabase(res)

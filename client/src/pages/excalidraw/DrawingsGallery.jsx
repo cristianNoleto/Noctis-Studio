@@ -303,6 +303,7 @@ function SceneCard({ scene: s, videos, isOwner, canEdit, canDeleteScene, onOpen,
         ) : mode === 'visibility' ? (
           <div className="p-1.5">
             <VisibilityControl
+              area="drawings"
               value={s.visibility}
               emails={s.allowedEmails}
               onChange={(vis, emails) => { onSetVisibility(vis, emails); if (vis !== 'specific') closeMenu() }}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Lock, Users, Eye, Plus, X } from 'lucide-react'
+import { Lock, Users, Eye, Plus, X, Loader2, Mail } from 'lucide-react'
 import { useI18n } from '../i18n'
+import { api } from '../lib/api'
 import { inputCls } from './ui'
 
 // Visibilidade por item (referências / cards do quadro). Níveis:
@@ -38,7 +39,7 @@ export function VisibilityBadge({ visibility }) {
 
 // Controle de edição (só o dono usa). value = visibility atual, emails = array.
 // onChange(visibility, allowedEmailsArray).
-export function VisibilityControl({ value = 'workspace', emails = [], onChange }) {
+export function VisibilityControl({ value = 'workspace', emails = [], onChange, area }) {
   const { t } = useI18n()
   const vis = value || 'workspace'
   return (
@@ -66,7 +67,7 @@ export function VisibilityControl({ value = 'workspace', emails = [], onChange }
           )
         })}
       </div>
-      {vis === 'specific' && <EmailChips emails={emails} onChange={(list) => onChange('specific', list)} />}
+      {vis === 'specific' && <EmailChips emails={emails} area={area} onChange={(list) => onChange('specific', list)} />}
     </div>
   )
 }
@@ -74,9 +75,11 @@ export function VisibilityControl({ value = 'workspace', emails = [], onChange }
 // Campo de e-mails autorizados: digita + Enter (ou botão) adiciona um chip; o
 // commit é IMEDIATO (não depende de blur), então funciona mesmo dentro de menus
 // que fecham ao clicar fora. Cada e-mail vira um chip removível.
-function EmailChips({ emails = [], onChange }) {
+function EmailChips({ emails = [], onChange, area }) {
   const { t } = useI18n()
   const [draft, setDraft] = useState('')
+  const [notice, setNotice] = useState(null) // { kind, email } feedback do convite
+  const [granting, setGranting] = useState(false)
   // Cópia local OTIMISTA: a UI reage na hora (chip some/entra instantâneo),
   // mesmo que o consumidor persista via rede (ex.: Drawings faz save + reload).
   // Ressincroniza quando o prop muda de fora.
@@ -89,10 +92,34 @@ function EmailChips({ emails = [], onChange }) {
     setList(next)
     onChange(next)
   }
+  // Ao liberar o item para um e-mail, garante o acesso de colaborador à área e
+  // convida quem ainda não tem conta (comportamento escolhido pelo usuário).
+  async function grant(added) {
+    if (!area || !added.length) return
+    setGranting(true)
+    try {
+      let invited = false
+      let noAccount = false
+      for (const email of added) {
+        const r = await api.collaborators.grant(email, area)
+        if (r?.invited) invited = true
+        if (r && r.hasAccount === false) noAccount = true
+      }
+      setNotice({ kind: invited ? 'invited' : noAccount ? 'noAccount' : 'granted', email: added[added.length - 1] })
+    } catch (e) {
+      setNotice({ kind: 'error', email: added[0], msg: e?.message })
+    } finally {
+      setGranting(false)
+    }
+  }
   function add() {
+    const additions = parseEmails(draft).filter((e) => !list.includes(e))
     const next = [...new Set([...list, ...parseEmails(draft)])]
     setDraft('')
-    if (next.length !== list.length) commit(next)
+    if (next.length !== list.length) {
+      commit(next)
+      grant(additions)
+    }
   }
   function removeAt(i) {
     commit(list.filter((_, idx) => idx !== i))
@@ -130,12 +157,23 @@ function EmailChips({ emails = [], onChange }) {
         <button
           type="button"
           onClick={add}
-          disabled={!valid}
+          disabled={!valid || granting}
           className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-200 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:opacity-40"
         >
-          <Plus size={12} /> {t('common.add') || 'Adicionar'}
+          {granting ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} {t('common.add') || 'Adicionar'}
         </button>
       </div>
+      {notice && (
+        <p className={`flex items-start gap-1.5 text-[11px] leading-snug ${notice.kind === 'error' ? 'text-red-400' : notice.kind === 'invited' || notice.kind === 'noAccount' ? 'text-amber-300' : 'text-emerald-300'}`}>
+          <Mail size={12} className="mt-0.5 shrink-0" />
+          <span>
+            {notice.kind === 'invited' && t('itemVis.invited', { email: notice.email })}
+            {notice.kind === 'noAccount' && t('itemVis.noAccount', { email: notice.email })}
+            {notice.kind === 'granted' && t('itemVis.granted', { email: notice.email })}
+            {notice.kind === 'error' && (notice.msg || t('itemVis.grantError'))}
+          </span>
+        </p>
+      )}
     </div>
   )
 }

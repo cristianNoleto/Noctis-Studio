@@ -28,6 +28,7 @@ function CardVisibility({ card }) {
       <AnchoredMenu open={open} anchorRef={btnRef} onClose={() => setOpen(false)} width={230}>
         <div className="p-1.5">
           <VisibilityControl
+            area="board"
             value={vis}
             emails={card.allowedEmails || []}
             onChange={(v, em) => db.update('boardCards', card.id, { visibility: v, allowedEmails: v === 'specific' ? em : [] })}

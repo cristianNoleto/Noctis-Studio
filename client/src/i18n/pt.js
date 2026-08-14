@@ -1,4 +1,10 @@
 export default {
+  itemVis: {
+    invited: 'Convite enviado para {email}: ela ainda não tinha conta. Vai receber um e-mail para criar a senha e virou colaboradora com acesso a esta área.',
+    noAccount: '{email} ainda não tem conta. Tentamos enviar um convite — confira se o envio de e-mail está configurado.',
+    granted: '{email} agora tem acesso como colaboradora a esta área.',
+    grantError: 'Não foi possível liberar o acesso deste colaborador.',
+  },
   plans: {
     locked: {
       badge: 'Disponível no {plan}',

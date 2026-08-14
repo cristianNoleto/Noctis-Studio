@@ -216,6 +216,7 @@ export const api = {
   collaborators: {
     list: () => authRequest('/collaborators'),
     save: (collaborator) => authRequest('/collaborators/save', { method: 'POST', body: { collaborator } }),
+    grant: (email, area) => authRequest('/collaborators/grant', { method: 'POST', body: { email, area } }),
     remove: (id) => authRequest(`/collaborators/${id}`, { method: 'DELETE' }),
   },
   workspace: {

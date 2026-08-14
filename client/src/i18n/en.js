@@ -1,4 +1,10 @@
 export default {
+  itemVis: {
+    invited: 'Invite sent to {email}: they had no account yet. They will get an email to set a password and are now a collaborator with access to this area.',
+    noAccount: '{email} has no account yet. We tried to send an invite — check that email sending is configured.',
+    granted: '{email} now has collaborator access to this area.',
+    grantError: 'Could not grant this collaborator access.',
+  },
   plans: {
     locked: {
       badge: 'Available on {plan}',

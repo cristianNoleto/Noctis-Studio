@@ -321,7 +321,7 @@ export function ReferenceModal({ open, onClose, reference, channels, niches = []
         </Field>
 
         {isOwner && (
-          <VisibilityControl value={visibility} emails={allowedEmails} onChange={(v, em) => { setVisibility(v); setAllowedEmails(em) }} />
+          <VisibilityControl area="references" value={visibility} emails={allowedEmails} onChange={(v, em) => { setVisibility(v); setAllowedEmails(em) }} />
         )}
 
         {error && <p className="text-xs text-red-400">{error}</p>}
