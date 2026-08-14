@@ -1035,17 +1035,15 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
             <p className="truncate text-[11px] font-medium text-slate-400">
               {(c.topics || []).length > 0 ? c.topics.slice(0, 2).join(' · ') : t('niche.card.noCat')}
             </p>
-            {(badge || olhar) && (
-              <div className="mt-1 flex flex-wrap items-center gap-1">
-                {badge && (
-                  <span className="inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{t(`niche.tabs.${badge.key}.label`)}</span>
-                )}
-                {olhar && (
-                  <span title={t(`niche.olhar.${olhar.key}Desc`)} className={`inline-flex cursor-help items-center gap-0.5 rounded-full border px-2 py-0.5 text-[9px] font-bold ${olhar.color}`}>
-                    <Compass size={9} /> {t(`niche.olhar.${olhar.key}`)}
-                  </span>
-                )}
-              </div>
+            {/* Um selo só: prioriza o sinal de oportunidade (curto); senão, a tendência. */}
+            {olhar ? (
+              <span title={t(`niche.olhar.${olhar.key}Desc`)} className={`mt-1 inline-flex cursor-help items-center gap-0.5 rounded-full border px-2 py-0.5 text-[9px] font-bold ${olhar.color}`}>
+                <Compass size={9} /> {t(`niche.olhar.${olhar.key}`)}
+              </span>
+            ) : (
+              badge && (
+                <span className="mt-1 inline-block rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold text-red-400">{t(`niche.tabs.${badge.key}.label`)}</span>
+              )
             )}
           </div>
           {/* Ações: copiar link · analisar na Dobra · favoritar */}
