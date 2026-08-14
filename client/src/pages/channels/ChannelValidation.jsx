@@ -18,14 +18,17 @@ const FIELDS = [
   { k: 'demandaDiasMax', label: 'Demanda — janela (máx.)', why: 'Fim da janela de demanda viva.', unit: 'dias' },
 ]
 
+// Planos que terão acesso quando a feature for liberada ao público (Lite+).
+// Por enquanto, EM TESTE: liberado SÓ para o fundador. Para abrir ao público,
+// troque `allowed` por: isFounder || LITE_PLANS.includes(user?.plan).
 const LITE_PLANS = ['LITE', 'PRO', 'MASTER']
 
 export default function ChannelValidation() {
   const { id: channelId } = useParams()
   const navigate = useNavigate()
   const db = useDb()
-  const { user, isFounder } = useAuth()
-  const allowed = isFounder || LITE_PLANS.includes(user?.plan)
+  const { isFounder } = useAuth()
+  const allowed = isFounder // EM TESTE: só o fundador (trocar depois para liberar Lite+)
   const channel = db.get('channels', channelId)
 
   const [loading, setLoading] = useState(true)

@@ -26,6 +26,7 @@ import {
   Compass,
 } from 'lucide-react'
 import { useDb } from '../../lib/db'
+import { useAuth } from '../../auth/AuthContext'
 import { api, apiErrorMessage } from '../../lib/api'
 import { isPosted } from '../../lib/videoStatus'
 import { useI18n } from '../../i18n'
@@ -44,6 +45,7 @@ export default function ChannelDetail() {
   const navigate = useNavigate()
   const db = useDb()
   const { t } = useI18n()
+  const { isFounder } = useAuth()
   const channel = db.get('channels', id)
   // Só o dono do workspace configura/exclui o canal. Colaborador (mesmo editor)
   // mexe apenas nos vídeos.
@@ -312,20 +314,22 @@ export default function ChannelDetail() {
         </div>
       )}
 
-      {/* Card de acesso à Validação — abre em página própria (critérios + teste + veredito) */}
-      <button
-        onClick={() => navigate(`/canais/${id}/validacao`)}
-        className="card-hover flex w-full items-center gap-3.5 rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-left transition-colors hover:border-cyan-500/40"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
-          <Compass size={18} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-100">Validação do canal</p>
-          <p className="truncate text-xs text-slate-500">Decida com critério e prazo: começar, seguir ou parar. Abre em tela própria.</p>
-        </div>
-        <span className="shrink-0 rounded-lg border border-cyan-500/40 bg-cyan-500/5 px-3 py-1.5 text-xs font-medium text-cyan-300">Abrir →</span>
-      </button>
+      {/* Card de acesso à Validação — abre em página própria. EM TESTE: só o fundador. */}
+      {isFounder && (
+        <button
+          onClick={() => navigate(`/canais/${id}/validacao`)}
+          className="card-hover flex w-full items-center gap-3.5 rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-left transition-colors hover:border-cyan-500/40"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+            <Compass size={18} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-100">Validação do canal</p>
+            <p className="truncate text-xs text-slate-500">Decida com critério e prazo: começar, seguir ou parar. Abre em tela própria.</p>
+          </div>
+          <span className="shrink-0 rounded-lg border border-cyan-500/40 bg-cyan-500/5 px-3 py-1.5 text-xs font-medium text-cyan-300">Abrir →</span>
+        </button>
+      )}
 
       {/* Títulos & Vídeos */}
       <VideosTable channelId={id} channel={channel} />
