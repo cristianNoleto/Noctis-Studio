@@ -298,11 +298,13 @@ router.post('/delete', async (req, res) => {
   }
   // Lixeira: antes de apagar um CANAL, guarda um backup completo (30 dias). O
   // delete abaixo cascateia os filhos, então o snapshot precisa vir ANTES.
+  // NÃO-FATAL: se o backup falhar, a exclusão prossegue mesmo assim (é melhor
+  // perder o backup do que não conseguir excluir). O erro fica logado.
   if (collection === 'channels' && access.self) {
     try {
       await backupChannel(supa, ownerId, rid)
     } catch (e) {
-      return res.status(500).json({ error: 'backup_failed', message: e.message })
+      console.error('[trash] backupChannel falhou:', e?.message || e)
     }
   }
   const { error } = await supa.from(cfg.table).delete().eq('id', rid)
@@ -311,23 +313,31 @@ router.post('/delete', async (req, res) => {
 })
 
 // Junta o canal + filhos num payload e grava na lixeira (deleted_channels).
+// Robusto: cada consulta é tolerante a erro (loga e segue com vazio), então uma
+// tabela problemática não derruba o backup inteiro nem a exclusão.
 async function backupChannel(supa, ownerId, channelId) {
-  const [{ data: channel }, { data: buttons = [] }, { data: videos = [] }, { data: validation }] = await Promise.all([
-    supa.from('channels').select('*').eq('id', channelId).maybeSingle(),
-    supa.from('channel_custom_buttons').select('*').eq('channel_id', channelId),
-    supa.from('channel_videos').select('*').eq('channel_id', channelId),
-    supa.from('channel_validations').select('*').eq('channel_id', channelId).maybeSingle(),
-  ])
+  const safe = async (label, q) => {
+    const { data, error } = await q
+    if (error) console.error(`[trash] backup ${label}:`, error.message)
+    return data
+  }
+  const channel = await safe('channels', supa.from('channels').select('*').eq('id', channelId).maybeSingle())
   if (!channel) return
+  const [buttons, videos, validation] = await Promise.all([
+    safe('buttons', supa.from('channel_custom_buttons').select('*').eq('channel_id', channelId)),
+    safe('videos', supa.from('channel_videos').select('*').eq('channel_id', channelId)),
+    safe('validation', supa.from('channel_validations').select('*').eq('channel_id', channelId).maybeSingle()),
+  ])
   const videoIds = (videos || []).map((v) => v.id)
-  const [{ data: scripts = [] }, { data: seoReports = [] }] = videoIds.length
+  const [scripts, seoReports] = videoIds.length
     ? await Promise.all([
-        supa.from('video_scripts').select('*').in('video_id', videoIds),
-        supa.from('video_seo_reports').select('*').in('video_id', videoIds),
+        safe('scripts', supa.from('video_scripts').select('*').in('video_id', videoIds)),
+        safe('seo', supa.from('video_seo_reports').select('*').in('video_id', videoIds)),
       ])
-    : [{ data: [] }, { data: [] }]
+    : [[], []]
   const payload = { channel, buttons: buttons || [], videos: videos || [], scripts: scripts || [], seoReports: seoReports || [], validation: validation || null }
-  await supa.from('deleted_channels').insert({ channel_id: channelId, owner_id: ownerId, name: channel.name || null, payload })
+  const { error } = await supa.from('deleted_channels').insert({ channel_id: channelId, owner_id: ownerId, name: channel.name || null, payload })
+  if (error) console.error('[trash] insert deleted_channels:', error.message)
 }
 
 // Remove backups expirados (> 30 dias) do dono. Chamado ao listar a lixeira.
