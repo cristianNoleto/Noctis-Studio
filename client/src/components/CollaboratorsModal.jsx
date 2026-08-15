@@ -9,7 +9,7 @@ import { Modal, inputCls, btnPrimary } from './ui'
 // `showShared` adiciona um 4º estado "Compart." (só Desenhos): a pessoa vê
 // apenas os desenhos compartilhados por e-mail com ela. É definido ao compartilhar
 // um desenho; aqui aparece como um estado que o dono pode manter ou trocar.
-function LevelSelect({ value, onChange, showShared }) {
+function LevelSelect({ value, onChange, showShared, full }) {
   const { t } = useI18n()
   const opts = [
     ['none', t('skillsLib.collab.none'), 'bg-slate-700 text-slate-200'],
@@ -18,14 +18,14 @@ function LevelSelect({ value, onChange, showShared }) {
   ]
   if (showShared || value === 'shared') opts.push(['shared', t('skillsLib.collab.sharedLevel'), 'bg-amber-500/20 text-amber-300'])
   return (
-    <div className="inline-flex rounded-lg border border-slate-700 bg-slate-950 p-0.5">
+    <div className={`${full ? 'flex w-full' : 'inline-flex'} rounded-lg border border-slate-700 bg-slate-950 p-0.5`}>
       {opts.map(([v, label, active]) => (
         <button
           key={v}
           type="button"
           onClick={() => onChange(v)}
           title={v === 'shared' ? t('skillsLib.collab.sharedLevelHint') : undefined}
-          className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${(value || 'none') === v ? active : 'text-slate-500 hover:text-slate-300'}`}
+          className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${full ? 'flex-1 text-center' : ''} ${(value || 'none') === v ? active : 'text-slate-500 hover:text-slate-300'}`}
         >
           {label}
         </button>
@@ -34,12 +34,13 @@ function LevelSelect({ value, onChange, showShared }) {
   )
 }
 
-// Campo rotulado (rótulo em cima, seletor embaixo) para as áreas.
+// Campo de área: rótulo em cima, seletor de nível (largura total) embaixo.
+// Uniforme, então Desenhos (4 estados) fica igual aos demais no grid.
 function AreaField({ label, value, onChange, showShared }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2">
-      <span className="text-xs font-medium text-slate-300">{label}</span>
-      <LevelSelect value={value} onChange={onChange} showShared={showShared} />
+    <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+      <span className="mb-1.5 block text-[11px] font-semibold text-slate-400">{label}</span>
+      <LevelSelect value={value} onChange={onChange} showShared={showShared} full />
     </div>
   )
 }
@@ -320,13 +321,10 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
                         onSetChannel={(chId, lvl) => setChannelLevel(c, chId, lvl)}
                       />
                     </div>
-                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                      {AREAS.filter(([key]) => key !== 'drawings').map(([key, label]) => (
-                        <AreaField key={key} label={label} value={c[key] || 'none'} onChange={(v) => saveCollab(c, { [key]: v })} />
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {AREAS.map(([key, label]) => (
+                        <AreaField key={key} label={label} value={c[key] || 'none'} onChange={(v) => saveCollab(c, { [key]: v })} showShared={key === 'drawings'} />
                       ))}
-                    </div>
-                    <div className="mt-2">
-                      <AreaField label={t('skillsLib.collab.drawings')} value={c.drawings || 'none'} onChange={(v) => saveCollab(c, { drawings: v })} showShared />
                     </div>
                   </div>
                 )}
