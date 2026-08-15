@@ -302,7 +302,7 @@ router.post('/delete', async (req, res) => {
   // perder o backup do que não conseguir excluir). O erro fica logado.
   if (collection === 'channels' && access.self) {
     try {
-      await backupChannel(supa, ownerId, rid)
+      await backupChannel(supa, user.id, rid) // só o dono exclui canal → owner = user.id
     } catch (e) {
       console.error('[trash] backupChannel falhou:', e?.message || e)
     }
