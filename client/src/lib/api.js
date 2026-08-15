@@ -267,6 +267,8 @@ export const api = {
     saveDefaults: (criteria) => authRequest('/validation/defaults', { method: 'PUT', body: { criteria } }),
     get: (channelId) => authRequest(`/validation/channel/${channelId}`),
     save: (channelId, body) => authRequest(`/validation/channel/${channelId}`, { method: 'PUT', body }),
+    addBenchmark: (channelId, benchmark) => authRequest(`/validation/channel/${channelId}/benchmark`, { method: 'POST', body: { benchmark } }),
+    removeBenchmark: (channelId, bid) => authRequest(`/validation/channel/${channelId}/benchmark/${bid}`, { method: 'DELETE' }),
   },
   // Conexão do Google Drive (OAuth) por usuário.
   drive: {

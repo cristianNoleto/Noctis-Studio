@@ -100,9 +100,23 @@ function toClient(row, workspaceDefaults) {
     usesOverride: !!override,
     olhares: row?.olhares || {},
     test: Array.isArray(row?.test) ? row.test : [],
+    benchmarks: Array.isArray(row?.benchmarks) ? row.benchmarks : [],
     deadline: row?.deadline || null,
     continuityRule: row?.continuity_rule || '',
     verdict: row?.verdict || null,
+  }
+}
+
+// Concorrente de referência normalizado (do Niche Finder). Só campos numéricos/strings.
+function cleanBenchmark(b) {
+  if (!b || typeof b !== 'object') return null
+  return {
+    id: String(b.id || b.ytId || `b_${Date.now()}`).slice(0, 40),
+    ytId: b.ytId ? String(b.ytId).slice(0, 40) : null,
+    name: String(b.name || 'Canal').slice(0, 120),
+    subscribers: Number(b.subscribers) || 0,
+    views: Number(b.views) || 0,
+    avgViews: b.avgViews != null ? Number(b.avgViews) || 0 : null,
   }
 }
 
@@ -139,11 +153,57 @@ router.put('/channel/:id', async (req, res) => {
     continuity_rule: typeof b.continuityRule === 'string' ? b.continuityRule.slice(0, 500) : '',
     olhares: b.olhares && typeof b.olhares === 'object' ? b.olhares : {},
     test: Array.isArray(b.test) ? b.test.slice(0, 50) : [],
+    benchmarks: Array.isArray(b.benchmarks) ? b.benchmarks.map(cleanBenchmark).filter(Boolean).slice(0, 30) : [],
     verdict: b.verdict ? String(b.verdict).slice(0, 40) : null,
     updated_at: new Date().toISOString(),
   }
   const { error } = await supa.from('channel_validations').upsert(row, { onConflict: 'channel_id' })
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
+  const defaults = await loadWorkspaceDefaults(supa, auth.ownerId)
+  const { data: saved } = await supa.from('channel_validations').select('*').eq('channel_id', req.params.id).maybeSingle()
+  res.json({ validation: toClient(saved, defaults) })
+})
+
+// POST /api/validation/channel/:id/benchmark — adiciona um concorrente de
+// referência (vindo do Niche Finder) à pré-análise. Cria o registro se preciso.
+// Dedup por ytId. Usado pelo botão "usar na validação".
+router.post('/channel/:id/benchmark', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const auth = await authorizeChannel(supa, user, req.params.id)
+  if (auth.notFound) return res.status(404).json({ error: 'not_found' })
+  if (auth.forbidden || !auth.canEdit) return res.status(403).json({ error: 'forbidden' })
+  const bench = cleanBenchmark(req.body?.benchmark)
+  if (!bench) return res.status(400).json({ error: 'invalid_benchmark' })
+  const { data: existing } = await supa.from('channel_validations').select('*').eq('channel_id', req.params.id).maybeSingle()
+  const list = Array.isArray(existing?.benchmarks) ? existing.benchmarks : []
+  if (list.some((x) => (x.ytId && bench.ytId && x.ytId === bench.ytId) || x.id === bench.id)) {
+    const defaults = await loadWorkspaceDefaults(supa, auth.ownerId)
+    return res.json({ validation: toClient(existing, defaults), already: true })
+  }
+  const row = { channel_id: req.params.id, owner_id: auth.ownerId, benchmarks: [...list, bench], updated_at: new Date().toISOString() }
+  const { error } = await supa.from('channel_validations').upsert(row, { onConflict: 'channel_id' })
+  if (error) return res.status(500).json({ error: 'db_error', message: error.message })
+  const defaults = await loadWorkspaceDefaults(supa, auth.ownerId)
+  const { data: saved } = await supa.from('channel_validations').select('*').eq('channel_id', req.params.id).maybeSingle()
+  res.json({ validation: toClient(saved, defaults) })
+})
+
+// DELETE /api/validation/channel/:id/benchmark/:bid — remove um concorrente.
+router.delete('/channel/:id/benchmark/:bid', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const auth = await authorizeChannel(supa, user, req.params.id)
+  if (auth.notFound) return res.status(404).json({ error: 'not_found' })
+  if (auth.forbidden || !auth.canEdit) return res.status(403).json({ error: 'forbidden' })
+  const { data: existing } = await supa.from('channel_validations').select('*').eq('channel_id', req.params.id).maybeSingle()
+  const list = Array.isArray(existing?.benchmarks) ? existing.benchmarks : []
+  const next = list.filter((x) => x.id !== req.params.bid && x.ytId !== req.params.bid)
+  await supa.from('channel_validations').update({ benchmarks: next, updated_at: new Date().toISOString() }).eq('channel_id', req.params.id)
   const defaults = await loadWorkspaceDefaults(supa, auth.ownerId)
   const { data: saved } = await supa.from('channel_validations').select('*').eq('channel_id', req.params.id).maybeSingle()
   res.json({ validation: toClient(saved, defaults) })

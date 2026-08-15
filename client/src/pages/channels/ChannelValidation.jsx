@@ -76,6 +76,20 @@ function computeVerdict(test, criteria) {
   return { tone: 'amarelo', cls: 'border-amber-500/40 bg-amber-500/10 text-amber-300', title: 'Reavaliar', desc: `Resultados no meio (${meio}/${n}). Complete os ${alvo} vídeos de teste e reavalie ângulo/nicho antes de bater o martelo.` }
 }
 
+// Sugestão automática dos olhares 2 (razão dos players) e 4 (porta aberta) a
+// partir dos concorrentes de referência + os pisos do usuário.
+function benchmarkSuggestions(benchmarks, criteria) {
+  if (!benchmarks?.length) return {}
+  const razaoMin = Number(criteria?.razaoMin) || 0
+  const portaSubs = Number(criteria?.portaSubs) || 0
+  const portaViews = Number(criteria?.portaViews) || 0
+  const ratios = benchmarks.map((b) => (b.avgViews != null && b.subscribers ? b.avgViews / b.subscribers : null)).filter((r) => r != null)
+  const avgRatio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : null
+  const razao = avgRatio == null ? null : avgRatio >= razaoMin ? 'sim' : 'nao'
+  const porta = benchmarks.some((b) => b.subscribers && b.subscribers <= portaSubs && (b.avgViews ?? b.views) >= portaViews) ? 'sim' : 'nao'
+  return { razao, porta, avgRatio }
+}
+
 export default function ChannelValidation() {
   const { id: channelId } = useParams()
   const navigate = useNavigate()
@@ -116,7 +130,7 @@ export default function ChannelValidation() {
         setMode(v.usesOverride ? 'channel' : 'workspace')
         setCriteria(v.criteria || r.workspaceDefaults || {})
         setTest(Array.isArray(v.test) ? v.test : [])
-        setRest({ olhares: v.olhares || {}, deadline: v.deadline || null, continuityRule: v.continuityRule || '', verdict: v.verdict || null })
+        setRest({ olhares: v.olhares || {}, deadline: v.deadline || null, continuityRule: v.continuityRule || '', verdict: v.verdict || null, benchmarks: Array.isArray(v.benchmarks) ? v.benchmarks : [] })
       })
       .catch(() => {})
       .finally(() => alive && setLoading(false))
@@ -183,6 +197,9 @@ export default function ChannelValidation() {
   const inTableVideoIds = useMemo(() => new Set(test.map((r) => r.videoId).filter(Boolean)), [test])
   const target = Number(criteria?.nVideos) || 10
   const verdict = useMemo(() => computeVerdict(test, criteria), [test, criteria])
+  const benchmarks = rest.benchmarks || []
+  const suggestions = useMemo(() => benchmarkSuggestions(benchmarks, criteria), [benchmarks, criteria])
+  const removeBenchmark = (id) => patchRest({ benchmarks: benchmarks.filter((b) => b.id !== id) })
 
   async function commitTest(next) {
     setTest(next)
@@ -496,9 +513,36 @@ export default function ChannelValidation() {
           <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
             <h2 className="text-sm font-bold text-slate-100">Os 4 olhares (pré-análise)</h2>
             <p className="text-xs text-slate-500">Antes de apostar no nicho, confira os 4 sinais. São bússola, não garantia — marque com sinceridade.</p>
+
+            {/* Concorrentes de referência (vindos do Niche Finder) */}
+            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50 p-3.5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-slate-200">Concorrentes de referência</p>
+                {suggestions.avgRatio != null && (
+                  <span className="text-[11px] text-slate-500">razão média dos players: <span className="text-slate-300">{suggestions.avgRatio.toFixed(2)}</span> views/inscrito</span>
+                )}
+              </div>
+              {benchmarks.length === 0 ? (
+                <p className="mt-1.5 text-[11px] leading-snug text-slate-500">Nenhum ainda. No <span className="text-cyan-400">Niche Finder</span>, use o botão <em>“usar na validação”</em> num canal do nicho para trazê-lo pra cá — os números dele alimentam os olhares “Média dos players” e “Porta aberta”.</p>
+              ) : (
+                <div className="mt-2 space-y-1">
+                  {benchmarks.map((b) => (
+                    <div key={b.id} className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/50 px-2.5 py-1.5 text-xs">
+                      <span className="min-w-0 flex-1 truncate text-slate-200">{b.name}</span>
+                      <span className="shrink-0 text-slate-500">{fmt(b.subscribers)} insc.</span>
+                      {b.avgViews != null && <span className="shrink-0 text-slate-500">{fmt(b.avgViews)} views/vídeo</span>}
+                      {b.subscribers > 0 && b.avgViews != null && <span className="shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300">{(b.avgViews / b.subscribers).toFixed(2)}×</span>}
+                      {canEdit && <button onClick={() => removeBenchmark(b.id)} className="shrink-0 text-slate-600 hover:text-red-400"><X size={13} /></button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {OLHARES.map((o) => {
                 const val = rest.olhares?.[o.k] || null
+                const sug = suggestions[o.k] // 'sim' | 'nao' | undefined (só razao/porta)
                 const opts = [
                   ['sim', 'Sim', 'bg-emerald-500/20 text-emerald-300'],
                   ['nao', 'Não', 'bg-red-500/20 text-red-300'],
@@ -520,6 +564,15 @@ export default function ChannelValidation() {
                         </button>
                       ))}
                     </div>
+                    {sug && val !== sug && (
+                      <button
+                        disabled={!canEdit}
+                        onClick={() => setOlhar(o.k, sug)}
+                        className="mt-2 inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 disabled:opacity-60"
+                      >
+                        Sugerido pelos concorrentes: <span className={sug === 'sim' ? 'font-semibold text-emerald-300' : 'font-semibold text-red-300'}>{sug === 'sim' ? 'Sim' : 'Não'}</span> · aplicar
+                      </button>
+                    )}
                   </div>
                 )
               })}

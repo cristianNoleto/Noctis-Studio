@@ -27,8 +27,10 @@ import {
   Link2,
   GitBranch,
   Rocket,
+  Target,
 } from 'lucide-react'
 import { useDb } from '../lib/db'
+import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n'
 import { api, apiErrorMessage } from '../lib/api'
 import { inputCls, btnPrimary, btnGhost, EmptyState, formatCompact } from '../components/ui'
@@ -981,6 +983,55 @@ function AdvancedFiltersModal({ open, onClose, adv, onApply, countFor }) {
   )
 }
 
+// Botão "usar na validação": adiciona o canal como concorrente de referência na
+// pré-análise de um canal do usuário (EM TESTE: só o fundador). Menu escolhe qual.
+function ValidationBenchmarkButton({ c }) {
+  const { isFounder } = useAuth()
+  const db = useDb()
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const [status, setStatus] = useState(null) // 'ok' | 'dup' | 'err'
+  const channels = db.all('channels').filter((ch) => !ch.archived)
+  if (!isFounder || channels.length === 0) return null
+
+  async function add(ch) {
+    setOpen(false)
+    try {
+      const r = await api.validation.addBenchmark(ch.id, {
+        id: c.id, ytId: c.id, name: c.title, subscribers: c.subscribers, views: c.views, avgViews: c.avgViews ?? null,
+      })
+      setStatus(r?.already ? 'dup' : 'ok')
+    } catch {
+      setStatus('err')
+    }
+    setTimeout(() => setStatus(null), 1800)
+  }
+
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} title={t('niche.card.useInValidation')} className={status === 'ok' ? 'text-emerald-400' : 'text-slate-600 hover:text-cyan-300'}>
+        {status === 'ok' ? <Check size={15} /> : <Target size={15} />}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-xl">
+            <p className="px-2 py-1 text-[10px] font-medium text-slate-500">{t('niche.card.addAsBenchmark')}</p>
+            <div className="max-h-52 overflow-auto">
+              {channels.map((ch) => (
+                <button key={ch.id} onClick={() => add(ch)} className="block w-full truncate rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800">
+                  {ch.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+      {status === 'dup' && <span className="absolute right-0 top-6 whitespace-nowrap text-[10px] text-amber-400">{t('niche.card.benchmarkDup')}</span>}
+    </div>
+  )
+}
+
 function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling, cacheTs }) {
   const { t } = useI18n()
   // Selo de tendência real do canal — ignora 'all' e o catch-all 'bycategory'
@@ -1054,6 +1105,7 @@ function ChannelCard({ channel: c, isFavorite, onToggleFavorite, onOpenDoubling,
             <button onClick={onOpenDoubling} title={t('niche.card.analyzeDoubling')} className="text-slate-600 hover:text-cyan-300">
               <GitBranch size={15} />
             </button>
+            <ValidationBenchmarkButton c={c} />
             <button onClick={onToggleFavorite} title={isFavorite ? t('niche.card.removeFavorite') : t('niche.card.favorite')}>
               <Heart size={15} className={isFavorite ? 'fill-red-400 text-red-400' : 'text-slate-600 hover:text-red-400'} />
             </button>
