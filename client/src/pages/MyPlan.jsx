@@ -8,13 +8,14 @@ import { aiLimitFor, AI_DAILY_LIMIT } from '../lib/plans'
 // Página "Meu Plano" — layout do original (uso diário, plano atual, pricing
 // Mensal/Trimestral com features e FAQ), com a marca Noctis.
 // Chaves das features (rótulos traduzidos em myPlan.features.*)
-const FEATURE_KEYS = ['channels', 'similar', 'niche', 'viral', 'api', 'community']
+// 'validation' entra depois de 'viral' → some no Basic (4) e aparece no Lite+ (6).
+const FEATURE_KEYS = ['channels', 'similar', 'niche', 'viral', 'validation', 'api', 'community']
 
 // [nome de marca, preço mensal, trimestral (por mês), key i18n, quantas features, popular]
 const PLANS = [
   { name: 'Noctis Free', monthly: 0, quarterly: 0, key: 'free', features: 2, noCard: true },
   { name: 'Noctis Basic', monthly: 49.99, quarterly: 39.99, key: 'basic', features: 4 },
-  { name: 'Noctis Lite', monthly: 79.99, quarterly: 63.99, key: 'lite', features: 5 },
+  { name: 'Noctis Lite', monthly: 79.99, quarterly: 63.99, key: 'lite', features: 6 },
   { name: 'Noctis Pro', monthly: 109.99, quarterly: 87.99, key: 'pro', features: 6, popular: true },
 ]
 

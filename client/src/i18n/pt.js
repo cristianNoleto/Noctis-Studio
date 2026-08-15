@@ -1446,6 +1446,7 @@ export default {
       similar: 'Similar Channels',
       niche: 'Niche Finder',
       viral: 'Vídeos Virais',
+      validation: 'Validação de Canal',
       api: 'Acesso à API',
       community: 'Acesso à comunidade',
     },
