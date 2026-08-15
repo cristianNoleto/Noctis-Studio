@@ -261,6 +261,9 @@ export default function DrawingEditor() {
   // Gera uma miniatura pequena (PNG) da cena para a galeria — best-effort.
   async function makeThumbnail(elements, files) {
     if (!elements.length) return null
+    // Espera um momento ocioso antes de renderizar a miniatura (exportToBlob
+    // desenha a cena inteira) — evita competir com a interação/paint do usuário.
+    await new Promise((r) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => r(), { timeout: 500 }) : setTimeout(r, 0)))
     try {
       const blob = await exportToBlob({
         elements,

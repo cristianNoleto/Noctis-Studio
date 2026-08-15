@@ -31,6 +31,9 @@ export function blobToDataUrl(blob) {
   })
 }
 
+// Fallback SÍNCRONO: canvas normal + toDataURL. O toDataURL('image/webp') roda
+// na thread principal e trava de leve com imagens grandes — só usado quando o
+// OffscreenCanvas não existe/falha.
 function canvasToDataUrl(source, tw, th, quality) {
   const canvas = document.createElement('canvas')
   canvas.width = tw
@@ -43,6 +46,27 @@ function canvasToDataUrl(source, tw, th, quality) {
   } catch {
     return null
   }
+}
+
+// Encode do WebP preferindo OffscreenCanvas.convertToBlob — o encode roda de
+// forma ASSÍNCRONA (fora da thread principal nos navegadores modernos), então
+// não congela a UI ao soltar/colar a imagem. Cai no caminho síncrono se o
+// OffscreenCanvas não existir ou não gerar WebP. Mesma saída (dataURL WebP).
+async function encodeWebp(bitmap, tw, th, quality) {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    try {
+      const oc = new OffscreenCanvas(tw, th)
+      const ctx = oc.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(bitmap, 0, 0, tw, th)
+        const blob = await oc.convertToBlob({ type: 'image/webp', quality })
+        if (blob && blob.type === 'image/webp') return await blobToDataUrl(blob)
+      }
+    } catch {
+      /* sem suporte / falhou → fallback síncrono */
+    }
+  }
+  return canvasToDataUrl(bitmap, tw, th, quality)
 }
 
 // Reamostra um dataURL para caber em maxDim e recomprime em WebP. Devolve o
@@ -71,7 +95,7 @@ export async function optimizeDataUrl(dataURL, mimeType, opts = {}) {
     const { width: w, height: h } = bmp
     if (w && h) {
       const scale = Math.min(1, maxDim / Math.max(w, h))
-      out = canvasToDataUrl(bmp, Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)), quality)
+      out = await encodeWebp(bmp, Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)), quality)
     }
     bmp.close?.() // libera a memória do bitmap imediatamente
   } catch {
