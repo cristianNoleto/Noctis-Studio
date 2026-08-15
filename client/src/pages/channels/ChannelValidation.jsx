@@ -47,6 +47,35 @@ function videoSignal(views, criteria) {
   return { key: 'reavaliar', label: 'Reavaliar nicho', cls: 'border-amber-500/40 bg-amber-500/10 text-amber-300' }
 }
 
+// Os 4 olhares (pré-análise antes de começar/seguir). Auto-avaliação Sim/Não/?.
+const OLHARES = [
+  { k: 'demanda', label: 'Demanda viva', desc: 'Existe um vídeo recente (dentro da sua janela de dias) que rompeu a base de um canal do nicho? Sinal de tema quente agora.' },
+  { k: 'razao', label: 'Média dos players', desc: 'Os canais fortes do nicho têm média de views ÷ inscritos acima da sua razão mínima? Mostra que o algoritmo empurra pra fora da base.' },
+  { k: 'frequencia', label: 'Frequência sustentável', desc: 'Você consegue manter a frequência de postagem que esse nicho exige, sem furar?' },
+  { k: 'porta', label: 'Porta aberta', desc: 'Tem canal pequeno (perto do seu piso de inscritos) batendo muitas views? Porta aberta pra canal novo entrar.' },
+]
+
+// Veredito automático a partir da tabela de teste + pisos do usuário.
+function computeVerdict(test, criteria) {
+  const withData = test.filter((r) => r.snapshots && r.snapshots.length)
+  if (!withData.length) return null
+  let tracao = 0, exec = 0, meio = 0
+  for (const r of withData) {
+    const last = r.snapshots[r.snapshots.length - 1]
+    const sig = videoSignal(last.views, criteria)
+    if (sig?.key === 'tracao') tracao++
+    else if (sig?.key === 'execucao') exec++
+    else meio++
+  }
+  const n = withData.length
+  const alvo = Number(criteria?.nVideos) || 10
+  if (tracao > 0)
+    return { tone: 'verde', cls: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300', title: 'Tração — o nicho te puxa', desc: `${tracao} de ${n} vídeo(s) passaram do piso de tração. Sinal de escalar: dobre no formato/ângulo que puxou.` }
+  if (exec >= Math.ceil(n * 0.6))
+    return { tone: 'vermelho', cls: 'border-red-500/40 bg-red-500/10 text-red-300', title: 'Problema de execução', desc: `A maioria (${exec}/${n}) ficou abaixo do piso de competência. O gargalo é execução (título, thumb, retenção) — revise isso antes de trocar de nicho.` }
+  return { tone: 'amarelo', cls: 'border-amber-500/40 bg-amber-500/10 text-amber-300', title: 'Reavaliar', desc: `Resultados no meio (${meio}/${n}). Complete os ${alvo} vídeos de teste e reavalie ângulo/nicho antes de bater o martelo.` }
+}
+
 export default function ChannelValidation() {
   const { id: channelId } = useParams()
   const navigate = useNavigate()
@@ -104,16 +133,24 @@ export default function ChannelValidation() {
 
   // Persiste a validação inteira (critérios do modo atual + tabela + resto).
   // Usado tanto pelo botão "Salvar critérios" quanto pelas ações da tabela.
-  async function persist(nextTest = test) {
+  async function persist(nextTest = test, nextRest = rest) {
     const clean = cleanCriteria()
     if (mode === 'workspace') {
       const d = await api.validation.saveDefaults(clean)
       setWsDefaults(d.criteria || clean)
-      await api.validation.save(channelId, { criteriaOverride: null, ...rest, test: nextTest })
+      await api.validation.save(channelId, { criteriaOverride: null, ...nextRest, test: nextTest })
     } else {
-      await api.validation.save(channelId, { criteriaOverride: clean, ...rest, test: nextTest })
+      await api.validation.save(channelId, { criteriaOverride: clean, ...nextRest, test: nextTest })
     }
   }
+
+  // Olhares (pré-análise) e prazo/veredito são preservados em `rest`. Salvam na hora.
+  function patchRest(patch) {
+    const nextRest = { ...rest, ...patch }
+    setRest(nextRest)
+    persist(test, nextRest).catch(() => {})
+  }
+  const setOlhar = (k, val) => patchRest({ olhares: { ...(rest.olhares || {}), [k]: val } })
 
   function setField(k, val) {
     setCriteria((c) => ({ ...c, [k]: val }))
@@ -145,6 +182,7 @@ export default function ChannelValidation() {
   // --- Tabela de teste --------------------------------------------------------
   const inTableVideoIds = useMemo(() => new Set(test.map((r) => r.videoId).filter(Boolean)), [test])
   const target = Number(criteria?.nVideos) || 10
+  const verdict = useMemo(() => computeVerdict(test, criteria), [test, criteria])
 
   async function commitTest(next) {
     setTest(next)
@@ -454,7 +492,82 @@ export default function ChannelValidation() {
             </p>
           </div>
 
-          <p className="text-[11px] text-slate-600">Em breve: os 4 olhares (pré-análise) e o veredito automático a partir dos seus critérios.</p>
+          {/* ---- Os 4 olhares (pré-análise) ---- */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
+            <h2 className="text-sm font-bold text-slate-100">Os 4 olhares (pré-análise)</h2>
+            <p className="text-xs text-slate-500">Antes de apostar no nicho, confira os 4 sinais. São bússola, não garantia — marque com sinceridade.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {OLHARES.map((o) => {
+                const val = rest.olhares?.[o.k] || null
+                const opts = [
+                  ['sim', 'Sim', 'bg-emerald-500/20 text-emerald-300'],
+                  ['nao', 'Não', 'bg-red-500/20 text-red-300'],
+                  ['?', 'Não sei', 'bg-slate-700 text-slate-200'],
+                ]
+                return (
+                  <div key={o.k} className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+                    <p className="text-xs font-semibold text-slate-200">{o.label}</p>
+                    <p className="mb-2.5 mt-0.5 text-[11px] leading-snug text-slate-500">{o.desc}</p>
+                    <div className="inline-flex rounded-lg border border-slate-700 bg-slate-950 p-0.5">
+                      {opts.map(([v, lbl, active]) => (
+                        <button
+                          key={v}
+                          disabled={!canEdit}
+                          onClick={() => setOlhar(o.k, v)}
+                          className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-60 ${val === v ? active : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ---- Veredito ---- */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
+            <h2 className="text-sm font-bold text-slate-100">Veredito</h2>
+            <p className="text-xs text-slate-500">Calculado a partir dos vídeos de teste e dos seus pisos. Some ao veredito o seu prazo e a regra de continuidade.</p>
+
+            {verdict ? (
+              <div className={`mt-4 rounded-xl border p-4 ${verdict.cls}`}>
+                <p className="text-sm font-bold">{verdict.title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-300">{verdict.desc}</p>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-dashed border-slate-800 py-8 text-center">
+                <p className="text-sm text-slate-400">Sem veredito ainda.</p>
+                <p className="mt-1 text-[11px] text-slate-500">Adicione vídeos ao teste e clique em “Atualizar dados” — o veredito aparece com base nos resultados reais.</p>
+              </div>
+            )}
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+                <label className="block text-xs font-semibold text-slate-200">Regra de continuidade</label>
+                <p className="mb-2 mt-0.5 text-[11px] text-slate-500">Deixe combinado com você mesmo quando vale seguir — evita decidir no impulso.</p>
+                <input
+                  defaultValue={rest.continuityRule || ''}
+                  disabled={!canEdit}
+                  onBlur={(e) => { if (e.target.value !== (rest.continuityRule || '')) patchRest({ continuityRule: e.target.value }) }}
+                  placeholder="Ex.: Sigo se 1 vídeo passar de 3.000 views até o 10º"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 disabled:opacity-60"
+                />
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5">
+                <label className="block text-xs font-semibold text-slate-200">Prazo do teste</label>
+                <p className="mb-2 mt-0.5 text-[11px] text-slate-500">Data-limite pra bater o martelo com os {target} vídeos.</p>
+                <input
+                  type="date"
+                  value={rest.deadline || ''}
+                  disabled={!canEdit}
+                  onChange={(e) => patchRest({ deadline: e.target.value || null })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 disabled:opacity-60"
+                />
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>
