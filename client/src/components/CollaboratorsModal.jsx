@@ -25,7 +25,7 @@ function LevelSelect({ value, onChange, showShared }) {
           type="button"
           onClick={() => onChange(v)}
           title={v === 'shared' ? t('skillsLib.collab.sharedLevelHint') : undefined}
-          className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${(value || 'none') === v ? active : 'text-slate-500 hover:text-slate-300'}`}
+          className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${(value || 'none') === v ? active : 'text-slate-500 hover:text-slate-300'}`}
         >
           {label}
         </button>
@@ -286,11 +286,15 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
                   />
                 </div>
 
-                {/* Outras áreas */}
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  {AREAS.map(([key, label]) => (
-                    <AreaField key={key} label={label} value={c[key] || 'none'} onChange={(v) => saveCollab(c, { [key]: v })} showShared={key === 'drawings'} />
+                {/* Outras áreas: Referências / Quadro / Skills num grid; Desenhos
+                    ganha linha própria por ter o 4º estado "Compart." (mais largo). */}
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {AREAS.filter(([key]) => key !== 'drawings').map(([key, label]) => (
+                    <AreaField key={key} label={label} value={c[key] || 'none'} onChange={(v) => saveCollab(c, { [key]: v })} />
                   ))}
+                </div>
+                <div className="mt-2">
+                  <AreaField label={t('skillsLib.collab.drawings')} value={c.drawings || 'none'} onChange={(v) => saveCollab(c, { drawings: v })} showShared />
                 </div>
               </div>
             )
