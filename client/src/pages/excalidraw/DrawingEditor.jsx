@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang, useI18n as useExcalidrawI18n, convertToExcalidrawElements } from '@excalidraw/excalidraw'
+import { Excalidraw, exportToBlob, MainMenu, WelcomeScreen, languages, defaultLang, useI18n as useExcalidrawI18n, convertToExcalidrawElements, getSceneVersion } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
 import { ArrowLeft, Loader2, Check, CloudUpload, Maximize2, Minimize2, LayoutTemplate, Sparkles, X, AlertTriangle, Eye } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -172,7 +172,7 @@ export default function DrawingEditor() {
           seenFiles.current.add(fid)
         }
         pendingLazyRef.current = Object.keys(fileMeta).length ? fileMeta : null
-        lastSaved.current = JSON.stringify(data.elements || [])
+        lastSaved.current = getSceneVersion(data.elements || [])
         setInitial({
           elements: data.elements || [],
           appState: { ...(data.appState || {}), collaborators: undefined },
@@ -203,6 +203,16 @@ export default function DrawingEditor() {
     let done = 0
     let idx = 0
     const CONCURRENCY = 5
+    // Agrupa as imagens prontas e insere em LOTE: um addFiles por imagem fazia o
+    // Excalidraw re-renderizar N vezes na abertura (lento/"parece errado"). Um
+    // flush a cada ~150ms junta o que chegou nesse intervalo num só addFiles.
+    const buffer = []
+    let flushTimer = null
+    const flush = () => {
+      flushTimer = null
+      if (!buffer.length) return
+      apiRef.current?.addFiles(buffer.splice(0, buffer.length))
+    }
     async function worker() {
       while (idx < entries.length) {
         const [fid, m] = entries[idx++]
@@ -213,7 +223,8 @@ export default function DrawingEditor() {
             putCachedImage(m.driveFileId, blob).catch(() => {}) // guarda p/ as próximas
           }
           const dataURL = await blobToDataUrl(blob)
-          apiRef.current?.addFiles([{ id: fid, dataURL, mimeType: m.mimeType || blob.type, created: m.created || Date.now(), lastRetrieved: Date.now() }])
+          buffer.push({ id: fid, dataURL, mimeType: m.mimeType || blob.type, created: m.created || Date.now(), lastRetrieved: Date.now() })
+          if (!flushTimer) flushTimer = setTimeout(flush, 150)
         } catch {
           /* imagem indisponível → segue as demais */
         }
@@ -222,6 +233,8 @@ export default function DrawingEditor() {
       }
     }
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, entries.length) }, worker))
+    if (flushTimer) clearTimeout(flushTimer)
+    flush() // insere o que sobrou no buffer
     setLoadingImages(null)
   }
 
@@ -468,7 +481,7 @@ export default function DrawingEditor() {
   }, [])
 
   const doSave = useCallback(
-    async (elements, appState, files) => {
+    async (elements, appState, files, opts = {}) => {
       // Serializa: se já há um save rodando (upload de imagens pode demorar),
       // marca para rodar de novo no fim, evitando corridas/uploads duplicados.
       if (savingRef.current) {
@@ -478,7 +491,9 @@ export default function DrawingEditor() {
       savingRef.current = true
       setStatus('saving')
       try {
-        const thumbnail = await makeThumbnail(elements, files)
+        // Ao SAIR (goBack/unmount) pulamos a miniatura: ela renderiza a cena
+        // inteira (pesado) e travava a transição. Regenera no próximo save normal.
+        const thumbnail = opts.skipThumb ? null : await makeThumbnail(elements, files)
         if (storageRef.current === 'drive' && driveFileRef.current) {
           const sizeBytes = await saveToDrive(elements, appState, files)
           await api.excalidraw.save(id, { sizeBytes, ...(thumbnail ? { thumbnail } : {}) })
@@ -487,7 +502,7 @@ export default function DrawingEditor() {
           const sizeBytes = new Blob([JSON.stringify(scene)]).size
           await api.excalidraw.save(id, { scene, sizeBytes, ...(thumbnail ? { thumbnail } : {}) })
         }
-        lastSaved.current = JSON.stringify(elements)
+        lastSaved.current = getSceneVersion(elements)
         dirtyRef.current = false
         setStatus('saved')
         setTimeout(() => setStatus((s) => (s === 'saved' ? 'idle' : s)), 1500)
@@ -606,7 +621,10 @@ export default function DrawingEditor() {
       if (rt && !rt.applyingRef.current && canEditScene) rt.broadcast(elements, files)
       if (!canEditScene) return // viewer: não salva nem otimiza
       optimizeNewImages(files)
-      const sig = JSON.stringify(elements)
+      // Detecção de mudança BARATA: soma dos versionNonce (getSceneVersion), em
+      // vez de serializar a cena inteira a cada onChange (que trava com muito
+      // conteúdo no canvas). onChange dispara em quase todo movimento do mouse.
+      const sig = getSceneVersion(elements)
       if (sig === lastSaved.current) return
       dirtyRef.current = true
       clearTimeout(saveTimer.current)
@@ -639,8 +657,8 @@ export default function DrawingEditor() {
     setLeaving(true)
     clearTimeout(saveTimer.current)
     try {
-      if (latest && JSON.stringify(latest.elements) !== lastSaved.current) {
-        await doSave(latest.elements, latest.appState, latest.files)
+      if (latest && getSceneVersion(latest.elements) !== lastSaved.current) {
+        await doSave(latest.elements, latest.appState, latest.files, { skipThumb: true })
       }
       // Se um save já estava rodando, espera ele terminar.
       while (savingRef.current) await new Promise((r) => setTimeout(r, 120))
@@ -669,8 +687,8 @@ export default function DrawingEditor() {
       // Garante que o navegador saia do fullscreen ao desmontar (evita tela preta).
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
       const latest = latestRef.current
-      if (latest && JSON.stringify(latest.elements) !== lastSaved.current) {
-        doSave(latest.elements, latest.appState, latest.files)
+      if (latest && getSceneVersion(latest.elements) !== lastSaved.current) {
+        doSave(latest.elements, latest.appState, latest.files, { skipThumb: true })
       }
     }
   }, [doSave])
