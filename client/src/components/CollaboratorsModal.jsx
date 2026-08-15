@@ -73,7 +73,7 @@ function ChannelPermissions({ channels, videosLevel, channelAccess, onSetAll, on
       {!isPer ? (
         <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2">
           <span className="text-[11px] text-slate-400">{t('skillsLib.collab.allChannelsHint')}</span>
-          <LevelSelect value={videosLevel === 'none' ? 'view' : videosLevel} onChange={onSetAll} />
+          <LevelSelect value={videosLevel} onChange={onSetAll} />
         </div>
       ) : (
         <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/50 p-2">

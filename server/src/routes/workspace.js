@@ -283,10 +283,14 @@ router.post('/delete', async (req, res) => {
   const canEditArea = cfg.ownerOnly ? access.self : access.self || access[cfg.area] === 'edit'
   if (!canEditArea) return res.status(403).json({ error: 'forbidden' })
   const rid = toUuid(id)
-  const { data: row } = await supa.from(cfg.table).select('created_by').eq('id', rid).maybeSingle()
+  // Só consultamos created_by quando ele importa (colaborador em tabela com
+  // autoria). Tabelas ownerOnly como `channels` NÃO têm a coluna created_by —
+  // selecioná-la fazia o SELECT falhar e o delete virava no-op (canal não sumia).
+  const needAuthor = !access.self && !cfg.ownerOnly
+  const { data: row } = await supa.from(cfg.table).select(needAuthor ? 'id, created_by' : 'id').eq('id', rid).maybeSingle()
   if (!row) return res.json({ ok: true, already: true }) // já não existe
   // Colaborador só apaga o que ele mesmo criou.
-  if (!access.self && !cfg.ownerOnly) {
+  if (needAuthor) {
     const me = (user.email || '').toLowerCase()
     if (!row.created_by || String(row.created_by).toLowerCase() !== me) {
       return res.status(403).json({ error: 'forbidden_not_author', message: 'Você só pode excluir itens que você mesmo criou.' })

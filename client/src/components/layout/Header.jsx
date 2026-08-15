@@ -264,12 +264,22 @@ function WorkspaceSwitcher() {
     let alive = true
     api.workspace
       .workspaces()
-      .then(({ workspaces }) => alive && setList(workspaces || []))
+      .then(({ workspaces }) => {
+        if (!alive) return
+        setList(workspaces || [])
+        // Acesso revogado: se o workspace ativo não está mais na minha lista
+        // (o dono me removeu ou tirou todos os acessos), volto pro meu próprio
+        // para não ficar preso vendo o cache do workspace dele.
+        const act = db.activeWorkspace()
+        if (act && !(workspaces || []).some((w) => !w.self && w.ownerEmail === act)) {
+          db.switchWorkspace(null)
+        }
+      })
       .catch(() => {})
     return () => {
       alive = false
     }
-  }, [])
+  }, [db])
 
   if (list.length <= 1) return null
   const current = list.find((w) => (active ? w.ownerEmail === active : w.self)) || list[0]
