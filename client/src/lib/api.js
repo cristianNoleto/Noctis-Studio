@@ -228,6 +228,9 @@ export const api = {
     // Exclusão explícita e persistente de um item (o migrate é upsert-only).
     // O servidor valida a autoria (colaborador só apaga o que ele criou).
     remove: (collection, id, owner) => authRequest(`/workspace/delete${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`, { method: 'POST', body: { collection, id } }),
+    trash: () => authRequest('/workspace/trash'),
+    restoreTrash: (id) => authRequest(`/workspace/trash/${id}/restore`, { method: 'POST' }),
+    purgeTrash: (id) => authRequest(`/workspace/trash/${id}`, { method: 'DELETE' }),
   },
   // Projetos do Excalidraw (quadro de desenho) — tabela dedicada, salvamento
   // próprio (separado do write-through do workspace).

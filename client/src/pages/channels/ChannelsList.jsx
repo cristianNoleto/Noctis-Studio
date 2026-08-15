@@ -20,6 +20,7 @@ export default function ChannelsList() {
   const isOwner = db.access().self
   const [params, setParams] = useSearchParams()
   const [createOpen, setCreateOpen] = useState(false)
+  const [trashOpen, setTrashOpen] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [search, setSearch] = useState('')
   const all = db.all('channels')
@@ -56,6 +57,15 @@ export default function ChannelsList() {
               }`}
             >
               {showArchived ? t('channels.backToActive') : t('channels.archived', { count: archivedCount })}
+            </button>
+          )}
+          {isOwner && db.cloudStatus().cloud && (
+            <button
+              onClick={() => setTrashOpen(true)}
+              title={t('channels.trash.button')}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-400 transition-colors hover:border-slate-700 hover:text-slate-200"
+            >
+              <Trash2 size={14} /> {t('channels.trash.button')}
             </button>
           )}
           {isOwner && (
@@ -113,8 +123,95 @@ export default function ChannelsList() {
       )}
 
       <CreateChannelModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <TrashModal open={trashOpen} onClose={() => setTrashOpen(false)} />
     </div>
     </PrivacyScope>
+  )
+}
+
+// Lixeira de canais: lista os canais excluídos (backup de 30 dias) e permite
+// restaurar ou apagar em definitivo. O backup é criado no servidor ao excluir.
+function TrashModal({ open, onClose }) {
+  const db = useDb()
+  const { t } = useI18n()
+  const [items, setItems] = useState(null)
+  const [busy, setBusy] = useState(null) // id em ação
+  const [error, setError] = useState('')
+
+  async function load() {
+    setError('')
+    try {
+      const { items } = await api.workspace.trash()
+      setItems(items || [])
+    } catch (e) {
+      setError(apiErrorMessage(e))
+      setItems([])
+    }
+  }
+  useEffect(() => {
+    if (open) { setItems(null); load() }
+  }, [open])
+
+  const daysLeft = (deletedAt) => Math.max(0, 30 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86_400_000))
+
+  async function restore(it) {
+    setBusy(it.id)
+    setError('')
+    try {
+      await api.workspace.restoreTrash(it.id)
+      await db.pull() // traz o canal restaurado de volta ao estado local
+      setItems((list) => list.filter((x) => x.id !== it.id))
+    } catch (e) {
+      setError(apiErrorMessage(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+  async function purge(it) {
+    setBusy(it.id)
+    try {
+      await api.workspace.purgeTrash(it.id)
+      setItems((list) => list.filter((x) => x.id !== it.id))
+    } catch (e) {
+      setError(apiErrorMessage(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={t('channels.trash.title')} wide>
+      <p className="-mt-1 mb-3 text-xs leading-relaxed text-slate-500">{t('channels.trash.subtitle')}</p>
+      {error && <p className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>}
+      {items === null ? (
+        <div className="flex justify-center py-10 text-slate-500"><Loader2 size={20} className="animate-spin" /></div>
+      ) : items.length === 0 ? (
+        <p className="py-10 text-center text-sm text-slate-600">{t('channels.trash.empty')}</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((it) => {
+            const left = daysLeft(it.deletedAt)
+            return (
+              <li key={it.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-950 p-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-400"><Tv size={16} /></div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-200">{it.name || t('skillsLib.collab.untitledChannel')}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {t('channels.trash.videos', { n: it.videoCount })} · {t('channels.trash.expires', { d: left })}
+                  </p>
+                </div>
+                <button onClick={() => restore(it)} disabled={busy === it.id} className={`${btnPrimary} !py-1.5 !px-3 text-xs disabled:opacity-60`}>
+                  {busy === it.id ? <Loader2 size={13} className="animate-spin" /> : t('channels.trash.restore')}
+                </button>
+                <button onClick={() => purge(it)} disabled={busy === it.id} title={t('channels.trash.purge')} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 text-slate-500 transition-colors hover:border-red-500/40 hover:text-red-400 disabled:opacity-60">
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </Modal>
   )
 }
 

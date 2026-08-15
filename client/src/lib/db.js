@@ -312,6 +312,11 @@ export const db = {
   ready() {
     return state !== null
   },
+  // Re-puxa o snapshot do workspace ativo (ex.: após restaurar um canal da
+  // lixeira, para o item reaparecer sem precisar recarregar a página).
+  async pull() {
+    if (cloud) await pullSnapshot()
+  },
   all(col) {
     return state?.[col] ?? []
   },

@@ -296,8 +296,94 @@ router.post('/delete', async (req, res) => {
       return res.status(403).json({ error: 'forbidden_not_author', message: 'Você só pode excluir itens que você mesmo criou.' })
     }
   }
+  // Lixeira: antes de apagar um CANAL, guarda um backup completo (30 dias). O
+  // delete abaixo cascateia os filhos, então o snapshot precisa vir ANTES.
+  if (collection === 'channels' && access.self) {
+    try {
+      await backupChannel(supa, ownerId, rid)
+    } catch (e) {
+      return res.status(500).json({ error: 'backup_failed', message: e.message })
+    }
+  }
   const { error } = await supa.from(cfg.table).delete().eq('id', rid)
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
+  res.json({ ok: true })
+})
+
+// Junta o canal + filhos num payload e grava na lixeira (deleted_channels).
+async function backupChannel(supa, ownerId, channelId) {
+  const [{ data: channel }, { data: buttons = [] }, { data: videos = [] }, { data: validation }] = await Promise.all([
+    supa.from('channels').select('*').eq('id', channelId).maybeSingle(),
+    supa.from('channel_custom_buttons').select('*').eq('channel_id', channelId),
+    supa.from('channel_videos').select('*').eq('channel_id', channelId),
+    supa.from('channel_validations').select('*').eq('channel_id', channelId).maybeSingle(),
+  ])
+  if (!channel) return
+  const videoIds = (videos || []).map((v) => v.id)
+  const [{ data: scripts = [] }, { data: seoReports = [] }] = videoIds.length
+    ? await Promise.all([
+        supa.from('video_scripts').select('*').in('video_id', videoIds),
+        supa.from('video_seo_reports').select('*').in('video_id', videoIds),
+      ])
+    : [{ data: [] }, { data: [] }]
+  const payload = { channel, buttons: buttons || [], videos: videos || [], scripts: scripts || [], seoReports: seoReports || [], validation: validation || null }
+  await supa.from('deleted_channels').insert({ channel_id: channelId, owner_id: ownerId, name: channel.name || null, payload })
+}
+
+// Remove backups expirados (> 30 dias) do dono. Chamado ao listar a lixeira.
+async function purgeExpired(supa, ownerId) {
+  const cutoff = new Date(Date.now() - 30 * 86_400_000).toISOString()
+  await supa.from('deleted_channels').delete().eq('owner_id', ownerId).lt('deleted_at', cutoff)
+}
+
+// GET /workspace/trash — canais na lixeira do dono (com dias restantes).
+router.get('/trash', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  await purgeExpired(supa, user.id)
+  const { data = [] } = await supa.from('deleted_channels').select('id, channel_id, name, deleted_at, payload').eq('owner_id', user.id).order('deleted_at', { ascending: false })
+  const items = (data || []).map((r) => ({
+    id: r.id,
+    channelId: r.channel_id,
+    name: r.name,
+    deletedAt: r.deleted_at,
+    videoCount: Array.isArray(r.payload?.videos) ? r.payload.videos.length : 0,
+  }))
+  res.json({ items })
+})
+
+// POST /workspace/trash/:id/restore — recria o canal e os filhos do backup.
+router.post('/trash/:id/restore', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  const { data: bkp } = await supa.from('deleted_channels').select('*').eq('id', req.params.id).eq('owner_id', user.id).maybeSingle()
+  if (!bkp) return res.status(404).json({ error: 'not_found' })
+  const p = bkp.payload || {}
+  // Ordem respeita as FKs: canal → botões/vídeos → roteiros/SEO → validação.
+  if (p.channel) {
+    const { error } = await supa.from('channels').upsert(p.channel, { onConflict: 'id' })
+    if (error) return res.status(500).json({ error: 'restore_failed', message: error.message })
+  }
+  if (p.buttons?.length) await supa.from('channel_custom_buttons').upsert(p.buttons, { onConflict: 'id' })
+  if (p.videos?.length) await supa.from('channel_videos').upsert(p.videos, { onConflict: 'id' })
+  if (p.scripts?.length) await supa.from('video_scripts').upsert(p.scripts, { onConflict: 'id' })
+  if (p.seoReports?.length) await supa.from('video_seo_reports').upsert(p.seoReports, { onConflict: 'id' })
+  if (p.validation) await supa.from('channel_validations').upsert(p.validation, { onConflict: 'id' })
+  await supa.from('deleted_channels').delete().eq('id', req.params.id)
+  res.json({ ok: true })
+})
+
+// DELETE /workspace/trash/:id — apaga o backup em definitivo (antes dos 30 dias).
+router.delete('/trash/:id', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const user = await getUser(req, supa)
+  if (!user) return res.status(401).json({ error: 'unauthorized' })
+  await supa.from('deleted_channels').delete().eq('id', req.params.id).eq('owner_id', user.id)
   res.json({ ok: true })
 })
 
