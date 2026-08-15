@@ -100,7 +100,8 @@ router.post('/save', async (req, res) => {
   const references = ACCESS.includes(c.references) ? c.references : 'none'
   const videos = ACCESS.includes(c.videos) ? c.videos : 'view'
   const board = ACCESS.includes(c.board) ? c.board : 'none'
-  const drawings = ACCESS.includes(c.drawings) ? c.drawings : 'none'
+  // Desenhos aceita também 'shared' (só os compartilhados por e-mail).
+  const drawings = [...ACCESS, 'shared'].includes(c.drawings) ? c.drawings : 'none'
   // Escopo por canal: se veio um mapa, ele MANDA no nível de vídeos (derivado),
   // e o legado channel_ids é zerado. Sem mapa → usa videos_access do workspace.
   const channelAccess = cleanChannelAccess(c.channelAccess)
@@ -147,10 +148,13 @@ router.post('/grant', async (req, res) => {
   if (!member.includes('@')) return res.status(400).json({ error: 'invalid_email' })
   if (!col) return res.status(400).json({ error: 'invalid_area' })
 
-  // Já é colaborador? Só sobe a área para 'view' se estiver 'none'; preserva o resto.
+  // Já é colaborador? Só SOBE de 'none' — nunca rebaixa acesso existente.
   const { data: existing } = await supa.from('workspace_collaborators').select('*').eq('owner_email', viewer.email).eq('member_email', member).maybeSingle()
   const base = existing || { owner_email: viewer.email, member_email: member, skills: 'none', references_access: 'none', videos_access: 'none', board_access: 'none', drawings_access: 'none', channel_ids: null }
-  if (!base[col] || base[col] === 'none') base[col] = 'view'
+  // Desenhos: nível especial 'shared' = SÓ os desenhos explicitamente
+  // compartilhados com este e-mail (não os do workspace inteiro). Outras áreas: 'view'.
+  const grantLevel = req.body?.area === 'drawings' ? 'shared' : 'view'
+  if (!base[col] || base[col] === 'none') base[col] = grantLevel
   const { id, created_at, ...row } = base
   const { data, error } = await supa.from('workspace_collaborators').upsert(row, { onConflict: 'owner_email,member_email' }).select().single()
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })

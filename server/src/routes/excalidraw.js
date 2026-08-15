@@ -102,8 +102,13 @@ router.get('/', async (req, res) => {
     .is('deleted_at', null) // não lista os que estão na "lixeira" (backup de 7 dias)
     .order('updated_at', { ascending: false })
   if (error) return res.status(500).json({ error: 'db_error', message: error.message })
-  // Colaborador só recebe os storyboards que o dono deixou visíveis pra ele.
-  const visible = (data || []).filter((r) => canSeeRow(r, user.email, access.self))
+  // Acesso 'shared' (compartilhamento por e-mail): a pessoa só vê os desenhos em
+  // que o e-mail dela está na lista — NUNCA os do workspace. Acesso amplo
+  // (view/edit) ou dono: vê os do workspace + os específicos dela (canSeeRow).
+  const email = (user.email || '').toLowerCase()
+  const inSpecific = (r) => (r.allowed_emails || []).map((e) => String(e).toLowerCase()).includes(email)
+  const broad = access.self || access.drawings === 'view' || access.drawings === 'edit'
+  const visible = (data || []).filter((r) => (broad ? canSeeRow(r, user.email, access.self) : inSpecific(r)))
   res.json({ scenes: visible.map(toClient) })
 })
 
@@ -217,8 +222,12 @@ async function authorizeScene(supa, user, sceneId, needEdit = false) {
   const ownerEmail = await emailByUserId(supa, scene.user_id)
   const access = ownerEmail ? await resolveAccess(supa, user, ownerEmail) : null
   if (!access || access.drawings === 'none') return { forbidden: true }
-  if (needEdit && access.drawings !== 'edit') return { forbidden: true }
   if (!canSeeRow(scene, user.email, false)) return { forbidden: true }
+  // 'shared' (compartilhado por e-mail): só abre os desenhos específicos dele e
+  // nunca edita. Acesso amplo precisa de 'edit' para editar.
+  const inSpecific = (scene.allowed_emails || []).map((e) => String(e).toLowerCase()).includes((user.email || '').toLowerCase())
+  if (access.drawings === 'shared' && !inSpecific) return { forbidden: true }
+  if (needEdit && access.drawings !== 'edit') return { forbidden: true }
   return { scene, isOwner: false }
 }
 

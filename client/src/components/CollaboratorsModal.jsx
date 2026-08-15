@@ -6,13 +6,17 @@ import { api } from '../lib/api'
 import { Modal, inputCls, btnPrimary } from './ui'
 
 // Seletor segmentado de nível de acesso: Sem acesso / Ver / Editar.
-function LevelSelect({ value, onChange }) {
+// `showShared` adiciona um 4º estado "Compart." (só Desenhos): a pessoa vê
+// apenas os desenhos compartilhados por e-mail com ela. É definido ao compartilhar
+// um desenho; aqui aparece como um estado que o dono pode manter ou trocar.
+function LevelSelect({ value, onChange, showShared }) {
   const { t } = useI18n()
   const opts = [
     ['none', t('skillsLib.collab.none'), 'bg-slate-700 text-slate-200'],
     ['view', t('skillsLib.collab.view'), 'bg-sky-500/20 text-sky-300'],
     ['edit', t('skillsLib.collab.edit'), 'bg-cyan-500/20 text-cyan-300'],
   ]
+  if (showShared || value === 'shared') opts.push(['shared', t('skillsLib.collab.sharedLevel'), 'bg-amber-500/20 text-amber-300'])
   return (
     <div className="inline-flex rounded-lg border border-slate-700 bg-slate-950 p-0.5">
       {opts.map(([v, label, active]) => (
@@ -20,6 +24,7 @@ function LevelSelect({ value, onChange }) {
           key={v}
           type="button"
           onClick={() => onChange(v)}
+          title={v === 'shared' ? t('skillsLib.collab.sharedLevelHint') : undefined}
           className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${(value || 'none') === v ? active : 'text-slate-500 hover:text-slate-300'}`}
         >
           {label}
@@ -30,11 +35,11 @@ function LevelSelect({ value, onChange }) {
 }
 
 // Campo rotulado (rótulo em cima, seletor embaixo) para as áreas.
-function AreaField({ label, value, onChange }) {
+function AreaField({ label, value, onChange, showShared }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2">
       <span className="text-xs font-medium text-slate-300">{label}</span>
-      <LevelSelect value={value} onChange={onChange} />
+      <LevelSelect value={value} onChange={onChange} showShared={showShared} />
     </div>
   )
 }
@@ -284,7 +289,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
                 {/* Outras áreas */}
                 <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {AREAS.map(([key, label]) => (
-                    <AreaField key={key} label={label} value={c[key] || 'none'} onChange={(v) => saveCollab(c, { [key]: v })} />
+                    <AreaField key={key} label={label} value={c[key] || 'none'} onChange={(v) => saveCollab(c, { [key]: v })} showShared={key === 'drawings'} />
                   ))}
                 </div>
               </div>
