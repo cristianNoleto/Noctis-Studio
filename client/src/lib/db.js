@@ -200,7 +200,15 @@ async function pullSnapshot() {
       // mantemos a trava anti-perda: snapshot vazio nunca apaga o local.
       const foreign = !!activeOwner
       for (const k of MANAGED) {
-        if (Array.isArray(snapshot[k]) && (foreign || snapshot[k].length)) state[k] = snapshot[k]
+        if (Array.isArray(snapshot[k])) {
+          if (foreign || snapshot[k].length) state[k] = snapshot[k]
+        } else if (foreign) {
+          // Coleção AUSENTE no snapshot de outro dono = sem acesso agora (ex.: o
+          // dono tirou o acesso a Vídeos). O servidor nem manda a chave, então
+          // limpamos o cache local — senão o colaborador continuaria vendo o
+          // canal/coleção antiga que já não pode acessar.
+          state[k] = []
+        }
       }
       cloudActive = true
       writeLocal()
