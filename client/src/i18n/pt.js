@@ -310,6 +310,7 @@ export default {
       dupe: 'Esse e-mail já é colaborador.',
       onlyPaid: 'Disponível para o plano mais caro (MASTER) e para o fundador.',
       saved: 'Salvo',
+      noAccess: 'Sem acessos ainda',
       sharedLevel: 'Compart.',
       sharedLevelHint: 'Vê apenas os desenhos compartilhados diretamente com o e-mail dela (não a biblioteca toda).',
       channels: 'Canais',

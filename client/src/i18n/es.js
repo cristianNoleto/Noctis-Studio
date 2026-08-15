@@ -310,6 +310,7 @@ export default {
       dupe: 'Ese correo ya es colaborador.',
       onlyPaid: 'Disponible para el plan más caro (MASTER) y el fundador.',
       saved: 'Guardado',
+      noAccess: 'Sin accesos aún',
       sharedLevel: 'Compart.',
       sharedLevelHint: 'Ve solo los diseños compartidos directamente con su correo (no toda la biblioteca).',
       channels: 'Canales',

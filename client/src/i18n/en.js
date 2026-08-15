@@ -310,6 +310,7 @@ export default {
       dupe: 'That email is already a collaborator.',
       onlyPaid: 'Available for the most expensive plan (MASTER) and the founder.',
       saved: 'Saved',
+      noAccess: 'No access yet',
       sharedLevel: 'Shared',
       sharedLevelHint: 'Sees only the drawings shared directly with their email (not the whole library).',
       channels: 'Channels',

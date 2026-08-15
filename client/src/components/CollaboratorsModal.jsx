@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { UserPlus, Trash2, Tv, Check, Layers } from 'lucide-react'
+import { UserPlus, Trash2, Tv, Check, Layers, ChevronDown } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
 import { api } from '../lib/api'
@@ -98,6 +98,20 @@ function ChannelPermissions({ channels, videosLevel, channelAccess, onSetAll, on
   )
 }
 
+// Resumo do acesso de um colaborador em chips (para a linha recolhida da lista).
+function accessSummary(c, t) {
+  const label = (v) => (v === 'edit' ? t('skillsLib.collab.edit') : v === 'view' ? t('skillsLib.collab.view') : v === 'shared' ? t('skillsLib.collab.sharedLevel') : '')
+  const tone = (v) => (v === 'edit' ? 'bg-cyan-500/15 text-cyan-300' : v === 'shared' ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-800 text-slate-300')
+  const chips = []
+  const chCount = c.channelAccess ? Object.keys(c.channelAccess).length : 0
+  if (chCount) chips.push({ text: `${t('skillsLib.collab.videos')}: ${chCount} ${t('skillsLib.collab.channels').toLowerCase()}`, tone: 'bg-cyan-500/15 text-cyan-300' })
+  else if (c.videos && c.videos !== 'none') chips.push({ text: `${t('skillsLib.collab.videos')}: ${label(c.videos)}`, tone: tone(c.videos) })
+  for (const [key, lbl] of [['references', t('skillsLib.collab.references')], ['board', t('skillsLib.collab.board')], ['drawings', t('skillsLib.collab.drawings')], ['skills', t('skillsLib.collab.skills')]]) {
+    if (c[key] && c[key] !== 'none') chips.push({ text: `${lbl}: ${label(c[key])}`, tone: tone(c[key]) })
+  }
+  return chips
+}
+
 // Gerenciador de colaboradores do workspace: convida por e-mail e define o
 // acesso a Vídeos (geral ou por canal) / Referências / Quadro / Desenhos /
 // Skills por pessoa. Usado no menu do perfil e como atalho na página de Skills.
@@ -109,6 +123,7 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [savedId, setSavedId] = useState(null)
+  const [expandedId, setExpandedId] = useState(null) // colaborador aberto na lista
   const [remote, setRemote] = useState([])
   const [perModeIds, setPerModeIds] = useState(() => new Set()) // cards em modo "por canal"
   const owner = (ownerEmail || '').toLowerCase()
@@ -248,54 +263,73 @@ export function CollaboratorsModal({ open, onClose, ownerEmail, isLocalMode }) {
       {info && <p className="mt-2 rounded-lg border border-green-500/25 bg-green-500/10 px-3 py-2 text-xs text-green-400">{info}</p>}
       <p className="mt-3 text-[11px] leading-relaxed text-slate-600">{t('skillsLib.collab.inviteHint')}</p>
 
-      {/* Colaboradores (cards) */}
-      <div className="mt-4 space-y-2.5">
+      {/* Colaboradores — lista enxuta que expande ao clicar */}
+      <div className="mt-4 space-y-2">
         {mine.length === 0 ? (
           <p className="py-6 text-center text-xs text-slate-600">{t('skillsLib.collab.empty')}</p>
         ) : (
           mine.map((c) => {
             const per = perModeIds.has(c.id) || !!c.channelAccess
+            const open = expandedId === c.id
+            const chips = accessSummary(c, t)
             return (
-              <div key={c.id} className="rounded-xl border border-slate-800 bg-slate-950 p-3">
-                {/* Cabeçalho */}
-                <div className="mb-2.5 flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-slate-300">
-                    {(c.memberEmail || '?').charAt(0).toUpperCase()}
-                  </div>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-200" title={c.memberEmail}>{c.memberEmail}</span>
+              <div key={c.id} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950">
+                {/* Linha (resumo) */}
+                <div className="flex items-center gap-2.5 p-2.5">
+                  <button onClick={() => setExpandedId(open ? null : c.id)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-slate-300">
+                      {(c.memberEmail || '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-200" title={c.memberEmail}>{c.memberEmail}</p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                        {chips.length === 0 ? (
+                          <span className="text-[11px] text-slate-600">{t('skillsLib.collab.noAccess')}</span>
+                        ) : (
+                          chips.map((ch, i) => (
+                            <span key={i} className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${ch.tone}`}>{ch.text}</span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </button>
                   {savedId === c.id && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
                       <Check size={10} /> {t('skillsLib.collab.saved')}
                     </span>
                   )}
-                  <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-800 text-slate-500 transition-colors hover:border-red-500/40 hover:text-red-400">
+                  <button onClick={() => removeCollab(c)} title={t('skillsLib.collab.remove')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400">
                     <Trash2 size={13} />
+                  </button>
+                  <button onClick={() => setExpandedId(open ? null : c.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200">
+                    <ChevronDown size={16} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
                   </button>
                 </div>
 
-                {/* Vídeos (geral ou por canal) */}
-                <div className="rounded-lg border border-slate-800 bg-slate-900/30 p-2.5">
-                  <ChannelPermissions
-                    channels={ownerChannels}
-                    videosLevel={c.videos || 'none'}
-                    channelAccess={c.channelAccess}
-                    perMode={per}
-                    onModeChange={(p) => setMode(c, p)}
-                    onSetAll={(lvl) => setVideosAll(c, lvl)}
-                    onSetChannel={(chId, lvl) => setChannelLevel(c, chId, lvl)}
-                  />
-                </div>
-
-                {/* Outras áreas: Referências / Quadro / Skills num grid; Desenhos
-                    ganha linha própria por ter o 4º estado "Compart." (mais largo). */}
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {AREAS.filter(([key]) => key !== 'drawings').map(([key, label]) => (
-                    <AreaField key={key} label={label} value={c[key] || 'none'} onChange={(v) => saveCollab(c, { [key]: v })} />
-                  ))}
-                </div>
-                <div className="mt-2">
-                  <AreaField label={t('skillsLib.collab.drawings')} value={c.drawings || 'none'} onChange={(v) => saveCollab(c, { drawings: v })} showShared />
-                </div>
+                {/* Detalhes (editar) */}
+                {open && (
+                  <div className="border-t border-slate-800 p-3">
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/30 p-2.5">
+                      <ChannelPermissions
+                        channels={ownerChannels}
+                        videosLevel={c.videos || 'none'}
+                        channelAccess={c.channelAccess}
+                        perMode={per}
+                        onModeChange={(p) => setMode(c, p)}
+                        onSetAll={(lvl) => setVideosAll(c, lvl)}
+                        onSetChannel={(chId, lvl) => setChannelLevel(c, chId, lvl)}
+                      />
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {AREAS.filter(([key]) => key !== 'drawings').map(([key, label]) => (
+                        <AreaField key={key} label={label} value={c[key] || 'none'} onChange={(v) => saveCollab(c, { [key]: v })} />
+                      ))}
+                    </div>
+                    <div className="mt-2">
+                      <AreaField label={t('skillsLib.collab.drawings')} value={c.drawings || 'none'} onChange={(v) => saveCollab(c, { drawings: v })} showShared />
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })
