@@ -107,6 +107,32 @@ export function analyze(audioBuffer, opts = {}) {
   }
 }
 
+// Modo INTELIGENTE: detecta os cortes pelas LACUNAS entre palavras (transcrição
+// AssemblyAI, palavras com tempo em ms {s,e,t}). Preserva mais respiro no fim de
+// frase (palavra termina com . ? ! …). Também corta o silêncio do começo/fim.
+export function regionsFromWords(words, durationSec, sampleRate, opts = {}) {
+  const minSil = Math.max(0.05, opts.minSilenceSec ?? 0.5)
+  const pad = Math.max(0, opts.padSec ?? 0.1)
+  const out = []
+  const push = (aSec, bSec) => {
+    const a = Math.max(0, aSec + pad)
+    const b = Math.min(durationSec, bSec - pad)
+    if (b - a > 0.03) out.push({ startSec: a, endSec: b, startSample: Math.round(a * sampleRate), endSample: Math.round(b * sampleRate), enabled: true })
+  }
+  if (!words || !words.length) return out
+  if (words[0].s / 1000 > minSil) push(0, words[0].s / 1000) // silêncio inicial
+  for (let i = 0; i < words.length - 1; i++) {
+    const endS = words[i].e / 1000
+    const startNext = words[i + 1].s / 1000
+    const sentenceEnd = /[.?!…]$/.test((words[i].t || '').trim())
+    const need = sentenceEnd ? minSil * 1.6 : minSil // fim de frase = deixa mais respiro
+    if (startNext - endS > need) push(endS, startNext)
+  }
+  const lastE = words[words.length - 1].e / 1000
+  if (durationSec - lastE > minSil) push(lastE, durationSec) // silêncio final
+  return out
+}
+
 // Filtro passa-alta (remove ronco/grave/vento) via OfflineAudioContext.
 async function applyHighpass(audioBuffer, freq = 85) {
   const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext

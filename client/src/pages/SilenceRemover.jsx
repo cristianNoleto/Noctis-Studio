@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Scissors, Upload, Download, Loader2, Wand2, SlidersHorizontal, Volume2, Filter, Waves, X, AudioLines, AlertTriangle, Info, ZoomIn, ZoomOut, Sparkles, Eraser } from 'lucide-react'
+import { Scissors, Upload, Download, Loader2, Wand2, SlidersHorizontal, Volume2, Filter, Waves, X, AudioLines, AlertTriangle, Info, ZoomIn, ZoomOut, Sparkles, Eraser, Captions } from 'lucide-react'
 import { useI18n } from '../i18n'
-import { decodeAudioFile, audioBufferToMono, analyze, render, encodeWav, encodeMp3, qualityWarnings, suggestEnhancements, computePeaks, fmtDuration } from '../lib/silenceRemoval'
+import { api, apiErrorMessage } from '../lib/api'
+import { decodeAudioFile, audioBufferToMono, analyze, render, regionsFromWords, encodeWav, encodeMp3, qualityWarnings, suggestEnhancements, computePeaks, fmtDuration } from '../lib/silenceRemoval'
 
 const PRESETS = {
   narrative: { thresholdDb: -42, minSilence: 0.8, pad: 0.18 },
   informative: { thresholdDb: -40, minSilence: 0.5, pad: 0.1 },
   podcast: { thresholdDb: -41, minSilence: 0.6, pad: 0.14 },
 }
+
+// Limites de segurança (áudio vira Float32 na RAM + o WAV realoca tudo): acima
+// disso o navegador pode travar/estourar memória. Bloqueamos com aviso claro.
+const MAX_FILE_MB = 100
+const MAX_MINUTES = 90
 
 export default function SilenceRemover() {
   const { t } = useI18n()
@@ -35,6 +41,10 @@ export default function SilenceRemover() {
   const [format, setFormat] = useState('wav') // 'wav' | 'mp3'
   const [encoding, setEncoding] = useState(false)
   const [error, setError] = useState('')
+  const [words, setWords] = useState(null) // transcrição (modo inteligente)
+  const [transcribing, setTranscribing] = useState(null) // status do job
+  const [transcribeErr, setTranscribeErr] = useState('')
+  const pollRef = useRef({ cancel: false })
   const inputRef = useRef(null)
   const outUrlRef = useRef(null)
   const beforeAudioRef = useRef(null)
@@ -47,12 +57,25 @@ export default function SilenceRemover() {
 
   async function onFile(f) {
     if (!f) return
+    // Guarda 1: tamanho do arquivo (antes de qualquer alocação pesada).
+    if (f.size > MAX_FILE_MB * 1024 * 1024) {
+      setError(t('silence.tooLarge', { mb: MAX_FILE_MB, size: Math.round(f.size / 1024 / 1024) }))
+      return
+    }
+    pollRef.current.cancel = true // cancela qualquer transcrição em voo do arquivo anterior
     setError(''); setResult(null); setAnalysis(null); setDetected([]); setManual([]); setDirty(false); setSuggested(false)
+    setWords(null); setTranscribing(null); setTranscribeErr('')
     if (outUrlRef.current) { URL.revokeObjectURL(outUrlRef.current); outUrlRef.current = null; setOutUrl(null) }
     if (origUrl) URL.revokeObjectURL(origUrl)
     setFile(f); setOrigUrl(URL.createObjectURL(f)); setBuffer(null); setDecoding(true)
     try {
       const buf = await decodeAudioFile(f)
+      // Guarda 2: duração (o WAV de saída aloca ~ minutos × canais × sampleRate × 2 bytes).
+      if (buf.length / buf.sampleRate > MAX_MINUTES * 60) {
+        setError(t('silence.tooLong', { min: MAX_MINUTES }))
+        setFile(null); setBuffer(null)
+        return
+      }
       setBuffer(buf)
       const a0 = analyze(buf, { mode: 'auto' })
       suggestEnhancements(buf, a0.regions.length > 0).then((s) => { setEnh(s); setSuggested(true) }).catch(() => {})
@@ -67,12 +90,42 @@ export default function SilenceRemover() {
   // não processa o áudio final; isso é no botão). Cortes manuais são preservados.
   useEffect(() => {
     if (!buffer) return
-    const a = analyze(buffer, { mode, thresholdDb, minSilenceSec: minSilence, padSec: pad })
+    // A análise por RMS sempre roda (dá a forma de onda + limiar). No modo
+    // inteligente, os CORTES vêm das lacunas entre palavras (se já transcreveu).
+    const a = analyze(buffer, { mode: mode === 'manual' ? 'manual' : 'auto', thresholdDb, minSilenceSec: minSilence, padSec: pad })
     setAnalysis(a)
-    setDetected(a.regions.map((r) => ({ ...r })))
+    if (mode === 'smart') {
+      setDetected(words ? regionsFromWords(words, a.durationSec, buffer.sampleRate, { minSilenceSec: minSilence, padSec: pad }) : [])
+    } else {
+      setDetected(a.regions.map((r) => ({ ...r })))
+    }
     if (result) setDirty(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buffer, mode, thresholdDb, minSilence, pad])
+  }, [buffer, mode, thresholdDb, minSilence, pad, words])
+
+  // Modo inteligente: transcreve o áudio (AssemblyAI, BYOK) → palavras com tempo.
+  async function transcribe() {
+    if (!file) return
+    pollRef.current.cancel = false
+    setTranscribeErr(''); setTranscribing('preparing')
+    try {
+      const { id } = await api.transcription.create(file)
+      for (let tries = 0; tries < 200; tries++) {
+        if (pollRef.current.cancel) return
+        await new Promise((r) => setTimeout(r, 3000))
+        if (pollRef.current.cancel) return
+        const st = await api.transcription.status(id)
+        setTranscribing(st.status)
+        if (st.status === 'completed') { setWords(st.words || []); return }
+        if (st.status === 'error' || st.status === 'failed') throw new Error('failed')
+      }
+      throw new Error('timeout')
+    } catch (e) {
+      setTranscribing(null)
+      setTranscribeErr(apiErrorMessage ? apiErrorMessage(e) : t('silence.transcribeError'))
+    }
+  }
+  useEffect(() => () => { pollRef.current.cancel = true }, [])
 
   const regions = useMemo(
     () => [...detected.map((r, i) => ({ ...r, src: 'd', i })), ...manual.map((r, i) => ({ ...r, src: 'm', i }))],
@@ -229,13 +282,19 @@ export default function SilenceRemover() {
               <div className="inline-flex rounded-lg border border-slate-800 bg-slate-950 p-0.5 text-xs">
                 <button onClick={() => { setMode('auto'); setPreset(null) }} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${mode === 'auto' ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}><Wand2 size={13} /> {t('silence.modeAuto')}</button>
                 <button onClick={() => setMode('manual')} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${mode === 'manual' ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}><SlidersHorizontal size={13} /> {t('silence.modeManual')}</button>
+                <button onClick={() => setMode('smart')} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-colors ${mode === 'smart' ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}><Captions size={13} /> {t('silence.modeSmart')}</button>
               </div>
-              <span className="text-[11px] text-slate-500">{t('silence.presets')}:</span>
-              {Object.keys(PRESETS).map((k) => (
-                <button key={k} onClick={() => applyPreset(k)} className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${preset === k ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300' : 'border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'}`}>{t(`silence.preset.${k}`)}</button>
-              ))}
+              {mode !== 'smart' && (
+                <>
+                  <span className="text-[11px] text-slate-500">{t('silence.presets')}:</span>
+                  {Object.keys(PRESETS).map((k) => (
+                    <button key={k} onClick={() => applyPreset(k)} className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${preset === k ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300' : 'border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'}`}>{t(`silence.preset.${k}`)}</button>
+                  ))}
+                </>
+              )}
             </div>
-            <p className="mt-2 text-[11px] leading-snug text-slate-500">{mode === 'auto' ? t('silence.autoDesc') : t('silence.manualDesc')}</p>
+            <p className="mt-2 text-[11px] leading-snug text-slate-500">{mode === 'auto' ? t('silence.autoDesc') : mode === 'manual' ? t('silence.manualDesc') : t('silence.smartDesc')}</p>
+
             {mode === 'manual' && (
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 <Slider label={t('silence.threshold')} hint={t('silence.thresholdHint')} value={thresholdDb} min={-60} max={-20} step={1} suffix=" dB" onChange={(v) => { setThresholdDb(v); setPreset(null) }} />
@@ -244,6 +303,30 @@ export default function SilenceRemover() {
               </div>
             )}
             {mode === 'auto' && <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-slate-400"><Info size={12} className="text-cyan-400" /> {t('silence.autoExplain', { db: Math.round(analysis.thresholdDb), s: analysis.minSilenceSec })}</p>}
+
+            {mode === 'smart' && (
+              <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50 p-3.5">
+                {!words ? (
+                  <div>
+                    <p className="text-[11px] leading-snug text-slate-400">{t('silence.smartExplain')}</p>
+                    <button onClick={transcribe} disabled={!!transcribing} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3.5 py-2 text-xs font-semibold text-cyan-200 transition-colors hover:bg-cyan-500/20 disabled:opacity-60">
+                      {transcribing ? <Loader2 size={14} className="animate-spin" /> : <Captions size={14} />}
+                      {transcribing ? t('silence.transcribing') : t('silence.transcribeBtn')}
+                    </button>
+                    {transcribing && <p className="mt-2 text-[11px] text-slate-500">{t('silence.transcribeWait')}</p>}
+                    {transcribeErr && <p className="mt-2 text-[11px] text-red-400">{transcribeErr}</p>}
+                  </div>
+                ) : (
+                  <div>
+                    <p className="inline-flex items-center gap-1.5 text-[11px] text-emerald-300"><Captions size={12} /> {t('silence.transcribed', { n: words.length })}</p>
+                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                      <Slider label={t('silence.minSilence')} hint={t('silence.minSilenceSmartHint')} value={minSilence} min={0.2} max={2} step={0.05} suffix=" s" onChange={setMinSilence} />
+                      <Slider label={t('silence.pad')} hint={t('silence.padHint')} value={pad} min={0} max={0.4} step={0.02} suffix=" s" onChange={setPad} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Melhorias (auto-sugeridas) */}
