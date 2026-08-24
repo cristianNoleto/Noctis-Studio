@@ -3,6 +3,8 @@ export default {
     title: 'Silence Removal',
     subtitle: 'Upload audio, see where the silence is and cut it — automatic or your own control. All in the browser.',
     upload: 'Drop an audio file here or click to choose',
+    dropNow: 'Drop to load',
+    notAudio: 'That does not look like an audio file. Use MP3, WAV, M4A or OGG.',
     uploadHint: 'MP3, WAV, M4A, OGG… processed locally, never uploaded anywhere.',
     decoding: 'Reading the audio…',
     decodeError: 'Could not read this audio file. Try another format (MP3/WAV).',

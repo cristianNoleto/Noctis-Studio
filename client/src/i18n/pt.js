@@ -3,6 +3,8 @@ export default {
     title: 'Remoção de Silêncio',
     subtitle: 'Suba um áudio, veja onde ficou o silêncio e remova — automático ou no seu controle. Tudo no navegador.',
     upload: 'Solte um áudio aqui ou clique para escolher',
+    dropNow: 'Solte para carregar',
+    notAudio: 'Isso não parece um arquivo de áudio. Use MP3, WAV, M4A ou OGG.',
     uploadHint: 'MP3, WAV, M4A, OGG… processado localmente, sem enviar pra lugar nenhum.',
     decoding: 'Lendo o áudio…',
     decodeError: 'Não consegui ler este arquivo de áudio. Tente outro formato (MP3/WAV).',

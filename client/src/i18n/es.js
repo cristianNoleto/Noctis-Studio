@@ -3,6 +3,8 @@ export default {
     title: 'Eliminación de Silencio',
     subtitle: 'Sube un audio, mira dónde está el silencio y quítalo — automático o a tu control. Todo en el navegador.',
     upload: 'Suelta un audio aquí o haz clic para elegir',
+    dropNow: 'Suelta para cargar',
+    notAudio: 'Eso no parece un archivo de audio. Usa MP3, WAV, M4A u OGG.',
     uploadHint: 'MP3, WAV, M4A, OGG… procesado localmente, sin subir a ningún lado.',
     decoding: 'Leyendo el audio…',
     decodeError: 'No pude leer este archivo de audio. Prueba otro formato (MP3/WAV).',

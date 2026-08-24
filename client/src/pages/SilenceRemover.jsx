@@ -44,6 +44,7 @@ export default function SilenceRemover() {
   const [words, setWords] = useState(null) // transcrição (modo inteligente)
   const [transcribing, setTranscribing] = useState(null) // status do job
   const [transcribeErr, setTranscribeErr] = useState('')
+  const [dragOver, setDragOver] = useState(false)
   const pollRef = useRef({ cancel: false })
   const inputRef = useRef(null)
   const outUrlRef = useRef(null)
@@ -126,6 +127,23 @@ export default function SilenceRemover() {
     }
   }
   useEffect(() => () => { pollRef.current.cancel = true }, [])
+
+  // Impede o navegador de ABRIR o arquivo quando ele é solto fora da caixa
+  // (comportamento padrão que abria o áudio em outra aba).
+  useEffect(() => {
+    const prevent = (e) => { e.preventDefault() }
+    window.addEventListener('dragover', prevent)
+    window.addEventListener('drop', prevent)
+    return () => { window.removeEventListener('dragover', prevent); window.removeEventListener('drop', prevent) }
+  }, [])
+
+  function onDrop(e) {
+    e.preventDefault()
+    setDragOver(false)
+    const f = [...(e.dataTransfer?.files || [])].find((x) => (x.type || '').startsWith('audio/') || /\.(mp3|wav|m4a|ogg|aac|flac|opus|wma)$/i.test(x.name))
+    if (f) onFile(f)
+    else if (e.dataTransfer?.files?.length) setError(t('silence.notAudio'))
+  }
 
   const regions = useMemo(
     () => [...detected.map((r, i) => ({ ...r, src: 'd', i })), ...manual.map((r, i) => ({ ...r, src: 'm', i }))],
@@ -234,9 +252,15 @@ export default function SilenceRemover() {
       </div>
 
       {!file ? (
-        <button onClick={() => inputRef.current?.click()} className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 py-16 text-slate-400 transition-colors hover:border-cyan-500/50 hover:text-cyan-300">
+        <button
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={(e) => { e.preventDefault(); setDragOver(false) }}
+          onDrop={onDrop}
+          className={`flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed py-16 transition-colors ${dragOver ? 'border-cyan-400 bg-cyan-500/10 text-cyan-300' : 'border-slate-700 bg-slate-900/40 text-slate-400 hover:border-cyan-500/50 hover:text-cyan-300'}`}
+        >
           <Upload size={26} />
-          <span className="text-sm font-medium">{t('silence.upload')}</span>
+          <span className="text-sm font-medium">{dragOver ? t('silence.dropNow') : t('silence.upload')}</span>
           <span className="text-[11px] text-slate-500">{t('silence.uploadHint')}</span>
         </button>
       ) : (
