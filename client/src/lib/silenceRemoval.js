@@ -26,6 +26,11 @@ function toMono(audioBuffer) {
   return out
 }
 
+// Mono exposto (para desenhar a forma de onda com zoom sem recomputar tudo).
+export function audioBufferToMono(audioBuffer) {
+  return toMono(audioBuffer)
+}
+
 const toDb = (x) => 20 * Math.log10(Math.max(1e-8, x))
 const fromDb = (db) => Math.pow(10, db / 20)
 
@@ -188,6 +193,32 @@ export async function render(audioBuffer, regions, opts = {}) {
     cuts: cuts.length,
     clipped,
   }
+}
+
+// Analisa o áudio e SUGERE quais melhorias ativar (o usuário pode desmarcar):
+//  - normalize: áudio baixo (pico com muita folga) → sugere subir o volume.
+//  - highpass: energia relevante nos graves (<85 Hz) = ronco → sugere cortar.
+//  - smooth: sempre recomendado quando há cortes (evita estalos).
+export async function suggestEnhancements(audioBuffer, hasCuts) {
+  const mono = toMono(audioBuffer)
+  let peak = 0
+  let sum = 0
+  for (let i = 0; i < mono.length; i++) { const a = Math.abs(mono[i]); if (a > peak) peak = a; sum += mono[i] * mono[i] }
+  const fullRms = Math.sqrt(sum / Math.max(1, mono.length))
+  const normalize = toDb(peak) < -6 // pico abaixo de -6 dBFS = tem folga p/ subir
+
+  let highpass = false
+  try {
+    const hp = await applyHighpass(audioBuffer, 85)
+    const m2 = toMono(hp)
+    let s2 = 0
+    for (let i = 0; i < m2.length; i++) s2 += m2[i] * m2[i]
+    const hpRms = Math.sqrt(s2 / Math.max(1, m2.length))
+    highpass = fullRms > 0 && (fullRms - hpRms) / fullRms > 0.12 // >12% da energia nos graves
+  } catch {
+    /* sem OfflineAudioContext → não sugere */
+  }
+  return { normalize, highpass, smooth: !!hasCuts }
 }
 
 // Avisos OBJETIVOS de qualidade (não julga se "soa bem" — isso é você ouvindo).
