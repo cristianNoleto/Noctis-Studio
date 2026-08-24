@@ -86,11 +86,11 @@ export default function Sidebar() {
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800/70 bg-slate-950">
       {/* Logo/nome clicável → volta ao dashboard */}
-      <Link to="/" className="flex h-14 items-center border-b border-slate-800/70 px-4 transition-opacity hover:opacity-80" title={t('nav.backToDashboard')}>
+      <Link to="/" className="flex h-12 items-center border-b border-slate-800/70 px-4 transition-opacity hover:opacity-80" title={t('nav.backToDashboard')}>
         <Logo />
       </Link>
 
-      <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
         {groups.map((group) => {
           const isOpen = !collapsed[group.key]
           return (
@@ -98,7 +98,7 @@ export default function Sidebar() {
               {/* Cabeçalho da seção: expande/minimiza — seta ↓ aberta, → fechada */}
               <button
                 onClick={() => toggleGroup(group.key)}
-                className="group/section flex w-full items-center justify-between rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-cyan-400/70 transition-colors hover:text-cyan-300"
+                className="group/section flex w-full items-center justify-between rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan-400/70 transition-colors hover:text-cyan-300"
               >
                 {t(`nav.groups.${group.key}`)}
                 <ChevronDown
@@ -111,7 +111,7 @@ export default function Sidebar() {
               <div
                 className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
               >
-                <ul className="mt-1 space-y-0.5 overflow-hidden">
+                <ul className="mt-0.5 space-y-px overflow-hidden">
                   {group.items.map(({ to, label, Icon, badge }) => (
                     <li key={to}>
                       <NavLink
@@ -119,14 +119,14 @@ export default function Sidebar() {
                         end={to === '/'}
                         tabIndex={isOpen ? 0 : -1}
                         className={({ isActive }) =>
-                          `flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium tracking-tight transition-colors ${
+                          `flex items-center gap-2 rounded-lg px-2.5 py-1 text-[12px] font-medium tracking-tight transition-colors ${
                             isActive
                               ? 'border-l-2 border-cyan-500 bg-cyan-500/10 text-cyan-300'
                               : 'border-l-2 border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-200'
                           }`
                         }
                       >
-                        <Icon size={16} />
+                        <Icon size={15} />
                         {t(`nav.${label}`)}
                         {badge && (
                           <span className="ml-auto rounded bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300">
@@ -145,7 +145,7 @@ export default function Sidebar() {
                             to={`/canais/${ch.id}`}
                             tabIndex={isOpen ? 0 : -1}
                             className={({ isActive }) =>
-                              `flex items-center gap-2 rounded-lg py-1.5 pl-8 pr-2.5 text-xs transition-colors ${
+                              `flex items-center gap-2 rounded-lg py-1 pl-8 pr-2.5 text-[11px] transition-colors ${
                                 isActive ? 'bg-cyan-500/10 text-cyan-300' : 'text-slate-500 hover:bg-slate-900 hover:text-slate-300'
                               }`
                             }
@@ -159,7 +159,7 @@ export default function Sidebar() {
                         <NavLink
                           to="/canais?novo=1"
                           tabIndex={isOpen ? 0 : -1}
-                          className="flex items-center gap-2 rounded-lg py-1.5 pl-8 pr-2.5 text-xs text-slate-600 transition-colors hover:text-cyan-400"
+                          className="flex items-center gap-2 rounded-lg py-1 pl-8 pr-2.5 text-[11px] text-slate-600 transition-colors hover:text-cyan-400"
                         >
                           {t('nav.newChannel')}
                         </NavLink>
