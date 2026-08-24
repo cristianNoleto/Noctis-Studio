@@ -59,7 +59,9 @@ export default {
     before: 'Antes',
     after: 'Depois',
     earCheck: 'A verificação acima é objetiva (distorção, corte agressivo). Se soa natural, só ouvindo o “Depois” — por isso deixamos os dois players.',
-    download: 'Baixar áudio (WAV)',
+    downloadFmt: 'Baixar {fmt}',
+    encodingMp3: 'Convertendo MP3…',
+    fmtHint: 'WAV = sem perda (arquivo maior). MP3 = menor, universal.',
   },
   itemVis: {
     invited: 'Convite enviado para {email}: ela ainda não tinha conta. Vai receber um e-mail para criar a senha e virou colaboradora com acesso a esta área.',

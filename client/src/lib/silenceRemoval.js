@@ -253,9 +253,34 @@ export function encodeWav(channels, sampleRate) {
   return new Blob([buffer], { type: 'audio/wav' })
 }
 
+// Codifica os canais Float32 em MP3 (lamejs). Encoding é pesado → chame só na
+// hora do download (não no preview). Mono ou estéreo, bitrate configurável.
+export async function encodeMp3(channels, sampleRate, kbps = 128) {
+  const { Mp3Encoder } = await import('@breezystack/lamejs')
+  const numCh = Math.min(2, channels.length)
+  const enc = new Mp3Encoder(numCh, sampleRate, kbps)
+  const toI16 = (f) => {
+    const o = new Int16Array(f.length)
+    for (let i = 0; i < f.length; i++) { const x = Math.max(-1, Math.min(1, f[i])); o[i] = x < 0 ? x * 0x8000 : x * 0x7fff }
+    return o
+  }
+  const left = toI16(channels[0])
+  const right = numCh > 1 ? toI16(channels[1]) : null
+  const block = 1152
+  const parts = []
+  for (let i = 0; i < left.length; i += block) {
+    const l = left.subarray(i, i + block)
+    const buf = numCh > 1 ? enc.encodeBuffer(l, right.subarray(i, i + block)) : enc.encodeBuffer(l)
+    if (buf.length > 0) parts.push(new Uint8Array(buf))
+  }
+  const end = enc.flush()
+  if (end.length > 0) parts.push(new Uint8Array(end))
+  return new Blob(parts, { type: 'audio/mpeg' })
+}
+
 export const fmtDuration = (sec) => {
   if (!isFinite(sec)) return '0:00'
-  const total = Math.round(sec) // arredonda ANTES de separar (evita "18:60")
+  const total = Math.floor(sec) // trunca (igual os players mostram), sem virar "18:60"
   const m = Math.floor(total / 60)
   const s = total % 60
   return `${m}:${String(s).padStart(2, '0')}`

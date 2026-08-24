@@ -59,7 +59,9 @@ export default {
     before: 'Antes',
     after: 'Después',
     earCheck: 'La verificación de arriba es objetiva (distorsión, corte agresivo). Si suena natural es cosa de tu oído — por eso dejamos los dos reproductores.',
-    download: 'Descargar audio (WAV)',
+    downloadFmt: 'Descargar {fmt}',
+    encodingMp3: 'Convirtiendo MP3…',
+    fmtHint: 'WAV = sin pérdida (archivo más grande). MP3 = más pequeño, universal.',
   },
   itemVis: {
     invited: 'Invitación enviada a {email}: aún no tenía cuenta. Recibirá un correo para crear la contraseña y ahora es colaboradora con acceso a esta área.',

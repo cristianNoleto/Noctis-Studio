@@ -59,7 +59,9 @@ export default {
     before: 'Before',
     after: 'After',
     earCheck: 'The check above is objective (distortion, aggressive cutting). Whether it sounds natural is up to your ears — that is why both players are here.',
-    download: 'Download audio (WAV)',
+    downloadFmt: 'Download {fmt}',
+    encodingMp3: 'Converting MP3…',
+    fmtHint: 'WAV = lossless (bigger file). MP3 = smaller, universal.',
   },
   itemVis: {
     invited: 'Invite sent to {email}: they had no account yet. They will get an email to set a password and are now a collaborator with access to this area.',

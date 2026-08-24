@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Scissors, Upload, Download, Loader2, Wand2, SlidersHorizontal, Volume2, Filter, Waves, X, AudioLines, AlertTriangle, Info, ZoomIn, ZoomOut, Sparkles, Eraser } from 'lucide-react'
 import { useI18n } from '../i18n'
-import { decodeAudioFile, audioBufferToMono, analyze, render, encodeWav, qualityWarnings, suggestEnhancements, computePeaks, fmtDuration } from '../lib/silenceRemoval'
+import { decodeAudioFile, audioBufferToMono, analyze, render, encodeWav, encodeMp3, qualityWarnings, suggestEnhancements, computePeaks, fmtDuration } from '../lib/silenceRemoval'
 
 const PRESETS = {
   narrative: { thresholdDb: -42, minSilence: 0.8, pad: 0.18 },
@@ -32,6 +32,8 @@ export default function SilenceRemover() {
   const [outUrl, setOutUrl] = useState(null)
   const [busy, setBusy] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [format, setFormat] = useState('wav') // 'wav' | 'mp3'
+  const [encoding, setEncoding] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef(null)
   const outUrlRef = useRef(null)
@@ -144,7 +146,26 @@ export default function SilenceRemover() {
     if (outUrlRef.current) { URL.revokeObjectURL(outUrlRef.current); outUrlRef.current = null; setOutUrl(null) }
   }
 
-  const downloadName = (file?.name || 'audio').replace(/\.[^.]+$/, '') + '-sem-silencio.wav'
+  const baseName = (file?.name || 'audio').replace(/\.[^.]+$/, '') + '-sem-silencio'
+  function triggerDownload(url, name) {
+    const a = document.createElement('a')
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove()
+  }
+  async function download() {
+    if (!result) return
+    if (format === 'wav') { if (outUrl) triggerDownload(outUrl, `${baseName}.wav`); return }
+    setEncoding(true)
+    try {
+      const blob = await encodeMp3(result.channels, result.sampleRate, 128)
+      const url = URL.createObjectURL(blob)
+      triggerDownload(url, `${baseName}.mp3`)
+      setTimeout(() => URL.revokeObjectURL(url), 15000)
+    } catch {
+      setError(t('silence.processError'))
+    } finally {
+      setEncoding(false)
+    }
+  }
   const pctSaved = result && result.originalSec > 0 ? Math.round((result.removedSec / result.originalSec) * 100) : 0
   const warnings = result ? qualityWarnings(result) : []
   const activeCuts = regions.filter((r) => r.enabled).length
@@ -289,7 +310,17 @@ export default function SilenceRemover() {
               </div>
               <p className="mt-2 text-[11px] text-slate-500">{t('silence.earCheck')}</p>
               {outUrl && !dirty && (
-                <a href={outUrl} download={downloadName} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600"><Download size={16} /> {t('silence.download')}</a>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <div className="inline-flex rounded-lg border border-slate-800 bg-slate-950 p-0.5 text-xs">
+                    <button onClick={() => setFormat('wav')} className={`rounded-md px-3 py-1.5 font-medium transition-colors ${format === 'wav' ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}>WAV</button>
+                    <button onClick={() => setFormat('mp3')} className={`rounded-md px-3 py-1.5 font-medium transition-colors ${format === 'mp3' ? 'bg-cyan-500/15 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}>MP3</button>
+                  </div>
+                  <button onClick={download} disabled={encoding} className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cyan-600 disabled:opacity-60">
+                    {encoding ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                    {encoding ? t('silence.encodingMp3') : t('silence.downloadFmt', { fmt: format.toUpperCase() })}
+                  </button>
+                  <span className="text-[11px] text-slate-500">{t('silence.fmtHint')}</span>
+                </div>
               )}
             </div>
           )}
