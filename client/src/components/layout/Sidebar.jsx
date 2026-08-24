@@ -8,6 +8,7 @@ import {
   Image,
   Mic,
   FileText,
+  Scissors,
   Kanban,
   PenTool,
   Compass,
@@ -39,6 +40,7 @@ const groups = [
     key: 'tools',
     items: [
       { to: '/transcricao', label: 'transcription', Icon: Mic },
+      { to: '/remocao-silencio', label: 'silenceRemover', Icon: Scissors },
       { to: '/ferramentas-texto', label: 'textTools', Icon: FileText },
       { to: '/quadro-ideias', label: 'ideaBoard', Icon: Kanban },
       { to: '/desenhos', label: 'drawings', Icon: PenTool },
