@@ -27,6 +27,7 @@ export default function SilenceRemover() {
   const [analysis, setAnalysis] = useState(null)
   const [detected, setDetected] = useState([]) // cortes detectados (auto)
   const [manual, setManual] = useState([]) // cortes criados pela pessoa
+  const [selected, setSelected] = useState(null) // corte selecionado (p/ Delete)
   const [result, setResult] = useState(null)
   const [outUrl, setOutUrl] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -87,6 +88,30 @@ export default function SilenceRemover() {
     if (result) setDirty(true)
   }
   function clearManual() { setManual([]); if (result) setDirty(true) }
+  function deleteRegion(ref) {
+    if (!ref) return
+    if (ref.src === 'd') setDetected((rs) => rs.filter((_, i) => i !== ref.i))
+    else setManual((rs) => rs.filter((_, i) => i !== ref.i))
+    setSelected(null)
+    if (result) setDirty(true)
+  }
+
+  // Delete/Backspace apaga de vez o corte selecionado (do sistema OU manual),
+  // esteja ele ativo (vermelho) ou desativado (contorno). Não intercepta digitação.
+  useEffect(() => {
+    if (!buffer) return
+    const onKey = (e) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const tag = document.activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (!selected) return
+      e.preventDefault()
+      deleteRegion(selected)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buffer, selected, result])
 
   const doRender = useCallback(async () => {
     if (!buffer) return
@@ -153,11 +178,16 @@ export default function SilenceRemover() {
           <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-bold text-slate-100">{t('silence.waveform')}</h2>
-              {manual.length > 0 && (
-                <button onClick={clearManual} className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-red-400"><Eraser size={12} /> {t('silence.clearManual')}</button>
-              )}
+              <div className="flex items-center gap-3">
+                {selected && (
+                  <button onClick={() => deleteRegion(selected)} className="inline-flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300"><X size={12} /> {t('silence.deleteSelected')}</button>
+                )}
+                {manual.length > 0 && (
+                  <button onClick={clearManual} className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-red-400"><Eraser size={12} /> {t('silence.clearManual')}</button>
+                )}
+              </div>
             </div>
-            <Waveform mono={mono} durationSec={analysis.durationSec} thresholdDb={analysis.thresholdDb} regions={regions} onToggle={toggleRegion} onCreate={addManual} t={t} />
+            <Waveform mono={mono} durationSec={analysis.durationSec} thresholdDb={analysis.thresholdDb} regions={regions} selected={selected} onToggle={toggleRegion} onSelect={setSelected} onCreate={addManual} t={t} />
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
               <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-500/40" /> {t('silence.legendCut')}</span>
               <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm border border-slate-500" /> {t('silence.legendKept')}</span>
@@ -257,12 +287,12 @@ export default function SilenceRemover() {
 // Forma de onda com ZOOM (canvas maior que a caixa → scrolla na horizontal, como
 // no Premiere) + edição: clique num corte alterna; arraste numa área livre cria
 // um corte manual (ciano). Ctrl/⌘ + scroll dá zoom.
-function Waveform({ mono, durationSec, thresholdDb, regions, onToggle, onCreate, t }) {
+function Waveform({ mono, durationSec, thresholdDb, regions, selected, onToggle, onSelect, onCreate, t }) {
   const scrollRef = useRef(null)
   const canvasRef = useRef(null)
   const [baseW, setBaseW] = useState(900)
   const [zoom, setZoom] = useState(1)
-  const drag = useRef(null) // { x0, moved }
+  const drag = useRef(null)
   const [sel, setSel] = useState(null) // seleção temporária [xa, xb] em px do canvas
 
   useEffect(() => {
@@ -275,6 +305,20 @@ function Waveform({ mono, durationSec, thresholdDb, regions, onToggle, onCreate,
 
   const H = 120
   const canvasW = Math.min(24000, Math.round(baseW * zoom))
+
+  // Zoom com Ctrl/⌘ + scroll — listener NATIVO não-passivo (o onWheel do React é
+  // passivo e ignora preventDefault, o que fazia a PÁGINA inteira dar zoom).
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const handler = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      setZoom((z) => Math.max(1, Math.min(40, z * (e.deltaY < 0 ? 1.15 : 1 / 1.15))))
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
 
   useEffect(() => {
     const cv = canvasRef.current
@@ -300,41 +344,48 @@ function Waveform({ mono, durationSec, thresholdDb, regions, onToggle, onCreate,
     for (const r of regions) {
       const x0 = (r.startSec / durationSec) * canvasW
       const x1 = (r.endSec / durationSec) * canvasW
-      if (r.enabled) { ctx.fillStyle = r.manual ? 'rgba(34,211,238,0.30)' : 'rgba(239,68,68,0.28)'; ctx.fillRect(x0, 0, Math.max(1.5, x1 - x0), H) }
+      const wr = Math.max(1.5, x1 - x0)
+      if (r.enabled) { ctx.fillStyle = r.manual ? 'rgba(34,211,238,0.30)' : 'rgba(239,68,68,0.28)'; ctx.fillRect(x0, 0, wr, H) }
       else { ctx.strokeStyle = 'rgba(148,163,184,0.6)'; ctx.strokeRect(x0 + 0.5, 1, Math.max(1, x1 - x0 - 1), H - 2) }
+      // Destaque do corte SELECIONADO (alvo do Delete).
+      if (selected && selected.src === r.src && selected.i === r.i) {
+        ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 2
+        ctx.strokeRect(x0 + 1, 1, Math.max(2, wr - 2), H - 2); ctx.lineWidth = 1
+      }
     }
     if (sel) { ctx.fillStyle = 'rgba(34,211,238,0.22)'; ctx.fillRect(Math.min(sel[0], sel[1]), 0, Math.abs(sel[1] - sel[0]), H) }
-  }, [mono, regions, canvasW, durationSec, thresholdDb, sel])
+  }, [mono, regions, canvasW, durationSec, thresholdDb, sel, selected])
 
-  const xToSec = (clientX) => {
-    const rect = canvasRef.current.getBoundingClientRect()
-    return Math.max(0, Math.min(durationSec, ((clientX - rect.left) / rect.width) * durationSec))
-  }
-  const xToPx = (clientX) => clientX - canvasRef.current.getBoundingClientRect().left
+  const clampPx = (px) => Math.max(0, Math.min(canvasW, px))
+  const pxOf = (clientX) => clampPx(clientX - canvasRef.current.getBoundingClientRect().left)
 
-  function onDown(e) { drag.current = { x0: xToPx(e.clientX), moved: false } }
-  function onMove(e) {
-    if (!drag.current) return
-    const x = xToPx(e.clientX)
-    if (Math.abs(x - drag.current.x0) > 3) { drag.current.moved = true; setSel([drag.current.x0, x]) }
-  }
-  function onUp(e) {
-    const d = drag.current; drag.current = null; setSel(null)
-    if (!d) return
-    if (d.moved) {
-      const a = (Math.min(d.x0, xToPx(e.clientX)) / canvasW) * durationSec
-      const b = (Math.max(d.x0, xToPx(e.clientX)) / canvasW) * durationSec
-      onCreate(a, b)
-    } else {
-      const sec = xToSec(e.clientX)
-      const hit = regions.find((r) => sec >= r.startSec && sec <= r.endSec)
-      if (hit) onToggle({ src: hit.src, i: hit.i })
-    }
-  }
-  function onWheel(e) {
-    if (!(e.ctrlKey || e.metaKey)) return
+  // Arraste com listeners no DOCUMENTO: a seleção continua mesmo se o mouse sair
+  // da forma de onda; só finaliza ao SOLTAR o botão.
+  function onDown(e) {
     e.preventDefault()
-    setZoom((z) => Math.max(1, Math.min(40, z * (e.deltaY < 0 ? 1.2 : 1 / 1.2))))
+    const x0 = pxOf(e.clientX)
+    drag.current = { x0, moved: false }
+    const move = (ev) => {
+      const x = pxOf(ev.clientX)
+      if (Math.abs(x - drag.current.x0) > 3) { drag.current.moved = true; setSel([drag.current.x0, x]) }
+    }
+    const up = (ev) => {
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
+      const d = drag.current; drag.current = null; setSel(null)
+      if (!d) return
+      if (d.moved) {
+        const xe = pxOf(ev.clientX)
+        onCreate((Math.min(d.x0, xe) / canvasW) * durationSec, (Math.max(d.x0, xe) / canvasW) * durationSec)
+      } else {
+        const sec = (d.x0 / canvasW) * durationSec
+        const hit = regions.find((r) => sec >= r.startSec && sec <= r.endSec)
+        if (hit) { onToggle({ src: hit.src, i: hit.i }); onSelect({ src: hit.src, i: hit.i }) }
+        else onSelect(null)
+      }
+    }
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', up)
   }
 
   return (
@@ -345,15 +396,7 @@ function Waveform({ mono, durationSec, thresholdDb, regions, onToggle, onCreate,
         <button onClick={() => setZoom(1)} className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-400 hover:text-slate-200" title={t('silence.zoomReset')}>{Math.round(zoom * 100)}%</button>
       </div>
       <div ref={scrollRef} className="overflow-x-auto rounded-lg bg-slate-950" style={{ overscrollBehaviorX: 'contain' }}>
-        <canvas
-          ref={canvasRef}
-          onMouseDown={onDown}
-          onMouseMove={onMove}
-          onMouseUp={onUp}
-          onMouseLeave={() => { drag.current = null; setSel(null) }}
-          onWheel={onWheel}
-          className="block cursor-crosshair"
-        />
+        <canvas ref={canvasRef} onMouseDown={onDown} className="block cursor-crosshair" />
       </div>
     </div>
   )
