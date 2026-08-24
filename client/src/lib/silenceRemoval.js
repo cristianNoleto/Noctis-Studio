@@ -255,7 +255,8 @@ export function encodeWav(channels, sampleRate) {
 
 export const fmtDuration = (sec) => {
   if (!isFinite(sec)) return '0:00'
-  const m = Math.floor(sec / 60)
-  const s = Math.round(sec % 60)
+  const total = Math.round(sec) // arredonda ANTES de separar (evita "18:60")
+  const m = Math.floor(total / 60)
+  const s = total % 60
   return `${m}:${String(s).padStart(2, '0')}`
 }

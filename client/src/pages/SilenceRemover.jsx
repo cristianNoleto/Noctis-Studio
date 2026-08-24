@@ -35,6 +35,8 @@ export default function SilenceRemover() {
   const [error, setError] = useState('')
   const inputRef = useRef(null)
   const outUrlRef = useRef(null)
+  const beforeAudioRef = useRef(null)
+  const afterAudioRef = useRef(null)
 
   const mono = useMemo(() => (buffer ? audioBufferToMono(buffer) : null), [buffer])
   const sr = buffer?.sampleRate || 44100
@@ -115,7 +117,10 @@ export default function SilenceRemover() {
 
   const doRender = useCallback(async () => {
     if (!buffer) return
+    // Se algum player estiver tocando, para (o áudio "depois" vai ser trocado).
+    try { beforeAudioRef.current?.pause(); afterAudioRef.current?.pause() } catch { /* ignora */ }
     setBusy(true); setError('')
+    await new Promise((r) => setTimeout(r, 30)) // deixa o indicador pintar antes do trabalho pesado
     try {
       const active = regions.filter((r) => r.enabled)
       const res = await render(buffer, active, enh)
@@ -240,14 +245,24 @@ export default function SilenceRemover() {
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Scissors size={16} />}
               {busy ? t('silence.processing') : result ? t('silence.regenerate') : t('silence.process')}
             </button>
-            {result && dirty && <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-300"><AlertTriangle size={12} /> {t('silence.pending')}</span>}
+            {!busy && result && dirty && <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-300"><AlertTriangle size={12} /> {t('silence.pending')}</span>}
           </div>
 
+          {busy && (
+            <div className="flex items-center gap-2.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-2.5 text-sm text-cyan-200">
+              <Loader2 size={16} className="animate-spin" /> {t('silence.reprocessing')}
+            </div>
+          )}
           {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</p>}
 
           {/* Resultado / preview */}
           {result && (
-            <div className={`rounded-2xl border p-5 ${dirty ? 'border-slate-800 bg-slate-900/40' : 'border-emerald-500/25 bg-emerald-500/[0.05]'}`}>
+            <div className={`relative rounded-2xl border p-5 ${dirty ? 'border-slate-800 bg-slate-900/40' : 'border-emerald-500/25 bg-emerald-500/[0.05]'} ${busy ? 'opacity-50' : ''}`}>
+              {busy && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-slate-950/40">
+                  <span className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-cyan-200 shadow"><Loader2 size={14} className="animate-spin" /> {t('silence.reprocessing')}</span>
+                </div>
+              )}
               <h2 className="text-sm font-bold text-slate-100">{t('silence.result')}</h2>
               <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
                 <Stat label={t('silence.original')} value={fmtDuration(result.originalSec)} />
@@ -265,11 +280,11 @@ export default function SilenceRemover() {
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
                   <p className="mb-1 text-[11px] font-semibold text-slate-400">{t('silence.before')}</p>
-                  {origUrl && <audio src={origUrl} controls className="w-full" />}
+                  {origUrl && <audio ref={beforeAudioRef} src={origUrl} controls className="w-full" />}
                 </div>
                 <div>
                   <p className="mb-1 text-[11px] font-semibold text-slate-400">{t('silence.after')}</p>
-                  {outUrl && <audio src={outUrl} controls className="w-full" />}
+                  {outUrl && <audio ref={afterAudioRef} src={outUrl} controls className="w-full" />}
                 </div>
               </div>
               <p className="mt-2 text-[11px] text-slate-500">{t('silence.earCheck')}</p>
@@ -395,7 +410,7 @@ function Waveform({ mono, durationSec, thresholdDb, regions, selected, onToggle,
         <button onClick={() => setZoom((z) => Math.min(40, z * 1.4))} className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 text-slate-300 hover:border-cyan-500/50 hover:text-cyan-300" title={t('silence.zoomIn')}><ZoomIn size={14} /></button>
         <button onClick={() => setZoom(1)} className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-400 hover:text-slate-200" title={t('silence.zoomReset')}>{Math.round(zoom * 100)}%</button>
       </div>
-      <div ref={scrollRef} className="overflow-x-auto rounded-lg bg-slate-950" style={{ overscrollBehaviorX: 'contain' }}>
+      <div ref={scrollRef} className="overflow-x-auto overflow-y-hidden rounded-lg bg-slate-950" style={{ overscrollBehaviorX: 'contain' }}>
         <canvas ref={canvasRef} onMouseDown={onDown} className="block cursor-crosshair" />
       </div>
     </div>
