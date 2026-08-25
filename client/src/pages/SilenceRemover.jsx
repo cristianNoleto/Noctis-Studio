@@ -117,7 +117,8 @@ export default function SilenceRemover() {
         if (pollRef.current.cancel) return
         const st = await api.transcription.status(id)
         setTranscribing(st.status)
-        if (st.status === 'completed') { setWords(st.words || []); return }
+        // O status vem MAPEADO: completed → 'done', error → 'error'.
+        if (st.status === 'done') { setWords(st.words || []); return }
         if (st.status === 'error' || st.status === 'failed') throw new Error('failed')
       }
       throw new Error('timeout')
