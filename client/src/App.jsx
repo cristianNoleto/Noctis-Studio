@@ -22,6 +22,7 @@ import MediaBank from './pages/MediaBank'
 import Transcription from './pages/Transcription'
 import TextTools from './pages/TextTools'
 import SilenceRemover from './pages/SilenceRemover'
+import AudioCombiner from './pages/AudioCombiner'
 import Academy from './pages/Academy'
 import Support from './pages/Support'
 import Help from './pages/Help'
@@ -107,6 +108,7 @@ export default function App() {
         <Route path="/transcricao" element={<PlanGate><Transcription /></PlanGate>} />
         <Route path="/ferramentas-texto" element={<TextTools />} />
         <Route path="/remocao-silencio" element={<SilenceRemover />} />
+        <Route path="/combinar-audios" element={<AudioCombiner />} />
         <Route path="/academia" element={<Academy />} />
         <Route path="/ajuda" element={<Help />} />
         <Route path="/admin" element={<Admin />} />
