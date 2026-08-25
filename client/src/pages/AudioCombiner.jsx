@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Combine, Upload, Download, Loader2, X, AudioLines, ArrowUp, ArrowDown, Volume2, Waves, AlertTriangle } from 'lucide-react'
+import { Combine, Upload, Download, Loader2, X, AudioLines, ArrowUp, ArrowDown, Volume2, Waves, AlertTriangle, GripVertical, Copy } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { decodeAudioFile, encodeWav, encodeMp3, fmtDuration } from '../lib/silenceRemoval'
 import { combineAudios } from '../lib/audioCombine'
@@ -15,7 +15,8 @@ export default function AudioCombiner() {
   const [dragOver, setDragOver] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [gap, setGap] = useState(0.5)
+  const [gap, setGap] = useState(0.5) // espaçamento padrão (novas faixas)
+  const [crossfade, setCrossfade] = useState(0)
   const [padStart, setPadStart] = useState(0)
   const [padEnd, setPadEnd] = useState(0)
   const [normalize, setNormalize] = useState(false)
@@ -26,6 +27,7 @@ export default function AudioCombiner() {
   const [encoding, setEncoding] = useState(false)
   const inputRef = useRef(null)
   const outUrlRef = useRef(null)
+  const dragIdx = useRef(null)
 
   useEffect(() => () => { if (outUrlRef.current) URL.revokeObjectURL(outUrlRef.current) }, [])
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function AudioCombiner() {
       for (const f of incoming) {
         try {
           const buffer = await decodeAudioFile(f)
-          decoded.push({ id: crypto.randomUUID(), file: f, buffer, dur: buffer.length / buffer.sampleRate })
+          decoded.push({ id: crypto.randomUUID(), file: f, buffer, dur: buffer.length / buffer.sampleRate, gapAfter: gap })
         } catch {
           setError(t('combine.decodeError', { name: f.name }))
         }
@@ -70,6 +72,14 @@ export default function AudioCombiner() {
     setResult(null); clearOut()
   }
   function removeItem(id) { setItems((cur) => cur.filter((x) => x.id !== id)); setResult(null); clearOut() }
+  function duplicate(i) { setItems((cur) => { const copy = { ...cur[i], id: crypto.randomUUID() }; const next = [...cur]; next.splice(i + 1, 0, copy); return next }); setResult(null); clearOut() }
+  function setGapAfter(i, v) { setItems((cur) => cur.map((x, idx) => (idx === i ? { ...x, gapAfter: v } : x))); setResult(null); clearOut() }
+  function applyGapToAll() { setItems((cur) => cur.map((x) => ({ ...x, gapAfter: gap }))); setResult(null); clearOut() }
+  // Reordenar arrastando as faixas com o mouse.
+  function reorder(from, to) {
+    setItems((cur) => { if (from === to || from < 0 || to < 0 || from >= cur.length || to >= cur.length) return cur; const next = [...cur]; const [m] = next.splice(from, 1); next.splice(to, 0, m); return next })
+    setResult(null); clearOut()
+  }
   function onDrop(e) { e.preventDefault(); setDragOver(false); if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files) }
 
   async function combine() {
@@ -77,7 +87,11 @@ export default function AudioCombiner() {
     setBusy(true); setError(''); clearOut()
     await new Promise((r) => setTimeout(r, 30))
     try {
-      const res = await combineAudios(items.map((it) => it.buffer), { gapSec: gap, padStartSec: padStart, padEndSec: padEnd, normalize, smooth })
+      const res = await combineAudios(items.map((it) => it.buffer), {
+        gaps: items.slice(0, -1).map((it) => it.gapAfter ?? gap),
+        crossfadeSec: crossfade,
+        padStartSec: padStart, padEndSec: padEnd, normalize, smooth,
+      })
       const blob = encodeWav(res.channels, res.sampleRate)
       const url = URL.createObjectURL(blob)
       outUrlRef.current = url
@@ -106,7 +120,9 @@ export default function AudioCombiner() {
     }
   }
 
-  const totalIn = items.reduce((s, it) => s + it.dur, 0) + Math.max(0, items.length - 1) * gap + padStart + padEnd
+  const boundaries = Math.max(0, items.length - 1)
+  const spacing = crossfade > 0 ? -crossfade * boundaries : items.slice(0, -1).reduce((s, it) => s + (it.gapAfter ?? gap), 0)
+  const totalIn = Math.max(0, items.reduce((s, it) => s + it.dur, 0) + spacing + padStart + padEnd)
 
   return (
     <div className="mx-auto max-w-[900px] space-y-5">
@@ -143,14 +159,38 @@ export default function AudioCombiner() {
           </div>
           <ul className="space-y-1.5">
             {items.map((it, i) => (
-              <li key={it.id} className="flex items-center gap-2.5 rounded-lg border border-slate-800 bg-slate-950 p-2.5">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-500/15 text-[11px] font-bold text-cyan-300">{i + 1}</span>
-                <AudioLines size={15} className="shrink-0 text-slate-500" />
-                <span className="min-w-0 flex-1 truncate text-sm text-slate-200">{it.file.name}</span>
-                <span className="shrink-0 text-[11px] text-slate-500">{fmtDuration(it.dur)}</span>
-                <button onClick={() => move(i, -1)} disabled={i === 0} className="text-slate-500 hover:text-cyan-300 disabled:opacity-30"><ArrowUp size={14} /></button>
-                <button onClick={() => move(i, 1)} disabled={i === items.length - 1} className="text-slate-500 hover:text-cyan-300 disabled:opacity-30"><ArrowDown size={14} /></button>
-                <button onClick={() => removeItem(it.id)} className="text-slate-500 hover:text-red-400"><X size={15} /></button>
+              <li key={it.id}>
+                <div
+                  draggable
+                  onDragStart={() => { dragIdx.current = i }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); if (dragIdx.current != null) reorder(dragIdx.current, i); dragIdx.current = null }}
+                  className="flex items-center gap-2.5 rounded-lg border border-slate-800 bg-slate-950 p-2.5"
+                >
+                  <GripVertical size={14} className="shrink-0 cursor-grab text-slate-600" title={t('combine.drag')} />
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-500/15 text-[11px] font-bold text-cyan-300">{i + 1}</span>
+                  <AudioLines size={15} className="shrink-0 text-slate-500" />
+                  <span className="min-w-0 flex-1 truncate text-sm text-slate-200">{it.file.name}</span>
+                  <span className="shrink-0 text-[11px] text-slate-500">{fmtDuration(it.dur)}</span>
+                  <button onClick={() => move(i, -1)} disabled={i === 0} className="text-slate-500 hover:text-cyan-300 disabled:opacity-30" title={t('combine.up')}><ArrowUp size={14} /></button>
+                  <button onClick={() => move(i, 1)} disabled={i === items.length - 1} className="text-slate-500 hover:text-cyan-300 disabled:opacity-30" title={t('combine.down')}><ArrowDown size={14} /></button>
+                  <button onClick={() => duplicate(i)} className="text-slate-500 hover:text-cyan-300" title={t('combine.duplicate')}><Copy size={14} /></button>
+                  <button onClick={() => removeItem(it.id)} className="text-slate-500 hover:text-red-400" title={t('combine.remove')}><X size={15} /></button>
+                </div>
+                {/* Espaçamento individual até a próxima faixa (desativado com crossfade) */}
+                {i < items.length - 1 && (
+                  <div className="flex items-center gap-2 py-1 pl-9 text-[11px] text-slate-500">
+                    {crossfade > 0 ? (
+                      <span className="text-slate-600">{t('combine.crossfadeActive')}</span>
+                    ) : (
+                      <>
+                        <span>{t('combine.gapAfter')}:</span>
+                        <input type="range" min={0} max={3} step={0.1} value={it.gapAfter ?? gap} onChange={(e) => setGapAfter(i, Number(e.target.value))} className="h-1 w-28 accent-cyan-500" />
+                        <span className="text-cyan-300">{(it.gapAfter ?? gap).toFixed(1)}s</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -161,14 +201,18 @@ export default function AudioCombiner() {
       {items.length > 0 && (
         <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
           <h2 className="text-sm font-bold text-slate-100">{t('combine.options')}</h2>
-          <div className="mt-3 grid gap-4 sm:grid-cols-3">
-            <Slider label={t('combine.gap')} hint={t('combine.gapHint')} value={gap} min={0} max={3} step={0.1} suffix=" s" onChange={setGap} />
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <Slider label={t('combine.gap')} hint={t('combine.gapHint')} value={gap} min={0} max={3} step={0.1} suffix=" s" onChange={setGap} disabled={crossfade > 0} />
+              {crossfade === 0 && <button onClick={applyGapToAll} className="mt-1 text-[11px] text-cyan-400 hover:text-cyan-300">{t('combine.applyGapAll')}</button>}
+            </div>
+            <Slider label={t('combine.crossfade')} hint={t('combine.crossfadeHint')} value={crossfade} min={0} max={2} step={0.1} suffix=" s" onChange={setCrossfade} />
             <Slider label={t('combine.padStart')} hint={t('combine.padStartHint')} value={padStart} min={0} max={3} step={0.1} suffix=" s" onChange={setPadStart} />
             <Slider label={t('combine.padEnd')} hint={t('combine.padEndHint')} value={padEnd} min={0} max={3} step={0.1} suffix=" s" onChange={setPadEnd} />
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <EnhCard Icon={Volume2} on={normalize} onToggle={() => setNormalize((v) => !v)} title={t('combine.normalize')} what={t('combine.normalizeWhat')} />
-            <EnhCard Icon={Waves} on={smooth} onToggle={() => setSmooth((v) => !v)} title={t('combine.smooth')} what={t('combine.smoothWhat')} />
+            <EnhCard Icon={Waves} on={smooth} onToggle={() => setSmooth((v) => !v)} title={t('combine.smooth')} what={crossfade > 0 ? t('combine.smoothCfNote') : t('combine.smoothWhat')} />
           </div>
         </div>
       )}
@@ -234,14 +278,14 @@ function EnhCard({ Icon, on, onToggle, title, what }) {
   )
 }
 
-function Slider({ label, hint, value, min, max, step, suffix, onChange }) {
+function Slider({ label, hint, value, min, max, step, suffix, onChange, disabled }) {
   return (
-    <div>
+    <div className={disabled ? 'opacity-40' : ''}>
       <div className="flex items-center justify-between">
         <label className="text-xs font-semibold text-slate-200">{label}</label>
         <span className="text-xs text-cyan-300">{value}{suffix}</span>
       </div>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="mt-1.5 w-full accent-cyan-500" />
+      <input type="range" min={min} max={max} step={step} value={value} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} className="mt-1.5 w-full accent-cyan-500" />
       <p className="mt-1 text-[10px] leading-snug text-slate-500">{hint}</p>
     </div>
   )
