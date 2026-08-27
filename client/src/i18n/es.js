@@ -966,6 +966,15 @@ export default {
       restrictedContent: 'Contenido restringido',
     },
   },
+  workspaceBanner: {
+    title: 'Tienes acceso a otro workspace',
+    invitedOne: 'Te agregaron como colaborador en el workspace de {owner}. Cambia a él para ver y editar sus canales.',
+    invitedMany: 'Te agregaron como colaborador en {n} workspaces. Cambia para ver sus canales.',
+    access: 'Abrir workspace de {owner}',
+    inShared: 'Estás en el workspace de {owner}.',
+    backToMine: 'Volver a mi workspace',
+    dismiss: 'Descartar',
+  },
   drawings: {
     title: 'Dibujos',
     subtitle: 'Pizarra estilo Excalidraw — tus proyectos guardados en la nube',

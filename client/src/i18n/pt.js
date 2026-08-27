@@ -966,6 +966,15 @@ export default {
       restrictedContent: 'Conteúdo restrito',
     },
   },
+  workspaceBanner: {
+    title: 'Você tem acesso a outro workspace',
+    invitedOne: 'Você foi adicionado como colaborador no workspace de {owner}. Troque para lá para ver e editar os canais dele.',
+    invitedMany: 'Você foi adicionado como colaborador em {n} workspaces. Troque para ver os canais deles.',
+    access: 'Acessar workspace de {owner}',
+    inShared: 'Você está no workspace de {owner}.',
+    backToMine: 'Voltar ao meu workspace',
+    dismiss: 'Dispensar aviso',
+  },
   drawings: {
     title: 'Desenhos',
     subtitle: 'Quadro de desenho estilo Excalidraw — seus projetos salvos na nuvem',

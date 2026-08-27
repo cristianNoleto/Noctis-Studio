@@ -966,6 +966,15 @@ export default {
       restrictedContent: 'Restricted content',
     },
   },
+  workspaceBanner: {
+    title: 'You have access to another workspace',
+    invitedOne: "You were added as a collaborator in {owner}'s workspace. Switch to it to see and edit their channels.",
+    invitedMany: 'You were added as a collaborator in {n} workspaces. Switch to see their channels.',
+    access: "Open {owner}'s workspace",
+    inShared: "You are in {owner}'s workspace.",
+    backToMine: 'Back to my workspace',
+    dismiss: 'Dismiss',
+  },
   drawings: {
     title: 'Drawings',
     subtitle: 'Excalidraw-style whiteboard — your projects saved in the cloud',
