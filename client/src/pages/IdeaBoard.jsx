@@ -68,7 +68,7 @@ export default function IdeaBoard() {
   return (
     <div className="flex h-full flex-col">
       {/* Cabeçalho */}
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
             <Lightbulb size={22} />
@@ -79,7 +79,7 @@ export default function IdeaBoard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
+          <div className="flex flex-1 items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 sm:flex-none">
             <LayoutGrid size={14} className="text-slate-500" />
             <select
               className="bg-transparent text-sm text-slate-200 focus:outline-none"
@@ -114,7 +114,7 @@ export default function IdeaBoard() {
 
       {/* Colunas */}
       <DndContext sensors={sensors} onDragStart={({ active }) => setActiveId(active.id)} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
-        <div className="flex flex-1 gap-3 overflow-x-auto pb-2">
+        <div className="flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
           {columns.map((col) => (
             <Column
               key={col.id}
@@ -190,7 +190,7 @@ function Column({ column, cards, readOnly, onRename, onDelete }) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex h-full min-h-[60vh] w-72 shrink-0 flex-col rounded-xl border bg-slate-900/40 transition-colors ${
+      className={`flex h-full min-h-[60vh] w-[85vw] max-w-xs shrink-0 snap-start flex-col rounded-xl border bg-slate-900/40 transition-colors sm:w-72 sm:max-w-none ${
         isOver ? 'border-cyan-500/60 bg-cyan-500/5' : 'border-slate-800'
       }`}
     >

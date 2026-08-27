@@ -519,7 +519,9 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, canCreat
   }
 
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-3 transition-colors hover:border-slate-700">
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-3 transition-colors hover:border-slate-700 sm:flex-row sm:items-center sm:gap-4">
+      {/* No mobile: thumb + badges lado a lado no topo. No desktop (sm:contents) some o wrapper e volta ao layout em linha. */}
+      <div className="flex items-center gap-3 sm:contents">
       {/* Thumb — no modo restrito vira "?" (a imagem nem é carregada) */}
       <div className="group/thumb relative shrink-0">
         <RestrictedThumb
@@ -586,6 +588,7 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, canCreat
           {v.imported && <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-500">{t('videos.importedTag')}</span>}
         </div>
       </div>
+      </div>
 
       {/* Título + etapas */}
       <div className="min-w-0 flex-1">
@@ -622,9 +625,9 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, canCreat
                 onClick={() => onToggleStep(key)}
                 disabled={readOnly}
                 title={done ? t('videos.stepDone', { label }) : t('videos.stepPending', { label })}
-                className={`flex items-center gap-1 text-[10px] transition-colors ${readOnly ? 'cursor-default' : ''} ${done ? 'text-green-400' : `text-slate-600 ${readOnly ? '' : 'hover:text-slate-400'}`}`}
+                className={`flex items-center gap-1 text-[11px] transition-colors sm:text-[10px] ${readOnly ? 'cursor-default' : ''} ${done ? 'text-green-400' : `text-slate-600 ${readOnly ? '' : 'hover:text-slate-400'}`}`}
               >
-                <span className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border ${done ? 'border-green-500 bg-green-500/20' : 'border-slate-700'}`}>
+                <span className={`flex h-4 w-4 items-center justify-center rounded-sm border sm:h-3.5 sm:w-3.5 ${done ? 'border-green-500 bg-green-500/20' : 'border-slate-700'}`}>
                   {done && <Check size={9} />}
                 </span>
                 {label}
@@ -635,7 +638,7 @@ function VideoRow({ video: v, readOnly, storyboard, creatingStoryboard, canCreat
       </div>
 
       {/* Score + ações (layout compacto do print) */}
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
         <button
           onClick={onReport}
           title={t('videos.reportTitle')}

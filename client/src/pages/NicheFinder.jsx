@@ -620,7 +620,7 @@ export default function NicheFinder() {
       </div>
 
       {/* Descrição da aba + Favoritos + botão de Filtros avançados */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-slate-500">{t(`niche.tabs.${tab}.desc`)}</p>
         <div className="flex gap-2">
           <button
@@ -648,7 +648,7 @@ export default function NicheFinder() {
 
       {/* Barra secundária: busca + Idioma + Inscritos + Views + Categoria + Monetizados + Ordenar */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-800/70 bg-slate-900/40 px-3 py-2.5">
-        <div className="relative min-w-56 flex-1">
+        <div className="relative w-full min-w-full flex-1 sm:w-auto sm:min-w-56">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             className={`${inputCls} !h-9 !pl-9`}

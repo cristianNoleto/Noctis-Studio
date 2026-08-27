@@ -151,6 +151,10 @@ export default function SilenceRemover() {
     [detected, manual],
   )
 
+  // Pilha de desfazer (Ctrl/Cmd+Z): guarda os cortes apagados com Delete para
+  // poder restaurá-los na mesma posição. Só cortes apagados — recurso de desktop.
+  const undoRef = useRef([])
+
   function toggleRegion(ref) {
     if (ref.src === 'd') setDetected((rs) => rs.map((r, i) => (i === ref.i ? { ...r, enabled: !r.enabled } : r)))
     else setManual((rs) => rs.map((r, i) => (i === ref.i ? { ...r, enabled: !r.enabled } : r)))
@@ -166,9 +170,30 @@ export default function SilenceRemover() {
   function clearManual() { setManual([]); if (result) setDirty(true) }
   function deleteRegion(ref) {
     if (!ref) return
-    if (ref.src === 'd') setDetected((rs) => rs.filter((_, i) => i !== ref.i))
-    else setManual((rs) => rs.filter((_, i) => i !== ref.i))
+    if (ref.src === 'd')
+      setDetected((rs) => {
+        if (rs[ref.i]) undoRef.current.push({ src: 'd', i: ref.i, region: rs[ref.i] })
+        return rs.filter((_, i) => i !== ref.i)
+      })
+    else
+      setManual((rs) => {
+        if (rs[ref.i]) undoRef.current.push({ src: 'm', i: ref.i, region: rs[ref.i] })
+        return rs.filter((_, i) => i !== ref.i)
+      })
     setSelected(null)
+    if (result) setDirty(true)
+  }
+  // Desfaz o último corte apagado, reinserindo-o na posição original.
+  function undoDelete() {
+    const last = undoRef.current.pop()
+    if (!last) return
+    const reinsert = (rs) => {
+      const a = [...rs]
+      a.splice(Math.min(last.i, a.length), 0, last.region)
+      return a
+    }
+    if (last.src === 'd') setDetected(reinsert)
+    else setManual(reinsert)
     if (result) setDirty(true)
   }
 
@@ -177,9 +202,16 @@ export default function SilenceRemover() {
   useEffect(() => {
     if (!buffer) return
     const onKey = (e) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return
       const tag = document.activeElement?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      // Ctrl/Cmd+Z: desfaz o último corte apagado (desktop).
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+        if (undoRef.current.length === 0) return
+        e.preventDefault()
+        undoDelete()
+        return
+      }
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
       if (!selected) return
       e.preventDefault()
       deleteRegion(selected)

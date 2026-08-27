@@ -81,7 +81,7 @@ export default function MediaBank() {
             <Film size={13} />
             {t('media.videos')}
           </button>
-          <div className="relative min-w-48 flex-1">
+          <div className="relative order-3 w-full flex-1 sm:order-none sm:w-auto sm:min-w-48">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               className={`${inputCls} !pl-9`}
@@ -90,7 +90,7 @@ export default function MediaBank() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <button type="submit" className={`${btnPrimary} flex min-w-32 items-center justify-center gap-2`} disabled={loading}>
+          <button type="submit" className={`${btnPrimary} flex w-full items-center justify-center gap-2 sm:w-auto sm:min-w-32`} disabled={loading}>
             {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
             {t('media.searchBtn')}
           </button>

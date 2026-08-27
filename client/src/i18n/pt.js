@@ -147,6 +147,7 @@ export default {
     },
   },
   common: {
+    backToTop: 'Voltar ao topo',
     cancel: 'Cancelar',
     save: 'Salvar',
     edit: 'Editar',

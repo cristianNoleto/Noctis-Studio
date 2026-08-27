@@ -169,7 +169,7 @@ export default function RemovedChannels() {
     <PrivacyScope page="canais-removidos">
     <div className="mx-auto max-w-[1600px] space-y-5">
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
             <AlertTriangle size={22} />
@@ -179,7 +179,7 @@ export default function RemovedChannels() {
             <p className="text-sm text-slate-500">{t('removed.subtitle')}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300">
             {t('removed.count', { n: all.length })}
           </span>

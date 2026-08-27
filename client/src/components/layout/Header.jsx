@@ -103,25 +103,27 @@ export default function Header({ onMenu }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
-        {/* Cota das chaves YouTube (só aparece com chaves configuradas) */}
-        <KeysQuota />
+        {/* Cota das chaves YouTube (só aparece com chaves configuradas) — no mobile some do topo (fica no menu). */}
+        <div className="hidden sm:block">
+          <KeysQuota />
+        </div>
 
-        {/* Modo restrito global */}
+        {/* Modo restrito global — no mobile vai pro menu do perfil */}
         <button
           onClick={togglePrivacyGlobal}
           title={privacy ? t('header.privacyOn') : t('header.privacyOff')}
-          className={`${iconBtn} ${privacy ? '!border-cyan-500/50 !bg-cyan-500/10 !text-cyan-400' : ''}`}
+          className={`${iconBtn} hidden sm:flex ${privacy ? '!border-cyan-500/50 !bg-cyan-500/10 !text-cyan-400' : ''}`}
         >
           {privacy ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
 
-        {/* Idioma — seletor PT / EN / ES */}
+        {/* Idioma — seletor PT / EN / ES (no mobile vai pro menu do perfil) */}
         {(() => {
           const current = LANGUAGES.find((l) => l.code === lang) || LANGUAGES[0]
           const flagCode = { pt: 'br', en: 'us', es: 'es' }[lang] || 'br'
           return (
             <>
-              <button ref={langBtnRef} onClick={() => setLangOpen((v) => !v)} title="Idioma / Language / Idioma" className={iconBtn}>
+              <button ref={langBtnRef} onClick={() => setLangOpen((v) => !v)} title="Idioma / Language / Idioma" className={`${iconBtn} hidden sm:flex`}>
                 <img src={`https://flagcdn.com/w40/${flagCode}.png`} alt={current.label} className="h-4 w-6 rounded-[3px] object-cover" />
               </button>
               <AnchoredMenu open={langOpen} anchorRef={langBtnRef} onClose={() => setLangOpen(false)} width={168}>
@@ -175,8 +177,8 @@ export default function Header({ onMenu }) {
           )}
         </div>
 
-        {/* Tema claro/escuro */}
-        <button onClick={toggleTheme} title={theme === 'dark' ? t('header.themeLight') : t('header.themeDark')} className={iconBtn}>
+        {/* Tema claro/escuro (no mobile vai pro menu do perfil) */}
+        <button onClick={toggleTheme} title={theme === 'dark' ? t('header.themeLight') : t('header.themeDark')} className={`${iconBtn} hidden sm:flex`}>
           {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
         </button>
 
@@ -207,6 +209,34 @@ export default function Header({ onMenu }) {
               <div className="border-b border-slate-800 px-3 py-2">
                 <p className="truncate text-sm font-medium text-slate-200">{user?.name}</p>
                 <p className="truncate text-xs text-slate-500">{user?.email}</p>
+              </div>
+
+              {/* Controles rápidos — só no mobile (no desktop ficam no topo) */}
+              <div className="border-b border-slate-800 p-1.5 sm:hidden">
+                <div className="flex items-center gap-1.5">
+                  <button onClick={toggleTheme} className={`${iconBtn} h-8 w-8`} title={theme === 'dark' ? t('header.themeLight') : t('header.themeDark')}>
+                    {theme === 'dark' ? <Moon size={15} /> : <Sun size={15} />}
+                  </button>
+                  <button
+                    onClick={togglePrivacyGlobal}
+                    title={privacy ? t('header.privacyOn') : t('header.privacyOff')}
+                    className={`${iconBtn} h-8 w-8 ${privacy ? '!border-cyan-500/50 !bg-cyan-500/10 !text-cyan-400' : ''}`}
+                  >
+                    {privacy ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                  <div className="ml-auto flex items-center gap-1">
+                    {LANGUAGES.map((l) => (
+                      <button
+                        key={l.code}
+                        onClick={() => setLang(l.code)}
+                        title={l.label}
+                        className={`overflow-hidden rounded-[3px] border transition ${l.code === lang ? 'border-cyan-500' : 'border-transparent opacity-60'}`}
+                      >
+                        <img src={`https://flagcdn.com/w40/${{ pt: 'br', en: 'us', es: 'es' }[l.code]}.png`} alt={l.label} className="h-4 w-6 object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <Link to="/perfil" onClick={() => setMenuOpen(false)} className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">
                 <Settings size={15} />

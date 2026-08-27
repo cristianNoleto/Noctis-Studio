@@ -116,7 +116,7 @@ export default function ViralVideos() {
           💡 <b className="text-slate-300">{t('viral.tipLabel')}</b> {t('viral.tipText')}
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Field label={t('viral.publishedIn')}>
             <select className={inputCls} value={filters.period} onChange={(e) => set('period', e.target.value)}>
               {PERIOD_KEYS.map(([v, k]) => (
@@ -190,7 +190,7 @@ export default function ViralVideos() {
               <div className="text-5xl">🎯</div>
               <p className="mt-5 text-lg font-bold text-slate-100">{t('viral.readyTitle')}</p>
               <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">{t('viral.readyDesc')}</p>
-              <div className="mx-auto mt-8 flex w-fit gap-8 rounded-xl border border-slate-800 bg-slate-950 px-8 py-4">
+              <div className="mx-auto mt-8 flex w-fit max-w-full flex-wrap justify-center gap-4 rounded-xl border border-slate-800 bg-slate-950 px-4 py-4 sm:gap-8 sm:px-8">
                 <MiniFeature icon={<Search size={18} className="text-cyan-400" />} label={t('viral.featSearch')} />
                 <MiniFeature icon={<BarChart3 size={18} className="text-emerald-400" />} label={t('viral.featMetrics')} />
                 <MiniFeature icon={<Target size={18} className="text-red-400" />} label={t('viral.featOpp')} />
