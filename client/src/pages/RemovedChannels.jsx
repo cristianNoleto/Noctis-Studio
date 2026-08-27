@@ -4,7 +4,7 @@ import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
 import { api, apiErrorMessage } from '../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, formatCompact } from '../components/ui'
-import { PrivacyScope, PageEye, Masked, useRestricted, RestrictedThumb } from '../components/privacy'
+import { PrivacyScope, PageEye, Masked, useRestricted } from '../components/privacy'
 import { Field } from './channels/ChannelsList'
 
 // Base curada — "hall da fama" de canais que sumiram. Não existe API que
@@ -318,22 +318,7 @@ function RemovedCard({ channel: c }) {
       <div className="p-3.5">
         {/* Cabeçalho */}
         <div className="flex items-start gap-2.5">
-          {c.avatar ? (
-            <RestrictedThumb
-              src={c.avatar}
-              referrerPolicy="no-referrer"
-              className="h-9 w-9 shrink-0 rounded-full object-cover"
-              fallback={
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-slate-400">
-                  {restricted ? '?' : c.name.charAt(0).toUpperCase()}
-                </div>
-              }
-            />
-          ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-slate-400">
-              {restricted ? '?' : c.name.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <RemovedAvatar avatar={c.avatar} name={c.name} restricted={restricted} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-slate-100"><Masked mask="•••••••">{c.name}</Masked></p>
             <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
@@ -377,6 +362,27 @@ function RemovedCard({ channel: c }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Avatar do canal removido: mostra a foto preservada; se a foto quebrou (a URL
+// do YouTube morre quando o canal sai do ar) ou não há foto, cai na inicial.
+function RemovedAvatar({ avatar, name, restricted }) {
+  const [broken, setBroken] = useState(false)
+  const letter = (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-slate-400">
+      {restricted ? '?' : (name || '?').charAt(0).toUpperCase()}
+    </div>
+  )
+  if (restricted || !avatar || broken) return letter
+  return (
+    <img
+      src={avatar}
+      alt=""
+      referrerPolicy="no-referrer"
+      onError={() => setBroken(true)}
+      className="h-9 w-9 shrink-0 rounded-full object-cover"
+    />
   )
 }
 
