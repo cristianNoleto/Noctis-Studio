@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, Search, Plus, Calendar, Eye, Film, Users, RadioTower, Loader2 } from 'lucide-react'
 import { useDb } from '../lib/db'
 import { useI18n } from '../i18n'
 import { api, apiErrorMessage } from '../lib/api'
 import { Modal, inputCls, btnPrimary, btnGhost, formatCompact } from '../components/ui'
-import { PrivacyScope, PageEye, Masked, useRestricted } from '../components/privacy'
+import { PrivacyScope, PageEye, Masked, useRestricted, RestrictedThumb } from '../components/privacy'
 import { Field } from './channels/ChannelsList'
 
 // Base curada — "hall da fama" de canais que sumiram. Não existe API que
@@ -22,6 +22,28 @@ export default function RemovedChannels() {
   const [perPage, setPerPage] = useState(50)
 
   const all = [...db.all('removedChannels')].sort((a, b) => new Date(b.removedAt) - new Date(a.removedAt))
+
+  // Base global: canais do Niche Finder que o cron diário marcou como removidos.
+  // Trazem nome + foto de perfil preservados de quando estavam no ar.
+  const [baseRemoved, setBaseRemoved] = useState([])
+  useEffect(() => {
+    let alive = true
+    api.channels
+      .removed()
+      .then(({ channels }) => alive && setBaseRemoved(channels || []))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+  // Junta locais + base (dedup por canal do YouTube; local tem prioridade).
+  const merged = (() => {
+    const seen = new Set(all.map((c) => c.youtubeChannelId).filter(Boolean))
+    const extra = baseRemoved
+      .filter((c) => c.youtubeChannelId && !seen.has(c.youtubeChannelId))
+      .map((c) => ({ ...c, id: `base_${c.youtubeChannelId}`, autoDetected: true, fromBase: true }))
+    return [...all, ...extra].sort((a, b) => new Date(b.removedAt) - new Date(a.removedAt))
+  })()
 
   // -------------------------------------------------------------------------
   // Detecção automática: verifica todos os canais que o sistema conhece
@@ -151,8 +173,8 @@ export default function RemovedChannels() {
     }
   }
   const channels = query.trim()
-    ? all.filter((c) => `${c.name} ${c.niche}`.toLowerCase().includes(query.trim().toLowerCase()))
-    : all
+    ? merged.filter((c) => `${c.name} ${c.niche}`.toLowerCase().includes(query.trim().toLowerCase()))
+    : merged
 
   // Paginação como no original: 50/100 por página
   const totalPages = Math.max(1, Math.ceil(channels.length / perPage))
@@ -181,7 +203,7 @@ export default function RemovedChannels() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300">
-            {t('removed.count', { n: all.length })}
+            {t('removed.count', { n: merged.length })}
           </span>
           <button
             onClick={checkMonitored}
@@ -296,9 +318,22 @@ function RemovedCard({ channel: c }) {
       <div className="p-3.5">
         {/* Cabeçalho */}
         <div className="flex items-start gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-slate-400">
-            {restricted ? '?' : c.name.charAt(0).toUpperCase()}
-          </div>
+          {c.avatar ? (
+            <RestrictedThumb
+              src={c.avatar}
+              referrerPolicy="no-referrer"
+              className="h-9 w-9 shrink-0 rounded-full object-cover"
+              fallback={
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-slate-400">
+                  {restricted ? '?' : c.name.charAt(0).toUpperCase()}
+                </div>
+              }
+            />
+          ) : (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-slate-400">
+              {restricted ? '?' : c.name.charAt(0).toUpperCase()}
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-slate-100"><Masked mask="•••••••">{c.name}</Masked></p>
             <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">

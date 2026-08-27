@@ -204,6 +204,8 @@ export const api = {
     categories: () => request('/channels/categories'),
     stats: () => request('/channels/stats'),
     upsert: (channels) => authRequestOptional('/channels/upsert', { method: 'POST', body: { channels } }),
+    // Canais da base do Niche Finder detectados como removidos pelo cron diário.
+    removed: () => request('/channels/removed'),
   },
   skills: {
     // Biblioteca de Skills do sistema — a listagem manda o token (quando houver)

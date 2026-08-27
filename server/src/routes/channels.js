@@ -144,6 +144,32 @@ router.get('/stats', async (req, res) => {
   res.json({ total: total || 0, thisWeek: week || 0 })
 })
 
+// GET /api/channels/removed — canais da base do Niche Finder que o cron de
+// monitoramento marcou como removidos/encerrados no YouTube. Devolve nome e
+// foto de perfil PRESERVADOS de quando o canal ainda estava no ar. Leitura.
+router.get('/removed', async (req, res) => {
+  const supa = requireSupabase(res)
+  if (!supa) return
+  const { data, error } = await supa
+    .from('niche_channels')
+    .select('id, title, avatar, subscribers, views, video_count, category, topics, removed_at')
+    .eq('is_removed', true)
+    .order('removed_at', { ascending: false })
+    .limit(500)
+  if (error) return res.status(500).json({ error: 'removed_failed', message: error.message })
+  const channels = (data || []).map((r) => ({
+    youtubeChannelId: r.id,
+    name: r.title || r.id,
+    avatar: r.avatar || null,
+    subs: Number(r.subscribers) || 0,
+    views: Number(r.views) || 0,
+    videos: Number(r.video_count) || 0,
+    niche: (Array.isArray(r.topics) && r.topics[0]) || r.category || 'Other',
+    removedAt: r.removed_at,
+  }))
+  res.json({ channels })
+})
+
 // ---------------------------------------------------------------------------
 // Monitoramento diário da base do Niche Finder (Vercel Cron).
 // Roda no SERVIDOR sem ninguém no site: varre a base inteira checando quais
