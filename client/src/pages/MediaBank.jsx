@@ -98,7 +98,7 @@ export default function MediaBank() {
 
         {/* Fontes + Orientação */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-bold tracking-wider text-slate-500">{t('media.sources')}</span>
             {['Pexels', 'Pixabay'].map((name) => (
               <button key={name} type="button" onClick={() => toggleSource(name)} className={pill(sources[name])}>
@@ -106,7 +106,7 @@ export default function MediaBank() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-bold tracking-wider text-slate-500">{t('media.orientation')}</span>
             {ORIENTATION_KEYS.map((v) => (
               <button

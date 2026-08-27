@@ -42,7 +42,7 @@ export default function References() {
   return (
     <div className="mx-auto max-w-[1600px] space-y-5">
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
             <Bookmark size={22} />
@@ -67,7 +67,7 @@ export default function References() {
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2">
-        <select className={`${inputCls} !w-52`} value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}>
+        <select className={`${inputCls} w-full sm:!w-52`} value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}>
           <option value="">{t('references.allRefs')}</option>
           <option value="global">{t('references.global')}</option>
           {channels.map((c) => (
@@ -76,7 +76,7 @@ export default function References() {
             </option>
           ))}
         </select>
-        <select className={`${inputCls} !w-48`} value={nicheFilter} onChange={(e) => setNicheFilter(e.target.value)}>
+        <select className={`${inputCls} w-full sm:!w-48`} value={nicheFilter} onChange={(e) => setNicheFilter(e.target.value)}>
           <option value="">{t('references.allNiches')}</option>
           {niches.map((n) => (
             <option key={n} value={n}>
@@ -84,7 +84,7 @@ export default function References() {
             </option>
           ))}
         </select>
-        <div className="relative min-w-56 flex-1">
+        <div className="relative w-full min-w-full flex-1 sm:w-auto sm:min-w-56">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input className={`${inputCls} !pl-9`} placeholder={t('references.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>

@@ -18,14 +18,14 @@ function LevelSelect({ value, onChange, showShared, full }) {
   ]
   if (showShared || value === 'shared') opts.push(['shared', t('skillsLib.collab.sharedLevel'), 'bg-amber-500/20 text-amber-300'])
   return (
-    <div className={`${full ? 'flex w-full' : 'inline-flex'} rounded-lg border border-slate-700 bg-slate-950 p-0.5`}>
+    <div className={`${full ? 'flex w-full' : 'flex w-full sm:inline-flex sm:w-auto'} rounded-lg border border-slate-700 bg-slate-950 p-0.5`}>
       {opts.map(([v, label, active]) => (
         <button
           key={v}
           type="button"
           onClick={() => onChange(v)}
           title={v === 'shared' ? t('skillsLib.collab.sharedLevelHint') : undefined}
-          className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${full ? 'flex-1 text-center' : ''} ${(value || 'none') === v ? active : 'text-slate-500 hover:text-slate-300'}`}
+          className={`whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${full ? 'flex-1 text-center' : 'flex-1 text-center sm:flex-none'} ${(value || 'none') === v ? active : 'text-slate-500 hover:text-slate-300'}`}
         >
           {label}
         </button>
@@ -84,7 +84,7 @@ function ChannelPermissions({ channels, videosLevel, channelAccess, onSetAll, on
       ) : (
         <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/50 p-2">
           {channels.map((ch) => (
-            <div key={ch.id} className="flex items-center justify-between gap-2 rounded-md px-1.5 py-1">
+            <div key={ch.id} className="flex flex-col gap-1.5 rounded-md px-1.5 py-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
               <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-300">
                 <Layers size={12} className="shrink-0 text-slate-600" />
                 <span className="truncate">{ch.name || t('skillsLib.collab.untitledChannel')}</span>

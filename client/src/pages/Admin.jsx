@@ -162,37 +162,40 @@ function SupabaseMembersTab() {
                 {u.lastSignInAt ? t('admin.members.lastSignIn', { date: new Date(u.lastSignInAt).toLocaleDateString('pt-BR') }) : ''}
               </p>
             </div>
-            <select
-              className={`${inputCls} !w-28 !py-1.5 text-xs`}
-              value={u.plan}
-              disabled={busy || u.founder}
-              title={u.founder ? t('admin.members.founderLocked') : undefined}
-              onChange={(e) => act(u.id, () => api.admin.setPlan(u.id, e.target.value))}
-            >
-              {PLAN_OPTIONS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            {!isMe && !u.founder && (
-              <>
-                <button
-                  onClick={() => act(u.id, () => api.admin.setBan(u.id, !u.banned))}
-                  disabled={busy}
-                  title={u.banned ? t('admin.members.reactivateTitle') : t('admin.members.suspendTitle')}
-                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
-                    u.banned ? 'border-green-500/40 text-green-400 hover:bg-green-500/10' : 'border-slate-800 text-slate-400 hover:border-amber-500/40 hover:text-amber-400'
-                  }`}
-                >
-                  {busy ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
-                  {u.banned ? t('admin.members.reactivate') : t('admin.members.suspend')}
-                </button>
-                <button onClick={() => setRemoving(u)} disabled={busy} className="text-slate-500 hover:text-red-400" title={t('admin.members.deleteAccount')}>
-                  <X size={15} />
-                </button>
-              </>
-            )}
+            {/* No mobile os controles caem numa 2ª linha (w-full); no desktop, sm:contents os devolve à linha do membro */}
+            <div className="flex w-full flex-wrap items-center gap-2 sm:contents">
+              <select
+                className={`${inputCls} !w-28 !py-1.5 text-xs`}
+                value={u.plan}
+                disabled={busy || u.founder}
+                title={u.founder ? t('admin.members.founderLocked') : undefined}
+                onChange={(e) => act(u.id, () => api.admin.setPlan(u.id, e.target.value))}
+              >
+                {PLAN_OPTIONS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+              {!isMe && !u.founder && (
+                <>
+                  <button
+                    onClick={() => act(u.id, () => api.admin.setBan(u.id, !u.banned))}
+                    disabled={busy}
+                    title={u.banned ? t('admin.members.reactivateTitle') : t('admin.members.suspendTitle')}
+                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                      u.banned ? 'border-green-500/40 text-green-400 hover:bg-green-500/10' : 'border-slate-800 text-slate-400 hover:border-amber-500/40 hover:text-amber-400'
+                    }`}
+                  >
+                    {busy ? <Loader2 size={12} className="animate-spin" /> : <Ban size={12} />}
+                    {u.banned ? t('admin.members.reactivate') : t('admin.members.suspend')}
+                  </button>
+                  <button onClick={() => setRemoving(u)} disabled={busy} className="ml-auto text-slate-500 hover:text-red-400 sm:ml-0" title={t('admin.members.deleteAccount')}>
+                    <X size={15} />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )
       })}
