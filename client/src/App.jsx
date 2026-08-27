@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import Layout from './components/layout/Layout'
 import { PlanGate } from './components/PlanGate'
+import MobileBlock from './components/MobileBlock'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import AcceptInvite from './pages/auth/AcceptInvite'
@@ -96,7 +97,7 @@ export default function App() {
         <Route path="/canais/:id" element={<ChannelDetail />} />
         <Route path="/canais/:id/validacao" element={<ChannelValidation />} />
         <Route path="/quadro-ideias" element={<PlanGate><IdeaBoard /></PlanGate>} />
-        <Route path="/desenhos" element={<PlanGate><Suspense fallback={<LazyFallback />}><DrawingsGallery /></Suspense></PlanGate>} />
+        <Route path="/desenhos" element={<PlanGate><MobileBlock back="/"><Suspense fallback={<LazyFallback />}><DrawingsGallery /></Suspense></MobileBlock></PlanGate>} />
         <Route path="/referencias" element={<References />} />
         <Route path="/prompts" element={<Prompts />} />
         <Route path="/perfil" element={<Profile />} />
@@ -121,9 +122,11 @@ export default function App() {
         element={
           <Protected>
             <PlanGate>
-              <Suspense fallback={<LazyFallback />}>
-                <DrawingEditor />
-              </Suspense>
+              <MobileBlock back="/desenhos">
+                <Suspense fallback={<LazyFallback />}>
+                  <DrawingEditor />
+                </Suspense>
+              </MobileBlock>
             </PlanGate>
           </Protected>
         }

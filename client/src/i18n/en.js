@@ -260,6 +260,7 @@ export default {
     logout: 'Log out',
     newChannel: '+ New Channel',
     backToDashboard: 'Back to Dashboard',
+    openMenu: 'Open menu',
   },
   privacy: {
     globalActive: 'GLOBAL restricted mode on — turn it off via the eye at the top of the site',
@@ -968,6 +969,9 @@ export default {
   drawings: {
     title: 'Drawings',
     subtitle: 'Excalidraw-style whiteboard — your projects saved in the cloud',
+    mobileBlockTitle: 'Drawings need a computer',
+    mobileBlockBody: 'The drawing editor needs a mouse and a large screen. Open Noctis Studio in your desktop browser to create and edit storyboards.',
+    mobileBlockBack: 'Go back',
     new: 'New drawing',
     import: 'Import',
     importError: 'Invalid .excalidraw file.',

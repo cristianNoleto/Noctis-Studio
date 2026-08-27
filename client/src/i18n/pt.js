@@ -260,6 +260,7 @@ export default {
     logout: 'Sair',
     newChannel: '+ Novo Canal',
     backToDashboard: 'Voltar ao Dashboard',
+    openMenu: 'Abrir menu',
   },
   privacy: {
     globalActive: 'Modo restrito GLOBAL ativo — desative pelo olho do topo do site',
@@ -968,6 +969,9 @@ export default {
   drawings: {
     title: 'Desenhos',
     subtitle: 'Quadro de desenho estilo Excalidraw — seus projetos salvos na nuvem',
+    mobileBlockTitle: 'Desenhos só no computador',
+    mobileBlockBody: 'O editor de desenhos precisa de mouse e tela grande. Abra o Noctis Studio no navegador do seu PC para criar e editar storyboards.',
+    mobileBlockBack: 'Voltar',
     new: 'Novo desenho',
     import: 'Importar',
     importError: 'Arquivo .excalidraw inválido.',

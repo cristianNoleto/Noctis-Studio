@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { Bell, BookOpen, ChevronRight, ChevronDown, Crown, Eye, EyeOff, HelpCircle, KeyRound, LogOut, Moon, Settings, ShieldCheck, Sun, Sparkles, Users } from 'lucide-react'
+import { Bell, BookOpen, ChevronRight, ChevronDown, Crown, Eye, EyeOff, HelpCircle, KeyRound, LogOut, Menu, Moon, Settings, ShieldCheck, Sun, Sparkles, Users } from 'lucide-react'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n, LANGUAGES } from '../../i18n'
 import { useDb } from '../../lib/db'
@@ -29,7 +29,7 @@ function useClickOutside(onClose) {
   return ref
 }
 
-export default function Header() {
+export default function Header({ onMenu }) {
   const { user, signOut, isAdmin, isFounder, isLocalMode } = useAuth()
   const { t, lang, setLang } = useI18n()
   const db = useDb()
@@ -88,17 +88,21 @@ export default function Header() {
     'flex h-9 w-9 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-slate-400 transition-colors hover:border-slate-700 hover:text-slate-200'
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800/70 bg-slate-950 px-6">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-sm">
-          <span className="text-slate-500">{group}</span>
-          <ChevronRight size={14} className="text-slate-600" />
-          <span className="font-semibold text-slate-200">{page}</span>
+    <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-slate-800/70 bg-slate-950 px-3 sm:px-6">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        {/* Abre o menu lateral (só no celular) */}
+        <button onClick={onMenu} aria-label={t('nav.openMenu')} className={`${iconBtn} shrink-0 lg:hidden`}>
+          <Menu size={18} />
+        </button>
+        <div className="flex min-w-0 items-center gap-1.5 text-sm">
+          <span className="hidden text-slate-500 sm:inline">{group}</span>
+          <ChevronRight size={14} className="hidden shrink-0 text-slate-600 sm:inline" />
+          <span className="truncate font-semibold text-slate-200">{page}</span>
         </div>
         <WorkspaceSwitcher />
       </div>
 
-      <div className="flex items-center gap-2.5">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
         {/* Cota das chaves YouTube (só aparece com chaves configuradas) */}
         <KeysQuota />
 
@@ -180,10 +184,10 @@ export default function Header() {
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            className="flex items-center gap-2.5 rounded-full border border-slate-800 bg-slate-900 py-1.5 pl-3.5 pr-1.5 transition-colors hover:border-slate-700"
+            className="flex items-center gap-2.5 rounded-full border border-slate-800 bg-slate-900 p-1 transition-colors hover:border-slate-700 sm:py-1.5 sm:pl-3.5 sm:pr-1.5"
           >
-            <span className="max-w-[180px] truncate text-sm text-slate-200">{displayName}</span>
-            <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${planStyles[plan] || planStyles.FREE}`}>
+            <span className="hidden max-w-[180px] truncate text-sm text-slate-200 sm:inline">{displayName}</span>
+            <span className={`hidden rounded border px-1.5 py-0.5 text-[10px] font-bold tracking-wide sm:inline ${planStyles[plan] || planStyles.FREE}`}>
               {plan === 'FUNDADOR' ? `👑 ${t('header.founder')}` : plan}
             </span>
             <div className="relative">
