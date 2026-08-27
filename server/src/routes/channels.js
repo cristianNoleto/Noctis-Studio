@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { supabaseAdmin } from '../lib/supabaseAdmin.js'
+import { ytFetch } from '../lib/youtube.js'
 
 const router = Router()
 
@@ -141,6 +142,91 @@ router.get('/stats', async (req, res) => {
   const { count: total } = await supa.from('niche_channels').select('*', { count: 'exact', head: true })
   const { count: week } = await supa.from('niche_channels').select('*', { count: 'exact', head: true }).gte('added_at', daysAgoIso(7))
   res.json({ total: total || 0, thisWeek: week || 0 })
+})
+
+// ---------------------------------------------------------------------------
+// Monitoramento diário da base do Niche Finder (Vercel Cron).
+// Roda no SERVIDOR sem ninguém no site: varre a base inteira checando quais
+// canais foram removidos/encerrados no YouTube e marca is_removed na base
+// global. Protegido por CRON_SECRET.
+//
+// BYOK: normalmente as chaves nunca ficam no servidor. Exceção CONTROLADA aqui:
+// o cron usa SÓ as chaves da conta de FUNDADOR (VITE_FOUNDER_EMAIL / MONITOR_KEYS_EMAIL),
+// lidas da tabela user_settings via service-role. As chaves de qualquer outro
+// usuário NUNCA são tocadas, e as chaves nunca são logadas nem retornadas.
+// ---------------------------------------------------------------------------
+
+// Chaves YouTube do fundador (nunca logadas). [] se não houver.
+async function founderYtKeys(supa) {
+  const email = (process.env.MONITOR_KEYS_EMAIL || process.env.VITE_FOUNDER_EMAIL || '').split(',')[0].trim().toLowerCase()
+  if (!email) return []
+  let uid = null
+  for (let page = 1; page <= 25 && !uid; page++) {
+    const { data, error } = await supa.auth.admin.listUsers({ page, perPage: 200 })
+    if (error || !data?.users?.length) break
+    const u = data.users.find((x) => (x.email || '').toLowerCase() === email)
+    if (u) uid = u.id
+    if (data.users.length < 200) break
+  }
+  if (!uid) return []
+  const { data } = await supa.from('user_settings').select('keys').eq('user_id', uid).maybeSingle()
+  const ytKeys = data?.keys?.ytKeys
+  return Array.isArray(ytKeys) ? ytKeys.filter((k) => typeof k === 'string' && k.trim()) : []
+}
+
+// GET /api/channels/monitor — varredura diária (Vercel Cron).
+router.get('/monitor', async (req, res) => {
+  // Fail-closed: sem CRON_SECRET configurado, a rota NUNCA roda (gasta chave do
+  // fundador) — diferente do purge-trash, que é inócuo. Só o Vercel Cron passa.
+  const secret = process.env.CRON_SECRET
+  if (!secret || (req.headers.authorization || '') !== `Bearer ${secret}`) return res.status(401).json({ error: 'unauthorized' })
+  const supa = requireSupabase(res)
+  if (!supa) return
+
+  const keys = await founderYtKeys(supa)
+  if (!keys.length) return res.status(400).json({ error: 'no_founder_keys', message: 'Nenhuma chave YouTube na conta de fundador (user_settings).' })
+
+  // Só checa quem ainda não foi checado HOJE (permite retomar entre execuções).
+  const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00Z'
+  const today = new Date().toISOString().slice(0, 10)
+  const now = new Date().toISOString()
+  const MAX_BATCHES = Number(process.env.MONITOR_MAX_BATCHES || 300) // 300 * 50 = 15k canais/dia
+
+  let checked = 0
+  let removed = 0
+  let batches = 0
+  for (; batches < MAX_BATCHES; batches++) {
+    const { data: rows, error } = await supa
+      .from('niche_channels')
+      .select('id')
+      .eq('is_removed', false)
+      .or(`last_checked_at.is.null,last_checked_at.lt.${todayStart}`)
+      .order('last_checked_at', { ascending: true, nullsFirst: true })
+      .limit(50)
+    if (error) return res.status(500).json({ error: 'query_failed', message: error.message })
+    if (!rows?.length) break
+
+    const ids = rows.map((r) => r.id)
+    let found
+    try {
+      found = await ytFetch(keys, 'channels', { part: 'id', id: ids.join(','), maxResults: 50 })
+    } catch (err) {
+      // Cota esgotada ou erro de API: para de forma graciosa; retoma amanhã/no próximo run.
+      return res.json({ ok: true, checked, removed, batches, stopped: err?.code || 'yt_error' })
+    }
+    const foundIds = new Set((found.items || []).map((i) => i.id))
+    const goneIds = ids.filter((id) => !foundIds.has(id))
+    const aliveIds = ids.filter((id) => foundIds.has(id))
+
+    if (aliveIds.length) await supa.from('niche_channels').update({ last_checked_at: now }).in('id', aliveIds)
+    if (goneIds.length) {
+      await supa.from('niche_channels').update({ last_checked_at: now, is_removed: true, removed_at: today }).in('id', goneIds)
+      removed += goneIds.length
+    }
+    checked += ids.length
+  }
+
+  res.json({ ok: true, checked, removed, batches })
 })
 
 export default router
