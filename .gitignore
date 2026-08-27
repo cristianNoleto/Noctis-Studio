@@ -12,3 +12,7 @@ dist/
 
 # Backups locais do banco (contem dados reais - nunca versionar)
 backups/
+
+# Saidas do agent-browser (screenshots/diffs de teste de UI) e perfil do browser
+.ui-check/
+browser-data/
