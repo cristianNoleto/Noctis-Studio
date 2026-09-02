@@ -79,7 +79,9 @@ export async function authEmailHook(req, res) {
   const redirect = encodeURIComponent(data.redirect_to || data.site_url || '')
   const url = `${supabaseUrl}/auth/v1/verify?token=${data.token_hash}&type=${data.email_action_type}&redirect_to=${redirect}`
 
-  const email = renderAuthEmail({ key, locale, url, code: data.token })
+  // Contexto para as notificações de segurança (conta / provedor / fator MFA).
+  const ctx = { email: user.email, provider: data.provider, factor: data.factor_type }
+  const email = renderAuthEmail({ key, locale, url, code: data.token, ctx })
   if (!email) return res.status(200).json({})
 
   // Troca de e-mail: o link vai para o NOVO endereço quando disponível.
