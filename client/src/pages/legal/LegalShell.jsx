@@ -2,8 +2,10 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import Logo from '../../components/Logo'
 
-// E-mail de contato exibido nas páginas legais. Troque aqui se quiser outro.
-export const CONTACT_EMAIL = 'cristian.noleto25@gmail.com'
+// E-mails do domínio exibidos nas páginas legais. Contato geral (Termos) e
+// contato de privacidade/dados (Política de Privacidade, LGPD/GDPR).
+export const CONTACT_EMAIL = 'contato@noctis-studio.online'
+export const PRIVACY_EMAIL = 'privacidade@noctis-studio.online'
 export const LEGAL_UPDATED = '23 de julho de 2026'
 
 // Casca comum das páginas públicas de Termos e Privacidade — layout limpo,

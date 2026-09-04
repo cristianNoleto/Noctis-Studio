@@ -1,4 +1,4 @@
-import LegalShell, { LegalSection, CONTACT_EMAIL } from './LegalShell'
+import LegalShell, { LegalSection, PRIVACY_EMAIL } from './LegalShell'
 
 // Política de Privacidade pública. Cobre LGPD/GDPR e — importante para a
 // verificação do Google — a divulgação explícita do uso de dados do Google
@@ -15,7 +15,7 @@ export default function PrivacyPolicy() {
       <LegalSection title="1. Quem somos e como falar conosco">
         <p>
           O Noctis Studio é uma ferramenta de gestão e pesquisa para criadores de conteúdo. O responsável pelo
-          tratamento dos dados pode ser contatado pelo e-mail <a className="text-cyan-400" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+          tratamento dos dados pode ser contatado pelo e-mail <a className="text-cyan-400" href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>.
         </p>
       </LegalSection>
 
@@ -82,7 +82,7 @@ export default function PrivacyPolicy() {
         <p>
           Nos termos da Lei Geral de Proteção de Dados (Lei nº 13.709/2018) e, quando aplicável, do GDPR, você tem direito a
           acessar, corrigir, exportar e excluir seus dados, além de revogar consentimentos. Para exercer esses direitos,
-          escreva para <a className="text-cyan-400" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+          escreva para <a className="text-cyan-400" href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>.
         </p>
       </LegalSection>
 
