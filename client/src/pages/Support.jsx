@@ -1,9 +1,9 @@
 import { MessageCircle, ExternalLink, LifeBuoy, Mail } from 'lucide-react'
 import { useI18n } from '../i18n'
+import { SUPPORT_EMAIL } from '../lib/support'
 
 const WHATSAPP_COMMUNITY_URL = import.meta.env.VITE_WHATSAPP_COMMUNITY_URL || ''
 const DISCORD_URL = import.meta.env.VITE_DISCORD_URL || ''
-const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || ''
 
 export default function Support() {
   const { t } = useI18n()
@@ -36,22 +36,21 @@ export default function Support() {
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
             <LifeBuoy size={20} />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="font-semibold text-slate-100">{t('support.directTitle')}</p>
             <p className="text-xs text-slate-500">{t('support.directDesc')}</p>
-          </div>
-          {SUPPORT_EMAIL ? (
-            <a href={`mailto:${SUPPORT_EMAIL}`} className="ml-auto flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-600">
-              <Mail size={15} />
-              {t('support.sendEmail')}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-1 inline-block break-all text-sm font-medium text-cyan-400 hover:underline">
+              {SUPPORT_EMAIL}
             </a>
-          ) : (
-            <span className="ml-auto rounded bg-slate-800 px-2 py-1 text-[10px] font-bold text-slate-500">CONFIGURE VITE_SUPPORT_EMAIL</span>
-          )}
+          </div>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="flex items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-600 sm:ml-auto">
+            <Mail size={15} />
+            {t('support.sendEmail')}
+          </a>
         </div>
       </div>
     </div>

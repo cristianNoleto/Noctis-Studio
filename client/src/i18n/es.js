@@ -1690,6 +1690,8 @@ export default {
   help: {
     title: 'Centro de Ayuda',
     subtitle: 'Las principales explicaciones sobre cada área de Noctis Studio.',
+    contactTitle: '¿Aún necesitas ayuda?',
+    contactDesc: '¿No encontraste la respuesta aquí? Escribe al soporte por correo.',
     sections: {
       channels: {
         title: 'Gestión de Canales',

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { HelpCircle, ChevronDown, Tv, Compass, GitBranch, TrendingUp, KeyRound, Lightbulb, Mic, Eye, ShieldAlert, FileText } from 'lucide-react'
+import { HelpCircle, ChevronDown, Tv, Compass, GitBranch, TrendingUp, KeyRound, Lightbulb, Mic, Eye, ShieldAlert, FileText, Mail } from 'lucide-react'
 import { useI18n } from '../i18n'
+import { SUPPORT_EMAIL } from '../lib/support'
 
 // Ícone + chave i18n (título/corpo vêm de help.sections.<key>)
 const SECTIONS = [
@@ -43,6 +44,24 @@ export default function Help() {
             {open === i && <p className="border-t border-slate-800 px-5 py-4 text-sm leading-relaxed text-slate-400">{t(`help.sections.${s.key}.body`)}</p>}
           </div>
         ))}
+      </div>
+
+      {/* Contato de suporte: se nada acima resolveu, fale com a gente por e-mail. */}
+      <div className="flex flex-col gap-4 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-5 sm:flex-row sm:items-center">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+          <Mail size={20} />
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold text-slate-100">{t('help.contactTitle')}</p>
+          <p className="text-xs text-slate-500">{t('help.contactDesc')}</p>
+        </div>
+        <a
+          href={`mailto:${SUPPORT_EMAIL}`}
+          className="flex items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-600 sm:ml-auto"
+        >
+          <Mail size={15} />
+          {SUPPORT_EMAIL}
+        </a>
       </div>
     </div>
   )
