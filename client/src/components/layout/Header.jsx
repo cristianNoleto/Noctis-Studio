@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { Bell, BookOpen, ChevronRight, ChevronDown, Crown, Eye, EyeOff, HelpCircle, KeyRound, LogOut, Menu, Moon, Settings, ShieldCheck, Sun, Sparkles, Users } from 'lucide-react'
+import { Bell, BookOpen, ChevronRight, ChevronDown, Crown, Eye, EyeOff, HelpCircle, KeyRound, LogOut, Menu, Moon, Radar, Settings, ShieldCheck, Sun, Sparkles, Users } from 'lucide-react'
+import { useAutoCrawl } from '../../lib/useAutoCrawl'
 import { useAuth } from '../../auth/AuthContext'
 import { useI18n, LANGUAGES } from '../../i18n'
 import { useDb } from '../../lib/db'
@@ -103,6 +104,9 @@ export default function Header({ onMenu }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
+        {/* Busca automática ligada (fundador) — avisa em qualquer página */}
+        {isFounder && <AutoCrawlChip />}
+
         {/* Cota das chaves YouTube (só aparece com chaves configuradas) — no mobile some do topo (fica no menu). */}
         <div className="hidden sm:block">
           <KeysQuota />
@@ -351,6 +355,28 @@ function WorkspaceSwitcher() {
         })}
       </AnchoredMenu>
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Chip "Busca automática ligada": aparece em QUALQUER página quando a descoberta
+// de canais está rodando em segundo plano, para o fundador saber. Leva ao Admin.
+// ---------------------------------------------------------------------------
+function AutoCrawlChip() {
+  const { running, sessionAdded } = useAutoCrawl()
+  const { t } = useI18n()
+  const navigate = useNavigate()
+  if (!running) return null
+  return (
+    <button
+      onClick={() => navigate('/admin')}
+      title={t('header.autoCrawlHint')}
+      className="flex h-9 items-center gap-1.5 rounded-full border border-cyan-500/50 bg-cyan-500/10 px-3 text-[11px] font-bold text-cyan-300 transition-colors hover:bg-cyan-500/20"
+    >
+      <Radar size={13} className="animate-pulse" />
+      <span className="hidden sm:inline">{t('header.autoCrawlOn')}</span>
+      {sessionAdded > 0 && <span className="rounded-full bg-cyan-500/20 px-1.5">+{sessionAdded}</span>}
+    </button>
   )
 }
 

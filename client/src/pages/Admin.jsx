@@ -9,6 +9,8 @@ import { optimizeDataUrl } from '../lib/imageOptimize'
 import { Modal, inputCls, btnPrimary, btnGhost, ConfirmDialog, formatCompact } from '../components/ui'
 import { Field } from './channels/ChannelsList'
 import { useI18n } from '../i18n'
+import { useAutoCrawl } from '../lib/useAutoCrawl'
+import { startCrawl, stopCrawl, setCrawlCap, hasCrawlKeys, refreshCrawlStats } from '../lib/autoCrawl'
 
 // -----------------------------------------------------------------------------
 // Área de Administração — permissões acima do usuário MASTER:
@@ -673,120 +675,23 @@ function RemovedTab() {
 // persistente). Respeita um teto diário de buscas p/ não estourar a cota do
 // YouTube, e pode ser ligada/desligada a qualquer momento (com confirmação).
 // ---------------------------------------------------------------------------
-const CRAWL_TERMS = [
-  'histórias de terror', 'curiosidades', 'fatos históricos', 'motivação', 'mistérios', 'contos de guerra',
-  'histórias bíblicas', 'frases de sabedoria', 'documentário', 'crimes reais', 'filosofia estoica', 'histórias reais',
-  'lendas urbanas', 'casos assustadores', 'reflexão', 'histórias de vingança', 'ciência espacial', 'universo',
-  'psicologia', 'desenvolvimento pessoal', 'dinheiro e finanças', 'histórias de sucesso', 'mitologia', 'egito antigo',
-  'segunda guerra mundial', 'histórias do além', 'contos sombrios', 'meditação', 'sabedoria antiga', 'estoicismo',
-  'true crime', 'scary stories', 'horror stories', 'creepypasta', 'space facts', 'history documentary',
-  'motivation', 'stoic philosophy', 'bible stories', 'mystery', 'unsolved mysteries', 'ancient history',
-  'psychology facts', 'science facts', 'sleep stories', 'reddit stories', 'money mindset', 'success stories',
-  'ancient civilizations', 'greek mythology', 'dark history', 'war stories', 'true horror', 'paranormal',
-  'facts', 'motivational speech', 'life lessons', 'philosophy', 'universe documentary', 'deep sleep',
-  'terror', 'suspense', 'assombração', 'sobrenatural', 'histórias sombrias', 'contos de fadas sombrios',
-]
-
-function crawlDaily(db) {
-  const d = db.getSetting('autoCrawlDaily')
-  return d && d.date === new Date().toDateString() ? d.count || 0 : 0
+// Texto de cada linha do log (o store guarda dados; a UI traduz).
+function crawlLogText(e, t) {
+  if (e.text) return e.text
+  if (e.kind === 'stop') return t('admin.crawl.capReached', { cap: e.capReached })
+  return t('admin.crawl.logChannels', { term: e.term, n: e.n })
 }
 
 function AutoCrawlTab() {
   const { t } = useI18n()
-  const db = useDb()
-  const [stats, setStats] = useState({ total: 0, thisWeek: 0 })
-  const [running, setRunning] = useState(false)
+  // Estado vem do store global: a busca roda em segundo plano em qualquer página.
+  const { running, current, sessionAdded, usedToday, cap, error, log, stats } = useAutoCrawl()
   const [confirm, setConfirm] = useState(null) // 'on' | 'off' | null
-  const [log, setLog] = useState([])
-  const [sessionAdded, setSessionAdded] = useState(0)
-  const [current, setCurrent] = useState('')
-  const [cap, setCap] = useState(() => db.getSetting('autoCrawlCap', 300))
-  const [usedToday, setUsedToday] = useState(() => crawlDaily(db))
-  const [error, setError] = useState('')
-
-  const runningRef = useRef(false)
-  const termRef = useRef(Math.floor(Math.random() * CRAWL_TERMS.length))
-  const usedRef = useRef(usedToday)
-  const capRef = useRef(cap)
-
-  const hasKeys = (db.getSetting('ytKeys', []) || []).some(Boolean)
-
-  useEffect(() => { capRef.current = cap }, [cap])
-
-  async function refreshStats() {
-    try { setStats(await api.channels.stats()) } catch { /* ignora */ }
-  }
-
-  // Carrega a contagem e retoma a busca se estava ligada (roda com a aba aberta).
-  useEffect(() => {
-    refreshStats()
-    if (db.getSetting('autoCrawlOn', false)) start(true)
-    return () => { runningRef.current = false }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function pushLog(entry) {
-    setLog((l) => [{ id: Date.now() + Math.random(), ...entry }, ...l].slice(0, 40))
-  }
-
-  function bumpDaily() {
-    const next = usedRef.current + 1
-    usedRef.current = next
-    setUsedToday(next)
-    db.setSetting('autoCrawlDaily', { date: new Date().toDateString(), count: next })
-  }
-
-  async function loop() {
-    while (runningRef.current) {
-      if (usedRef.current >= capRef.current) {
-        pushLog({ kind: 'stop', msg: t('admin.crawl.capReached', { cap: capRef.current }) })
-        stopInternal()
-        break
-      }
-      const term = CRAWL_TERMS[termRef.current % CRAWL_TERMS.length]
-      termRef.current += 1
-      setCurrent(term)
-      try {
-        const { results } = await api.youtube.searchChannels({ q: term })
-        const n = results?.length || 0
-        if (n) await api.channels.upsert(results)
-        setSessionAdded((s) => s + n)
-        bumpDaily()
-        pushLog({ kind: 'ok', msg: t('admin.crawl.logChannels', { term, n }), n })
-        refreshStats()
-      } catch (err) {
-        const msg = apiErrorMessage(err)
-        pushLog({ kind: 'err', msg: `"${term}" — ${msg}` })
-        if (err?.code === 'all_keys_exhausted' || err?.code === 'missing_yt_keys') {
-          setError(msg)
-          stopInternal()
-          break
-        }
-      }
-      await new Promise((r) => setTimeout(r, 4500))
-    }
-  }
-
-  function start(silent) {
-    if (runningRef.current) return
-    setError('')
-    runningRef.current = true
-    setRunning(true)
-    db.setSetting('autoCrawlOn', true)
-    if (!silent) setSessionAdded(0)
-    loop()
-  }
-
-  function stopInternal() {
-    runningRef.current = false
-    setRunning(false)
-    setCurrent('')
-    db.setSetting('autoCrawlOn', false)
-  }
+  const hasKeys = hasCrawlKeys()
 
   function applyToggle() {
-    if (confirm === 'on') start(false)
-    else if (confirm === 'off') stopInternal()
+    if (confirm === 'on') startCrawl(false)
+    else if (confirm === 'off') stopCrawl()
     setConfirm(null)
   }
 
@@ -805,7 +710,7 @@ function AutoCrawlTab() {
             <p className="text-[11px] text-slate-500">{t('admin.crawl.inGlobalBase')}{stats.thisWeek > 0 ? t('admin.crawl.thisWeek', { n: formatCompact(stats.thisWeek) }) : ''}</p>
           </div>
         </div>
-        <button onClick={refreshStats} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 text-xs`}>
+        <button onClick={() => refreshCrawlStats()} className={`${btnGhost} flex items-center gap-1.5 !px-2.5 !py-1.5 text-xs`}>
           <RefreshCw size={12} />
           {t('admin.refresh')}
         </button>
@@ -828,6 +733,7 @@ function AutoCrawlTab() {
               <p className="text-[11px] text-slate-500">
                 {running ? (current ? t('admin.crawl.searching', { term: current }) : t('admin.crawl.starting')) : t('admin.crawl.readyToStart')}
               </p>
+              {running && <p className="mt-0.5 text-[11px] font-medium text-cyan-400/80">{t('admin.crawl.backgroundNote')}</p>}
             </div>
           </div>
           <button
@@ -859,7 +765,7 @@ function AutoCrawlTab() {
               max="2000"
               value={cap}
               disabled={running}
-              onChange={(e) => { const v = Math.max(10, Math.min(2000, Number(e.target.value) || 10)); setCap(v); db.setSetting('autoCrawlCap', v) }}
+              onChange={(e) => setCrawlCap(e.target.value)}
               className="mt-0.5 w-full bg-transparent text-center text-base font-bold text-slate-200 outline-none disabled:opacity-60"
             />
           </div>
@@ -874,7 +780,7 @@ function AutoCrawlTab() {
             {log.map((e) => (
               <div key={e.id} className="flex items-center gap-2 rounded px-2 py-1 text-xs">
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.kind === 'ok' ? 'bg-green-400' : e.kind === 'err' ? 'bg-red-400' : 'bg-amber-400'}`} />
-                <span className={`flex-1 truncate ${e.kind === 'err' ? 'text-red-400' : 'text-slate-400'}`}>{e.msg}</span>
+                <span className={`flex-1 truncate ${e.kind === 'err' ? 'text-red-400' : 'text-slate-400'}`}>{crawlLogText(e, t)}</span>
                 <span className="shrink-0 text-[10px] text-slate-600">{new Date(e.id).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
               </div>
             ))}
