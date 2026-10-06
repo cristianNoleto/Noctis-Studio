@@ -35,6 +35,7 @@ const ctx = {
 // Todo handler devolve { ok, data } ou { ok:false, error } — a interface nunca vê exceção crua.
 // Por padrão exige a conta Noctis conectada; `livre: true` libera (login, logs, janela).
 function handle(canal, fn, { livre = false } = {}) {
+  ctx.handlers[canal] = { fn, livre };
   ipcMain.handle(canal, async (_e, ...args) => {
     try {
       if (!livre && !ctx.auth.isSignedIn()) throw Object.assign(new Error('Entre com sua conta Noctis para usar o app.'), { code: 'AUTH' });
@@ -45,6 +46,14 @@ function handle(canal, fn, { livre = false } = {}) {
   });
 }
 ctx.handle = handle;
+ctx.handlers = {};
+// Mesmos handlers da interface, chamados por dentro (ex.: ferramentas do chat de IA).
+ctx.invocar = async (canal, ...args) => {
+  const h = ctx.handlers[canal];
+  if (!h) throw new Error(`Canal desconhecido: ${canal}`);
+  if (!h.livre && !ctx.auth.isSignedIn()) throw new Error('Entre com sua conta Noctis para usar o app.');
+  return h.fn(...args);
+};
 
 function createWindow() {
   win = new BrowserWindow({

@@ -27,7 +27,7 @@ function defaults(documentsDir) {
     audioAtlas: { root: '', intervalMs: 1500 },
     renomeador: { lastFolder: '' },
     srt: { cutMode: 'center', speedUp: true, minTarget: 7.5, slowDown: true, maxTarget: 11 },
-    chat: { agent: 'claude', model: '', effort: '' },
+    chat: { agent: 'claude', model: '', effort: '', permissionMode: '' },
   };
 }
 
