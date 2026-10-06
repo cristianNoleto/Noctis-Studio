@@ -12,8 +12,9 @@
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5199 && cross-env NOCTIS_DEV_URL=http://localhost:5199 electron .\"",
     "build": "vite build",
     "start": "npm run build && electron .",
-    "test": "node --test test/*.test.js && node electron/servicos/audio-atlas/parser.js && node electron/servicos/audio-atlas/categorize.js && node electron/servicos/audio-atlas/library.js",
-    "dist": "npm run build && electron-builder --win --publish never"
+    "test": "node --test test/renomeador.test.js test/auth.test.js test/tags.test.js test/fila.test.js && node electron/servicos/audio-atlas/parser.js && node electron/servicos/audio-atlas/categorize.js && node electron/servicos/audio-atlas/library.js",
+    "dist": "npm run build && electron-builder --win --publish never",
+    "test:flow": "node --test test/flow-falso.test.js"
   },
   "dependencies": {
     "playwright-core": "^1.63.0"

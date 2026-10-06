@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Globe, Sparkles, Zap, User, Settings, FolderOpen, Eye, EyeOff, TriangleAlert, Download, LogOut, RefreshCw } from 'lucide-react'
+import { Globe, Sparkles, Zap, User, Settings, FolderOpen, Eye, EyeOff, Download, LogOut, RefreshCw } from 'lucide-react'
 import { call, useSettings, useToast } from '../lib/api'
-import { btnDanger, btnGhost, btnPrimary, Field, inputCls, Modal, Toggle } from '../components/ui'
+import { btnDanger, btnGhost, btnPrimary, Field, inputCls, Toggle } from '../components/ui'
 import { avaliarRitmo } from '../lib/ritmo'
 
 const TABS = [
@@ -27,7 +27,6 @@ export default function Configuracoes() {
   const [tab, setTab] = useState('geral')
   const [draft, setDraft] = useState(null)
   const [showKeys, setShowKeys] = useState(false)
-  const [riscoOpen, setRiscoOpen] = useState(false)
   const [info, setInfo] = useState(null)
   const [auth, setAuth] = useState(null)
 
@@ -37,7 +36,7 @@ export default function Configuracoes() {
   const mudou = useMemo(() => {
     if (!draft || !settings) return []
     const campos = ['lang', 'projectsRoot', 'fileNamePattern', 'closeAction', 'rewrite.keys', 'rewrite.maxAttempts', 'rewrite.systemPrompt', 'rewrite.model',
-      'dispatch.delay', 'dispatch.maxConcurrentPerAccount', 'dispatch.parallelAccounts', 'dispatch.dailyCapPerAccount', 'dispatch.headless']
+      'dispatch.delay', 'dispatch.maxConcurrentPerAccount', 'dispatch.dailyCapPerAccount', 'dispatch.headless']
     return campos.filter((c) => JSON.stringify(get(draft, c)) !== JSON.stringify(get(settings, c)))
   }, [draft, settings])
 
@@ -150,20 +149,14 @@ export default function Configuracoes() {
                 <p className={`text-xs ${ritmo.valido ? ritmo.cor : 'text-red-400'}`}>{ritmo.valido ? ritmo.rotulo : ritmo.erro}</p>
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label={<>Gerações simultâneas por conta{dot('dispatch.maxConcurrentPerAccount')}</>} hint="Quantos pedidos cada conta pode ter gerando ao mesmo tempo.">
+                <Field label={<>Gerações simultâneas por conta{dot('dispatch.maxConcurrentPerAccount')}</>} hint="Quantos pedidos cada conta pode ter em andamento. Nesta versão o Chrome de cada conta gera um de cada vez; valores maiores só deixam o próximo já reservado.">
                   <input type="number" min={1} max={4} className={inputCls} value={draft.dispatch.maxConcurrentPerAccount} onChange={(e) => upd('dispatch.maxConcurrentPerAccount', Math.max(1, Math.min(4, Number(e.target.value) || 1)))} />
                 </Field>
                 <Field label={<>Limite diário por conta{dot('dispatch.dailyCapPerAccount')}</>} hint="Máximo de envios por conta por dia (0 = sem limite).">
                   <input type="number" min={0} className={inputCls} value={draft.dispatch.dailyCapPerAccount} onChange={(e) => upd('dispatch.dailyCapPerAccount', Math.max(0, Number(e.target.value) || 0))} />
                 </Field>
               </div>
-              <div className="flex items-center justify-between gap-6 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3.5">
-                <div>
-                  <p className="text-sm font-semibold text-slate-200">Várias contas ao mesmo tempo{dot('dispatch.parallelAccounts')}</p>
-                  <p className="text-xs text-slate-500">Desligado: uma conta envia por vez. Ligado: todas as contas ativas enviam juntas.</p>
-                </div>
-                <Toggle checked={draft.dispatch.parallelAccounts} onChange={(v) => (v ? setRiscoOpen(true) : upd('dispatch.parallelAccounts', false))} />
-              </div>
+              <p className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-xs text-slate-400">A distribuição entre contas (uma por vez, todas juntas, automático ou manual) fica na tela <b className="text-slate-200">Contas</b>.</p>
               <div className="flex items-center justify-between gap-6 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3.5">
                 <div>
                   <p className="text-sm font-semibold text-slate-200">Navegador do Flow escondido{dot('dispatch.headless')}</p>
@@ -201,22 +194,6 @@ export default function Configuracoes() {
         </div>
       )}
 
-      <Modal open={riscoOpen} onClose={() => setRiscoOpen(false)} width="max-w-lg">
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400"><TriangleAlert size={22} /></div>
-          <h3 className="mb-2 text-lg font-bold">Risco de cooldown</h3>
-          <p className="text-sm leading-relaxed text-slate-400">
-            Todas as suas contas vão enviar prompts <b className="text-amber-300">ao mesmo tempo</b>. O Google pode <b className="text-amber-300">pausar contas por um tempo</b> (cooldown). Se acontecer, aumente o intervalo entre envios ou desligue esta opção.
-          </p>
-          <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-300">
-            Conta em cooldown só volta quando o Google liberar, em geral depois de algumas horas. O app não tem como forçar essa volta.
-          </div>
-          <div className="mt-5 flex gap-2">
-            <button className={`${btnGhost} flex-1`} onClick={() => setRiscoOpen(false)}>Cancelar</button>
-            <button className={`${btnPrimary} flex-1`} onClick={() => { upd('dispatch.parallelAccounts', true); setRiscoOpen(false) }}>Ativar</button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }

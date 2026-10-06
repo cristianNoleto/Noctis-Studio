@@ -18,8 +18,7 @@ function defaults(documentsDir) {
     rewrite: { keys: [], maxAttempts: 3, systemPrompt: DEFAULT_REWRITE_PROMPT, model: 'gemini-2.5-flash' },
     dispatch: {
       delay: '20-30', // segundos entre envios da MESMA conta: fixo ("20") ou faixa ("20-30")
-      maxConcurrentPerAccount: 2,
-      parallelAccounts: false, // várias contas enviando ao mesmo tempo (aviso de risco ao ligar)
+      maxConcurrentPerAccount: 1,
       distribution: 'sequential', // sequential | parallel | auto | manual
       dailyCapPerAccount: 0, // 0 = sem teto
       cooldownBaseSeconds: 60,

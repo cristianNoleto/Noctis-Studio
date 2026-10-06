@@ -1,5 +1,6 @@
 // Noctis Studio Desktop — processo principal.
-const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage, safeStorage, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage, safeStorage, Notification, protocol, net } = require('electron');
+const { pathToFileURL } = require('url');
 const path = require('path');
 const fs = require('fs');
 const { createStore } = require('./lib/store');
@@ -9,6 +10,8 @@ const { createAuth } = require('./lib/auth');
 app.setName('Noctis Studio');
 if (process.env.NOCTIS_USER_DATA) app.setPath('userData', process.env.NOCTIS_USER_DATA);
 if (!app.requestSingleInstanceLock()) app.quit();
+// midia://f/<caminho> serve as imagens/vídeos gerados para a interface (sem expor file:// direto).
+protocol.registerSchemesAsPrivileged([{ scheme: 'midia', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true } }]);
 
 const ROOT = path.join(__dirname, '..');
 const ICON = path.join(ROOT, 'build', 'icon.png');
@@ -158,6 +161,11 @@ app.on('before-quit', () => { quitting = true; });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 app.whenReady().then(async () => {
+  protocol.handle('midia', (req) => {
+    const p = decodeURIComponent(new URL(req.url).pathname.replace(/^\//, ''));
+    if (!p || !fs.existsSync(p)) return new Response('não encontrado', { status: 404 });
+    return net.fetch(pathToFileURL(p).toString(), { headers: req.headers });
+  });
   const userData = app.getPath('userData');
   log.init(path.join(userData, 'logs'));
   ctx.store = createStore(path.join(userData, 'config.json'), app.getPath('documents'));
