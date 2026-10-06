@@ -20,6 +20,7 @@ import {
   MessagesSquare,
   BookOpen,
   ChevronDown,
+  Monitor,
 } from 'lucide-react'
 import Logo from '../Logo'
 import { useI18n } from '../../i18n'
@@ -46,6 +47,7 @@ const groups = [
       { to: '/ferramentas-texto', label: 'textTools', Icon: FileText },
       { to: '/quadro-ideias', label: 'ideaBoard', Icon: Kanban },
       { to: '/desenhos', label: 'drawings', Icon: PenTool },
+      { to: '/app-desktop', label: 'desktopApp', Icon: Monitor, badge: 'APP' },
     ],
   },
   {

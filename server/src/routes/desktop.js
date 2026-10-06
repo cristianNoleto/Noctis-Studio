@@ -1,0 +1,146 @@
+import { Router } from 'express'
+import { supabaseAdmin } from '../lib/supabaseAdmin.js'
+
+// Noctis Studio Desktop — download do instalador e login do programa.
+//   Só quem tem conta no Noctis Studio usa: as duas rotas exigem o token JWT do
+//   site (Authorization: Bearer). Nada aqui é público.
+//
+//   GET  /api/desktop/download → link TEMPORÁRIO do instalador mais recente.
+//        O instalador vive nas Releases deste repositório (privado). O servidor
+//        pede o asset ao GitHub com GITHUB_RELEASES_TOKEN e devolve só a URL
+//        assinada (expira em minutos) — o token nunca sai daqui.
+//   POST /api/desktop/session  → credencial de uso único para o programa abrir
+//        a PRÓPRIA sessão (verifyOtp com token_hash). Sessão separada da do
+//        site: renovar no programa não derruba o login do navegador.
+const router = Router()
+
+const RANK = { FREE: 0, BASIC: 1, LITE: 2, PRO: 3, MASTER: 4 }
+
+function founderEmails() {
+  return (process.env.FOUNDER_EMAIL || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+// Plano mínimo para usar o programa. Padrão FREE = basta ter conta.
+function minPlan() {
+  const p = String(process.env.DESKTOP_MIN_PLAN || 'FREE').toUpperCase()
+  return RANK[p] === undefined ? 'FREE' : p
+}
+
+function planOf(user) {
+  if (founderEmails().includes((user.email || '').toLowerCase())) return 'MASTER'
+  return user.app_metadata?.plan || 'FREE'
+}
+
+async function requireMember(req, res) {
+  const supa = supabaseAdmin()
+  if (!supa) {
+    res.status(500).json({ error: 'supabase_not_configured', message: 'Configure SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY na Vercel.' })
+    return null
+  }
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+  if (!token) { res.status(401).json({ error: 'unauthorized', message: 'Entre na sua conta do Noctis Studio.' }); return null }
+  const { data, error } = await supa.auth.getUser(token)
+  const user = data?.user
+  if (error || !user) { res.status(401).json({ error: 'unauthorized', message: 'Sessão expirada. Entre de novo.' }); return null }
+  if (user.banned_until && new Date(user.banned_until) > new Date()) {
+    res.status(403).json({ error: 'banned', message: 'Esta conta está suspensa.' })
+    return null
+  }
+  const plan = planOf(user)
+  const min = minPlan()
+  if ((RANK[plan] ?? 0) < RANK[min]) {
+    res.status(403).json({ error: 'plan_required', min, plan, message: `O Noctis Studio Desktop exige o plano ${min} ou superior.` })
+    return null
+  }
+  return { supa, user, plan }
+}
+
+function releasesConfig() {
+  return {
+    repo: process.env.DESKTOP_RELEASES_REPO || 'cristianNoleto/Noctis-Studio',
+    token: process.env.GITHUB_RELEASES_TOKEN || '',
+  }
+}
+
+async function gh(path, token, init = {}) {
+  return fetch(`https://api.github.com${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'noctis-studio-desktop-download',
+      ...(init.headers || {}),
+    },
+  })
+}
+
+// Release mais recente com tag desktop-v* (o repositório também pode ter outras releases).
+async function latestDesktopRelease(repo, token) {
+  const r = await gh(`/repos/${repo}/releases?per_page=30`, token, { headers: { Accept: 'application/vnd.github+json' } })
+  if (!r.ok) throw Object.assign(new Error(`GitHub respondeu ${r.status} ao listar releases.`), { status: r.status })
+  const list = await r.json()
+  return list.find((rel) => !rel.draft && /^desktop-v/.test(rel.tag_name) && rel.assets?.some((a) => /\.exe$/i.test(a.name))) || null
+}
+
+router.get('/info', async (req, res) => {
+  const ctx = await requireMember(req, res)
+  if (!ctx) return
+  const { repo, token } = releasesConfig()
+  if (!token) return res.json({ available: false, reason: 'not_configured', plan: ctx.plan })
+  try {
+    const rel = await latestDesktopRelease(repo, token)
+    if (!rel) return res.json({ available: false, reason: 'no_release', plan: ctx.plan })
+    const asset = rel.assets.find((a) => /\.exe$/i.test(a.name))
+    res.json({
+      available: true,
+      plan: ctx.plan,
+      version: rel.tag_name.replace(/^desktop-v/, ''),
+      publishedAt: rel.published_at,
+      fileName: asset.name,
+      size: asset.size,
+      notes: (rel.body || '').slice(0, 4000),
+    })
+  } catch (e) {
+    res.status(502).json({ error: 'github_error', message: e.message })
+  }
+})
+
+router.get('/download', async (req, res) => {
+  const ctx = await requireMember(req, res)
+  if (!ctx) return
+  const { repo, token } = releasesConfig()
+  if (!token) {
+    return res.status(503).json({ error: 'not_configured', message: 'Download ainda não configurado: falta GITHUB_RELEASES_TOKEN na Vercel.' })
+  }
+  try {
+    const rel = await latestDesktopRelease(repo, token)
+    const asset = rel?.assets.find((a) => /\.exe$/i.test(a.name))
+    if (!asset) return res.status(404).json({ error: 'no_release', message: 'Ainda não há instalador publicado.' })
+    // Pedir o asset como octet-stream devolve 302 para uma URL assinada e temporária.
+    const r = await gh(`/repos/${repo}/releases/assets/${asset.id}`, token, {
+      headers: { Accept: 'application/octet-stream' },
+      redirect: 'manual',
+    })
+    const url = r.headers.get('location')
+    if (!url) throw new Error(`GitHub respondeu ${r.status} ao gerar o link do instalador.`)
+    res.json({ url, fileName: asset.name, version: rel.tag_name.replace(/^desktop-v/, '') })
+  } catch (e) {
+    res.status(502).json({ error: 'github_error', message: e.message })
+  }
+})
+
+router.post('/session', async (req, res) => {
+  const ctx = await requireMember(req, res)
+  if (!ctx) return
+  if (!ctx.user.email) return res.status(400).json({ error: 'no_email', message: 'Conta sem e-mail.' })
+  // generateLink NÃO envia e-mail: só devolve o token, que o programa troca por uma sessão nova.
+  const { data, error } = await ctx.supa.auth.admin.generateLink({ type: 'magiclink', email: ctx.user.email })
+  const hash = data?.properties?.hashed_token
+  if (error || !hash) return res.status(500).json({ error: 'link_failed', message: error?.message || 'Não foi possível gerar o acesso.' })
+  res.json({ token_hash: hash, email: ctx.user.email, plan: ctx.plan })
+})
+
+export default router

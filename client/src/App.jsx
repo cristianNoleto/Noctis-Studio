@@ -29,6 +29,8 @@ import Support from './pages/Support'
 import Help from './pages/Help'
 import Admin from './pages/Admin'
 import MyPlan from './pages/MyPlan'
+import DesktopApp from './pages/DesktopApp'
+import DesktopConnect, { AFTER_LOGIN_KEY } from './pages/DesktopConnect'
 import Landing from './pages/Landing'
 import PrivacyPolicy from './pages/legal/PrivacyPolicy'
 import TermsOfService from './pages/legal/TermsOfService'
@@ -70,6 +72,14 @@ function RootRoute() {
   const oauthReturning = !user && /access_token=|[?&]code=|[#&]state=/.test(`${window.location.hash}${window.location.search}`)
   if (loading || oauthReturning) return <Spinner />
   if (!user) return <Landing />
+  // Login pedido por uma página que precisava de sessão (ex.: conectar o app desktop):
+  // volta pra ela em vez de ficar no dashboard.
+  let back = null
+  try {
+    back = sessionStorage.getItem(AFTER_LOGIN_KEY)
+    if (back) sessionStorage.removeItem(AFTER_LOGIN_KEY)
+  } catch { /* sem storage */ }
+  if (back && back.startsWith('/')) return <Navigate to={back} replace />
   return <Layout />
 }
 
@@ -82,6 +92,8 @@ export default function App() {
       {/* Páginas legais públicas (acessíveis sem login — exigidas p/ o Google) */}
       <Route path="/privacidade" element={<PrivacyPolicy />} />
       <Route path="/termos" element={<TermsOfService />} />
+      {/* Conectar o app desktop: trata o login sozinha (volta pra cá depois de entrar) */}
+      <Route path="/app-desktop/conectar" element={<div className="min-h-screen bg-slate-950 px-4 py-10"><DesktopConnect /></div>} />
       {/* Raiz: landing pública (deslogado) ou Dashboard dentro do Layout (logado) */}
       <Route path="/" element={<RootRoute />}>
         <Route index element={<Dashboard />} />
@@ -115,6 +127,7 @@ export default function App() {
         <Route path="/admin" element={<Admin />} />
         <Route path="/suporte" element={<Support />} />
         <Route path="/meu-plano" element={<MyPlan />} />
+        <Route path="/app-desktop" element={<DesktopApp />} />
       </Route>
       {/* Editor de desenho em TELA CHEIA (fora do Layout: sem sidebar/header) */}
       <Route
