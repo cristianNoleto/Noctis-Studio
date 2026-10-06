@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, CircleHelp, ArrowRight, Image as ImageIcon, Film, Frame, Puzzle, Sparkles, ChevronDown, X, Wand2, ArrowLeftRight } from 'lucide-react'
+import { Plus, CircleHelp, ArrowRight, Image as ImageIcon, Film, Frame, Puzzle, Sparkles, ChevronDown, X, Wand2, ArrowLeftRight, Flame } from 'lucide-react'
 import { call, useToast } from '../../lib/api'
 import { IMAGE_MODELS, VIDEO_MODELS, mediaUrl } from '../../lib/media'
 import { btnGhost, btnPrimary, Modal, Toggle } from '../ui'
@@ -58,6 +58,7 @@ export default function Composer({ projectId, characters = [], onEnviado, refsEx
   const modelos = video ? VIDEO_MODELS : IMAGE_MODELS
   const modeloAtual = video ? cfg.quality : cfg.model
   const rotuloModelo = modelos.find((m) => m.value === modeloAtual)?.label || modeloAtual
+  const nPrompts = texto.split('\n').map((l) => l.trim()).filter(Boolean).length
 
   async function anexar() {
     const arqs = await call('sys:pickFile', { title: 'Imagens de referência', multi: true, filters: [{ name: 'Imagens', extensions: ['jpg', 'jpeg', 'png', 'webp'] }] })
@@ -97,6 +98,13 @@ export default function Composer({ projectId, characters = [], onEnviado, refsEx
     <div className="pointer-events-none absolute inset-x-0 bottom-4 flex flex-col items-center px-6">
       <button onClick={() => setRecolhido(true)} className="pointer-events-auto mb-1.5 rounded-full border border-slate-700 bg-slate-900/90 p-1 text-slate-400 hover:text-slate-200" title="Recolher"><ChevronDown size={14} /></button>
       <div className="pointer-events-auto relative w-full max-w-[760px] rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl shadow-black/60 backdrop-blur">
+        {nPrompts > 1 && (
+          <div className="pointer-events-none absolute -top-3 right-3 z-10">
+            <span className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-[#1a150c] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-300 shadow-lg" title={`${nPrompts} prompts na fila (uma linha = um pedido)${cfg.outputs > 1 ? ` · ×${cfg.outputs} saídas = ~${nPrompts * cfg.outputs} gerações` : ''}`}>
+              <Flame size={12} className="text-amber-400" /> Multi-prompt ({nPrompts})
+            </span>
+          </div>
+        )}
         {(video && cfg.videoMode === 'frames') ? (
           <div className="flex items-center gap-2 px-4 pt-3">
             {[['Ini', ini, setIni], ['Fim', fim, setFim]].map(([rot, val, setter], i) => (
