@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   LayoutDashboard, Images, Film, AudioLines, Music, FolderPen, Users, Terminal, Settings, CircleHelp, ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, MessagesSquare,
 } from 'lucide-react'
@@ -49,6 +49,8 @@ function Item({ item, active, onClick, compact }) {
 export default function Shell({ page, go, user, queue, onChat, chatOpen, children }) {
   const [compact, setCompact] = useState(false)
   const [closed, setClosed] = useState({})
+  const [versao, setVersao] = useState('')
+  useEffect(() => { call('app:info').then((i) => setVersao(i?.version || '')).catch(() => {}) }, [])
   const ativo = page.split('/')[0]
   const producing = queue && queue.running
 
@@ -109,6 +111,12 @@ export default function Shell({ page, go, user, queue, onChat, chatOpen, childre
               {!compact && (producing ? 'Produzindo' : queue?.paused ? 'Fila pausada' : 'Fila parada')}
               {!compact && <span className="ml-auto text-[10px] text-slate-500">{queue ? `${queue.pending ?? 0} na fila` : ''}</span>}
             </button>
+            {versao && !compact && (
+              <p className="px-1.5 text-center text-[10px] font-medium tracking-wide text-slate-600">Noctis Studio v{versao}</p>
+            )}
+            {versao && compact && (
+              <p className="text-center text-[9px] font-medium text-slate-600">v{versao}</p>
+            )}
             {user && !compact && (
               <div className="flex items-center gap-2 rounded-lg px-1.5 py-1">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 text-xs font-bold text-slate-950">

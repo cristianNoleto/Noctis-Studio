@@ -1,5 +1,5 @@
 // Testes do Renomeador — porte do test_app.py original (núcleo, aplicar/desfazer, rollback).
-const { test, before, after } = require('node:test');
+const { test, before, beforeEach, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
@@ -48,6 +48,7 @@ before(() => {
   app.setHistorico(path.join(RAIZ, 'historico'));
   criarPasta();
 });
+beforeEach(criarPasta);
 after(() => fs.rmSync(RAIZ, { recursive: true, force: true }));
 
 test('termos', () => {
