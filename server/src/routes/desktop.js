@@ -197,6 +197,7 @@ router.post('/password', async (req, res) => {
     if (!r.ok || !data.access_token) {
       const msg = String(data.msg || data.error_description || data.message || '')
       if (/email not confirmed/i.test(msg)) return res.status(403).json({ error: 'email_not_confirmed', message: 'Confirme seu e-mail antes de entrar (veja a caixa de entrada).' })
+      if (/captcha/i.test(msg)) return res.status(503).json({ error: 'captcha_required', message: 'O login por senha no app foi bloqueado pelo captcha do site. Use "Entrar pelo navegador".' })
       return res.status(401).json({ error: 'invalid_credentials', message: 'E-mail ou senha incorretos.' })
     }
     const user = data.user || {}
