@@ -179,7 +179,13 @@ export default function Configuracoes() {
                 <button className={btnGhost} onClick={async () => { await call('auth:refresh'); setAuth(await call('auth:state')); toast('Conta conferida.', 'success') }}><RefreshCw size={14} /> Conferir agora</button>
               </div>
               <Row title="Logs de diagnóstico" sub="Junta os registros do app num arquivo para suporte." action={<button className={btnGhost} onClick={async () => { const p = await call('logs:export'); if (p) toast(`Salvo em ${p}`, 'success') }}><Download size={14} /> Exportar</button>} />
-              <Row title="Desconectar" sub="Sai da conta Noctis neste computador." action={<button className={btnDanger} onClick={() => call('auth:signout')}><LogOut size={14} /> Sair da conta</button>} />
+              <Row title="Senha salva" sub={auth?.salvo ? `Guardada cifrada para ${auth.salvo.email}. O app entra sozinho ao abrir.` : 'Nenhuma senha salva neste computador. Marque "Lembrar senha" ao entrar com e-mail.'}
+                action={auth?.salvo ? <button className={btnGhost} onClick={async () => { await call('auth:forgetPassword'); setAuth(await call('auth:state')); toast('Senha salva apagada deste computador.', 'success') }}>Esquecer senha</button> : null} />
+              <Row title="Desconectar" sub={auth?.salvo ? 'Com a senha salva, o app entra sozinho na próxima vez que abrir. Use "Sair e esquecer" para não entrar mais.' : 'Sai da conta Noctis neste computador.'}
+                action={<div className="flex gap-2">
+                  <button className={btnGhost} onClick={() => call('auth:signout')}><LogOut size={14} /> Sair</button>
+                  {auth?.salvo && <button className={btnDanger} onClick={() => call('auth:signout', { esquecer: true })}>Sair e esquecer</button>}
+                </div>} />
               {info && <p className="text-xs text-slate-600">Noctis Studio {info.version} · dados em <span className="font-mono">{info.userData}</span></p>}
             </>
           )}

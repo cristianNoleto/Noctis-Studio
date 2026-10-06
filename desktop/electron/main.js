@@ -93,17 +93,48 @@ function createWindow() {
   });
 }
 
+// Ícone na bandeja do Windows: aparece sempre que o app está aberto, com atalhos e o estado da fila.
+const TELAS = [['Início', 'dashboard'], ['Meus Projetos', 'projetos'], ['Sincronizador SRT', 'srt'], ['Audio Atlas', 'audio-atlas'], ['Renomeador', 'renomeador'], ['Contas', 'contas'], ['Logs', 'logs'], ['Configurações', 'config']];
+function mostrarJanela() { if (!win) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+function irPara(dados) { mostrarJanela(); ctx.send('app:navigate', dados); }
+
+async function montarBandeja() {
+  if (!tray) return;
+  const logado = ctx.auth?.isSignedIn?.();
+  let fila = null;
+  if (logado && ctx.handlers['creator:queueStatus']) { try { fila = await ctx.handlers['creator:queueStatus'].fn(); } catch { fila = null; } }
+  const up = ctx.atualizador?.info?.() || {};
+  const textoFila = !fila ? null : fila.processing > 0 ? `Fila: gerando (${fila.pending + fila.processing} na fila)` : fila.paused ? `Fila: pausada (${fila.pending} na fila)` : `Fila: parada (${fila.pending} na fila)`;
+  tray.setToolTip(`Noctis Studio ${app.getVersion()}${textoFila ? `\n${textoFila}` : ''}`);
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: `Noctis Studio v${app.getVersion()}`, enabled: false },
+    ...(textoFila ? [{ label: textoFila, enabled: false }] : []),
+    { type: 'separator' },
+    { label: 'Abrir Noctis Studio', click: mostrarJanela },
+    { label: 'Ir para', enabled: !!logado, submenu: TELAS.map(([label, page]) => ({ label, click: () => irPara({ page }) })) },
+    { label: 'Chat IA', enabled: !!logado, click: () => irPara({ chat: true }) },
+    ...(logado && fila ? [fila.paused
+      ? { label: 'Retomar fila', click: async () => { await ctx.invocar('creator:resume').catch(() => {}); montarBandeja(); } }
+      : { label: 'Pausar fila', click: async () => { await ctx.invocar('creator:pause').catch(() => {}); montarBandeja(); } }] : []),
+    { type: 'separator' },
+    up.baixada
+      ? { label: `Reiniciar e atualizar para ${up.baixada.version}`, click: () => ctx.atualizador.instalar() }
+      : { label: 'Verificar atualizações', enabled: !!ctx.atualizador && app.isPackaged, click: () => ctx.atualizador.checar() },
+    { label: 'Abrir pasta de logs', click: () => shell.openPath(path.join(app.getPath('userData'), 'logs')) },
+    { type: 'separator' },
+    { label: 'Sair do Noctis Studio', click: () => { quitting = true; app.quit(); } },
+  ]));
+}
+
 function ensureTray() {
   if (tray) return;
-  const img = fs.existsSync(ICON) ? nativeImage.createFromPath(ICON).resize({ width: 16, height: 16 }) : nativeImage.createEmpty();
+  const caminho = process.platform === 'win32' && fs.existsSync(ICON.replace(/\.png$/, '.ico')) ? ICON.replace(/\.png$/, '.ico') : ICON;
+  const img = fs.existsSync(caminho) ? nativeImage.createFromPath(caminho).resize({ width: 16, height: 16 }) : nativeImage.createEmpty();
   tray = new Tray(img);
-  tray.setToolTip('Noctis Studio');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Abrir Noctis Studio', click: () => { win.show(); win.focus(); } },
-    { type: 'separator' },
-    { label: 'Sair', click: () => { quitting = true; app.quit(); } },
-  ]));
-  tray.on('click', () => { win.show(); win.focus(); });
+  tray.on('click', mostrarJanela);
+  tray.on('double-click', mostrarJanela);
+  montarBandeja();
+  setInterval(montarBandeja, 15000).unref?.();
 }
 
 function registerCore() {
@@ -123,7 +154,10 @@ function registerCore() {
   handle('auth:state', () => ctx.auth.state(), { livre: true });
   handle('auth:signin', () => ctx.auth.signIn(), { livre: true });
   handle('auth:cancel', () => ctx.auth.cancel(), { livre: true });
-  handle('auth:signout', () => ctx.auth.signOut(), { livre: true });
+  handle('auth:signout', (opts) => ctx.auth.signOut(opts || {}), { livre: true });
+  handle('auth:signinPassword', (dados) => ctx.auth.signInPassword(dados || {}), { livre: true });
+  handle('auth:signinSaved', () => ctx.auth.entrarSalvo(), { livre: true });
+  handle('auth:forgetPassword', () => ctx.auth.esquecerSenha(), { livre: true });
   handle('auth:refresh', () => ctx.auth.refresh({ force: true }), { livre: true });
 
   handle('settings:get', () => ctx.store.get(), { livre: true });
@@ -185,6 +219,7 @@ app.whenReady().then(async () => {
 
   ctx.auth = createAuth({
     file: path.join(userData, 'conta.bin'),
+    credFile: path.join(userData, 'conta-senha.bin'),
     safeStorage,
     openExternal: (u) => shell.openExternal(u),
     getSiteUrl: () => ctx.store.get().siteUrl,
@@ -198,7 +233,12 @@ app.whenReady().then(async () => {
   try {
     const { autoUpdater } = require('electron-updater');
     const { criarAtualizador } = require('./lib/atualizacao');
-    atualizador = criarAtualizador({ ctx, autoUpdater, app, isPackaged: app.isPackaged });
+    atualizador = criarAtualizador({
+      ctx, autoUpdater, app, isPackaged: app.isPackaged,
+      filaOcupada: async () => { const h = ctx.handlers['creator:queueStatus']; if (!h) return false; const f = await h.fn(); return (f?.processing || 0) > 0; },
+    });
+    ctx.atualizador = atualizador;
+    atualizador.aoMudar(() => montarBandeja());
     atualizador.init();
     ctx.onAuth.push((s) => {
       if (s.status === 'signed_in') {
@@ -217,6 +257,8 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
+  ensureTray();
+  ctx.onAuth.push(() => montarBandeja());
   if (!app.isPackaged && process.env.NOCTIS_DEV_NO_LOGIN === '1') ctx.auth.devBypass();
   else ctx.auth.init();
 });

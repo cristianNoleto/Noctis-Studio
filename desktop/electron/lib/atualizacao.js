@@ -2,8 +2,10 @@
 // na tela inicial. O feed /api/desktop/update exige a conta Noctis (mandamos o token no header),
 // então só quem tem acesso atualiza — igual ao download.
 //
-// Fluxo: ao abrir (app empacotado), confere a versão; se houver nova, baixa em segundo plano e
-// instala ao fechar. Guardamos as notas da versão para mostrar "O que mudou" na próxima abertura.
+// Fluxo: ao abrir e a cada 30 min (app empacotado), confere a versão; se houver nova, baixa em
+// segundo plano e, com o app aberto, avisa e reinicia sozinho depois de 30 s para instalar —
+// se houver geração em andamento na fila, espera ela terminar. Guardamos as notas da versão para
+// mostrar "O que mudou" na próxima abertura.
 
 // Notas da release podem vir como string ou lista [{version, note}].
 function notasTexto(info) {
@@ -22,10 +24,14 @@ function calcularNovidades({ versaoAtual, lastVersion, pending }) {
   return null;
 }
 
-function criarAtualizador({ ctx, autoUpdater, app, isPackaged }) {
+function criarAtualizador({ ctx, autoUpdater, app, isPackaged, intervaloMs = 30 * 60 * 1000, esperaMs = 30 * 1000, filaOcupada = async () => false }) {
   const log = ctx.log;
   let token = null;
-  const estado = { baixada: null, novidades: null, checando: false, versaoApp: app.getVersion() };
+  const estado = { baixada: null, novidades: null, checando: false, versaoApp: app.getVersion(), instalarEm: null };
+  let timerInstalar = null;
+  let timerChecar = null;
+  const aoMudar = [];
+  const avisarMudanca = () => { for (const fn of aoMudar) { try { fn(); } catch { /* ignora */ } } };
 
   // Novidades desta abertura (pure), depois zera o marcador para não repetir.
   const up = ctx.store.get().update || {};
@@ -50,9 +56,40 @@ function criarAtualizador({ ctx, autoUpdater, app, isPackaged }) {
       ctx.store.set({ update: { lastVersion: estado.versaoApp, pending: { version: info?.version, notes } } });
       log.success(`Atualização ${info?.version} baixada (será instalada ao fechar).`);
       ctx.send('app:update', { estado: 'baixada', version: info?.version, notes });
-      ctx.notify?.('Noctis Studio', `Atualização ${info?.version} pronta. Será instalada quando você fechar o app.`);
+      ctx.notify?.('Noctis Studio', `Atualização ${info?.version} pronta. O app vai reiniciar em ${Math.round(esperaMs / 1000)} s para instalar.`);
+      agendarInstalacao(esperaMs);
+      avisarMudanca();
     });
     autoUpdater.on('error', (e) => { estado.checando = false; log.warn(`Atualização: ${e?.message || e}`); });
+  }
+
+  // Com o app aberto: contagem regressiva e reinício automático (espera a fila, se estiver gerando).
+  function agendarInstalacao(ms) {
+    clearTimeout(timerInstalar);
+    estado.instalarEm = Date.now() + ms;
+    ctx.send('app:update', { estado: 'reiniciando', version: estado.baixada?.version, segundos: Math.round(ms / 1000) });
+    timerInstalar = setTimeout(tentarInstalar, ms);
+    timerInstalar.unref?.();
+  }
+  async function tentarInstalar() {
+    let ocupada = false;
+    try { ocupada = await filaOcupada(); } catch { ocupada = false; }
+    if (ocupada) {
+      log.info('Atualização: esperando a geração em andamento terminar para reiniciar.');
+      ctx.send('app:update', { estado: 'aguardando-fila', version: estado.baixada?.version });
+      clearTimeout(timerInstalar);
+      timerInstalar = setTimeout(tentarInstalar, 60 * 1000);
+      timerInstalar.unref?.();
+      return;
+    }
+    instalar();
+  }
+  function instalar() {
+    try {
+      log.info(`Atualização: reiniciando para instalar a ${estado.baixada?.version || 'nova versão'}…`);
+      autoUpdater.quitAndInstall(true, true); // silencioso + abre de novo depois de instalar
+      return true;
+    } catch (e) { log.warn(`Atualização: ${e?.message || e}`); return false; }
   }
 
   async function checar() {
@@ -63,10 +100,17 @@ function criarAtualizador({ ctx, autoUpdater, app, isPackaged }) {
   }
 
   return {
-    init() { if (isPackaged) ligarEventos(); },
+    init() {
+      if (!isPackaged) return;
+      ligarEventos();
+      timerChecar = setInterval(() => { checar(); }, intervaloMs);
+      timerChecar.unref?.();
+    },
+    aoMudar: (fn) => aoMudar.push(fn),
+    info: () => ({ baixada: estado.baixada, versao: estado.versaoApp, instalarEm: estado.instalarEm }),
     checar,
     definirToken,
-    instalar() { try { autoUpdater.quitAndInstall(); return true; } catch (e) { log.warn(`Atualização: ${e?.message || e}`); return false; } },
+    instalar,
     // novidades só uma vez por abertura (o popup consome).
     estado() { const n = estado.novidades; estado.novidades = null; return { baixada: estado.baixada, novidades: n, versao: estado.versaoApp }; },
   };

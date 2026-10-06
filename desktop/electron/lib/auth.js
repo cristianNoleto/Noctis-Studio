@@ -7,6 +7,10 @@
 //      o servidor do site gera um token de USO ÚNICO (token_hash);
 //   4. o navegador volta para 127.0.0.1:<porta>/callback e o app troca o token por
 //      uma sessão PRÓPRIA no Supabase (POST /auth/v1/verify).
+// Também dá para entrar com e-mail e senha (a troca acontece no servidor do site, que
+// dispensa o captcha). Se a pessoa marcar "lembrar", e-mail e senha ficam cifrados com o
+// safeStorage do sistema (DPAPI no Windows: só este usuário do Windows consegue abrir) e o app
+// entra sozinho ao abrir, mesmo depois de a sessão expirar ou de um "Sair".
 // A sessão fica cifrada com o safeStorage do sistema. A cada abertura (e de 6 em 6 h)
 // o app renova o token e reconfere a conta no site: conta apagada, suspensa ou sem
 // o plano mínimo → o app trava de novo na tela de login.
@@ -18,14 +22,16 @@ const path = require('path');
 const OFFLINE_GRACE_MS = 7 * 24 * 3600 * 1000; // sem internet, segue liberado por até 7 dias desde a última conferência
 const RECHECK_MS = 6 * 3600 * 1000;
 
-function createAuth({ file, safeStorage, openExternal, getSiteUrl, log, onChange }) {
+function createAuth({ file, credFile, safeStorage, openExternal, getSiteUrl, log, onChange }) {
   let state = { status: 'checking', user: null, error: null }; // checking | signed_out | signed_in | waiting_browser
   let session = null; // { url, key, access_token, refresh_token, expires_at, user, checkedAt }
   let pending = null;
   let timer = null;
+  let pularAuto = false; // depois de um "Sair", não entra sozinho de novo nesta mesma abertura
+  let tentandoAuto = false;
 
   const emit = () => onChange && onChange(publicState());
-  function publicState() { return { ...state }; }
+  function publicState() { return { ...state, salvo: salvo(), podeSalvar: !!credFile && safeStorage.isEncryptionAvailable() }; }
   function set(s) { state = { ...state, ...s }; emit(); }
 
   function load() {
@@ -41,6 +47,20 @@ function createAuth({ file, safeStorage, openExternal, getSiteUrl, log, onChange
     const text = JSON.stringify(session);
     fs.writeFileSync(file, safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(text) : Buffer.from(text));
   }
+
+  // ---------------------------------------------------------------- senha salva (cifrada)
+  function loadCred() {
+    if (!credFile || !safeStorage.isEncryptionAvailable()) return null;
+    try { const c = JSON.parse(safeStorage.decryptString(fs.readFileSync(credFile))); return c?.email && c?.password ? c : null; } catch { return null; }
+  }
+  function saveCred(email, password) {
+    if (!credFile || !safeStorage.isEncryptionAvailable()) return false; // sem cofre do sistema: não guarda senha em texto puro
+    fs.mkdirSync(path.dirname(credFile), { recursive: true });
+    fs.writeFileSync(credFile, safeStorage.encryptString(JSON.stringify({ email, password, em: Date.now() })));
+    return true;
+  }
+  function clearCred() { if (credFile) { try { fs.unlinkSync(credFile); } catch { /* já não existe */ } } }
+  const salvo = () => { const c = loadCred(); return c ? { email: c.email } : null; };
 
   function userOf(u, plan) {
     return { id: u.id, email: u.email, name: u.user_metadata?.display_name || u.user_metadata?.full_name || u.email, plan: plan || u.app_metadata?.plan || 'FREE' };
@@ -113,13 +133,64 @@ function createAuth({ file, safeStorage, openExternal, getSiteUrl, log, onChange
     }
   }
 
+  function armarRecheck() { clearInterval(timer); timer = setInterval(() => { refresh({ force: true }); }, RECHECK_MS); timer.unref?.(); }
+
+  // E-mail + senha → sessão própria do app (via servidor do site).
+  async function signInPassword({ email, password, lembrar = false } = {}) {
+    cancelPending();
+    email = String(email || '').trim(); password = String(password || '');
+    if (!email || !password) throw new Error('Informe e-mail e senha.');
+    set({ status: 'checking', error: null });
+    let r; let data;
+    try {
+      r = await fetch(`${getSiteUrl()}/api/desktop/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }), signal: AbortSignal.timeout(25000) });
+      data = await r.json().catch(() => ({}));
+    } catch (e) {
+      set({ status: 'signed_out', error: `Sem conexão com o site (${e.message}).` });
+      throw Object.assign(new Error('Sem conexão com o site.'), { rede: true });
+    }
+    if (!r.ok || !data.session?.access_token) {
+      const msg = data.message || `O site respondeu ${r.status}.`;
+      set({ status: 'signed_out', error: msg });
+      throw Object.assign(new Error(msg), { status: r.status });
+    }
+    adopt(data.url, data.key, data.session);
+    await refresh();
+    if (state.status !== 'signed_in') throw new Error(state.error || 'Esta conta não pode usar o app.');
+    if (lembrar) saveCred(email, password);
+    pularAuto = false;
+    log.success(`Conta Noctis conectada: ${session.user.email}`);
+    armarRecheck();
+    return publicState();
+  }
+
+  // Entra sozinho com a senha salva (ao abrir, ou quando a sessão cai).
+  async function autoLogin() {
+    const c = loadCred();
+    if (!c || pularAuto || tentandoAuto) return false;
+    tentandoAuto = true;
+    try {
+      log.info(`Conta Noctis: entrando automaticamente como ${c.email}…`);
+      await signInPassword({ email: c.email, password: c.password, lembrar: true });
+      return true;
+    } catch (e) {
+      if (e.status === 401) { clearCred(); set({ status: 'signed_out', error: 'A senha salva não funciona mais. Entre de novo.' }); }
+      log.warn(`Conta Noctis: entrada automática falhou (${e.message})`);
+      return false;
+    } finally { tentandoAuto = false; }
+  }
+
   async function init() {
     session = load();
-    if (!session) { set({ status: 'signed_out' }); return; }
+    if (!session) {
+      if (loadCred()) { await autoLogin(); if (state.status !== 'signed_in') set({ status: 'signed_out' }); }
+      else set({ status: 'signed_out' });
+      return;
+    }
     set({ status: 'checking', user: session.user });
-    await refresh({ force: true });
-    clearInterval(timer);
-    timer = setInterval(() => { refresh({ force: true }); }, RECHECK_MS);
+    const ok = await refresh({ force: true });
+    if (!ok && loadCred()) await autoLogin();
+    armarRecheck();
   }
 
   function page(title, body) {
@@ -181,9 +252,12 @@ function createAuth({ file, safeStorage, openExternal, getSiteUrl, log, onChange
     return { link };
   }
 
-  function signOut() {
+  // esquecer: apaga também a senha salva (senão, na próxima abertura o app entra sozinho).
+  function signOut({ esquecer = false } = {}) {
     cancelPending();
     session = null; save();
+    if (esquecer) clearCred();
+    pularAuto = true;
     clearInterval(timer);
     set({ status: 'signed_out', user: null, error: null });
   }
@@ -195,7 +269,9 @@ function createAuth({ file, safeStorage, openExternal, getSiteUrl, log, onChange
   }
 
   return {
-    init, signIn, signOut, refresh, devBypass,
+    init, signIn, signInPassword, autoLogin, signOut, refresh, devBypass,
+    esquecerSenha: () => { clearCred(); emit(); return true; },
+    entrarSalvo: async () => { pularAuto = false; const ok = await autoLogin(); if (!ok && state.status !== 'signed_in') throw new Error(state.error || 'Não deu para entrar com a senha salva.'); return publicState(); },
     cancel: () => cancelPending('Login cancelado.'),
     state: publicState,
     isSignedIn: () => state.status === 'signed_in',

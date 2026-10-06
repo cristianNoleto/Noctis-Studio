@@ -20,7 +20,7 @@ function Atualizacao() {
       {baixada && (
         <Card className="flex items-center gap-3 border-cyan-500/30 bg-cyan-500/5 px-5 py-3">
           <Download size={18} className="shrink-0 text-cyan-400" />
-          <p className="min-w-0 flex-1 text-sm text-slate-200">Atualização <b className="text-cyan-300">{baixada.version}</b> pronta. Ela será instalada quando você fechar o app.</p>
+          <p className="min-w-0 flex-1 text-sm text-slate-200">Atualização <b className="text-cyan-300">{baixada.version}</b> pronta. O app reinicia sozinho em instantes para instalar.</p>
           <button className={btnPrimary} onClick={() => call('app:update-install')}><RotateCw size={14} /> Reiniciar e atualizar</button>
         </Card>
       )}

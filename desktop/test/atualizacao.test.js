@@ -56,3 +56,21 @@ test('atualizador: em desenvolvimento não faz nada', async () => {
   up.init();
   assert.strictEqual(await up.checar(), null);
 });
+
+test('app aberto: baixou → contagem → espera a fila → reinicia e instala', async () => {
+  const au = new EventEmitter();
+  let instalou = null;
+  au.quitAndInstall = (silencioso, reabrir) => { instalou = { silencioso, reabrir }; };
+  const ctx = ctxFalso({ lastVersion: '1.0.0', pending: null });
+  let ocupada = true;
+  const up = criarAtualizador({ ctx, autoUpdater: au, app: { getVersion: () => '1.0.0' }, isPackaged: true, esperaMs: 30, filaOcupada: async () => ocupada });
+  up.init();
+  au.emit('update-downloaded', { version: '1.1.0', releaseNotes: 'x' });
+  assert.ok(ctx.eventos.some((e) => e.estado === 'reiniciando' && e.version === '1.1.0'));
+  await new Promise((r) => setTimeout(r, 80));
+  assert.strictEqual(instalou, null, 'não reinicia com geração em andamento');
+  assert.ok(ctx.eventos.some((e) => e.estado === 'aguardando-fila'));
+  ocupada = false;
+  up.instalar(); // botão "Atualizar agora"
+  assert.deepStrictEqual(instalou, { silencioso: true, reabrir: true });
+});

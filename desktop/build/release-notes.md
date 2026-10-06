@@ -1,4 +1,4 @@
-- Chat IA: tela "Agentes de IA" para instalar e conectar Claude Code, Codex, Grok e Antigravity sem terminal.
-- Chat IA: o seletor de agente mostra quem está instalado e tem o atalho "Configurar".
-- Creator: a tag Multi-prompt agora fica acima da caixa de texto, sem cobrir os prompts.
-- Versão do app aparece na barra lateral.
+- Login com e-mail e senha direto no app (além do login pelo navegador).
+- "Lembrar senha neste computador": a senha fica cifrada pelo Windows e o app entra sozinho ao abrir.
+- Ícone na bandeja do Windows sempre que o app está aberto, com atalhos (telas, Chat IA, pausar/retomar fila, atualizações).
+- Atualização com o app aberto: baixa sozinha e reinicia em 30 s para instalar (espera a geração em andamento terminar).

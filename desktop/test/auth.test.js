@@ -109,3 +109,95 @@ test('callback com estado errado é recusado', async () => {
     assert.strictEqual(r.status, 400);
   } finally { c.auth.signOut(); c.fim(); }
 });
+
+// ---------------------------------------------------------------- login por e-mail e senha
+// Cofre de mentira (como o DPAPI): cifra de verdade não importa no teste, só o caminho.
+const cofre = {
+  isEncryptionAvailable: () => true,
+  encryptString: (t) => Buffer.from(`CIFRADO:${Buffer.from(t).toString('base64')}`),
+  decryptString: (b) => Buffer.from(String(b).replace(/^CIFRADO:/, ''), 'base64').toString('utf8'),
+};
+
+async function cenarioSenha() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'auth-senha-'));
+  let senhaCerta = 'segredo123';
+  let n = 0;
+  const supa = await servidor(async (req, res) => {
+    const b = await corpo(req);
+    if (req.url.startsWith('/auth/v1/token') && b.refresh_token) {
+      if (b.refresh_token === 'revogado') return json(res, 400, { msg: 'Invalid Refresh Token' });
+      n++; return json(res, 200, { access_token: `acc-r${n}`, refresh_token: `ref-r${n}`, expires_in: 3600, user: { id: 'u1', email: 'cris@exemplo.com', app_metadata: { plan: 'PRO' } } });
+    }
+    json(res, 400, {});
+  });
+  const supaUrl = `http://127.0.0.1:${supa.address().port}`;
+  let logins = 0;
+  const site = await servidor(async (req, res) => {
+    if (req.url === '/api/desktop/info') return json(res, 200, { plan: 'PRO' });
+    if (req.url === '/api/desktop/password' && req.method === 'POST') {
+      const b = await corpo(req);
+      logins++;
+      if (b.email !== 'cris@exemplo.com' || b.password !== senhaCerta) return json(res, 401, { error: 'invalid_credentials', message: 'E-mail ou senha incorretos.' });
+      return json(res, 200, { url: supaUrl, key: 'anon', session: { access_token: `acc-p${logins}`, refresh_token: `ref-p${logins}`, expires_in: 3600, user: { id: 'u1', email: 'cris@exemplo.com', app_metadata: { plan: 'PRO' } } } });
+    }
+    json(res, 404, {});
+  });
+  const siteUrl = `http://127.0.0.1:${site.address().port}`;
+  const novo = () => createAuth({ file: path.join(dir, 'conta.bin'), credFile: path.join(dir, 'conta-senha.bin'), safeStorage: cofre, getSiteUrl: () => siteUrl, log: silencio, onChange: () => {}, openExternal: async () => {} });
+  return { dir, novo, trocarSenha: (s) => { senhaCerta = s; }, logins: () => logins, fim: () => { supa.close(); site.close(); fs.rmSync(dir, { recursive: true, force: true }); } };
+}
+
+test('e-mail e senha: entra, guarda a senha cifrada e entra sozinho depois', async () => {
+  const c = await cenarioSenha();
+  try {
+    const a = c.novo();
+    await a.init();
+    assert.strictEqual(a.state().status, 'signed_out');
+    await assert.rejects(a.signInPassword({ email: 'cris@exemplo.com', password: 'errada' }), /incorretos/);
+    await a.signInPassword({ email: 'cris@exemplo.com', password: 'segredo123', lembrar: true });
+    assert.ok(a.isSignedIn());
+    assert.deepStrictEqual(a.state().salvo, { email: 'cris@exemplo.com' });
+    const bruto = fs.readFileSync(path.join(c.dir, 'conta-senha.bin'), 'utf8');
+    assert.ok(bruto.startsWith('CIFRADO:') && !bruto.includes('segredo123'), 'a senha não pode ficar em texto puro');
+    assert.ok(!JSON.stringify(a.state()).includes('segredo123'), 'a senha nunca vai para a tela');
+
+    // "Sair": não entra sozinho de novo nesta mesma abertura…
+    a.signOut();
+    assert.strictEqual(a.state().status, 'signed_out');
+    assert.strictEqual(await a.autoLogin(), false);
+    // …mas ao abrir o app de novo (sem sessão), entra sozinho com a senha salva.
+    const b = c.novo();
+    await b.init();
+    assert.ok(b.isSignedIn());
+
+    // Sessão revogada (refresh falha) → entra de novo com a senha salva.
+    const sess = JSON.parse(cofre.decryptString(fs.readFileSync(path.join(c.dir, 'conta.bin'))));
+    sess.refresh_token = 'revogado';
+    fs.writeFileSync(path.join(c.dir, 'conta.bin'), cofre.encryptString(JSON.stringify(sess)));
+    const d = c.novo();
+    await d.init();
+    assert.ok(d.isSignedIn());
+
+    // Senha trocada no site → a salva é descartada e o app pede login.
+    c.trocarSenha('nova-senha');
+    d.signOut();
+    const e = c.novo();
+    await e.init();
+    assert.strictEqual(e.state().status, 'signed_out');
+    assert.strictEqual(e.state().salvo, null);
+    assert.match(e.state().error, /senha salva não funciona/);
+
+    // "Sair e esquecer": apaga a senha.
+    await e.signInPassword({ email: 'cris@exemplo.com', password: 'nova-senha', lembrar: true });
+    e.signOut({ esquecer: true });
+    assert.ok(!fs.existsSync(path.join(c.dir, 'conta-senha.bin')));
+  } finally { c.fim(); }
+});
+
+test('sem cofre do sistema a senha não é guardada', async () => {
+  const c = await cenarioSenha();
+  try {
+    const a = createAuth({ file: path.join(c.dir, 'x.bin'), credFile: path.join(c.dir, 'x-senha.bin'), safeStorage: semCifra, getSiteUrl: () => '', log: silencio, onChange: () => {}, openExternal: async () => {} });
+    assert.strictEqual(a.state().podeSalvar, false);
+  } finally { c.fim(); }
+});

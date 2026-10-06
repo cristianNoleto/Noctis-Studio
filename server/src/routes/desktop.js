@@ -170,6 +170,45 @@ router.get('/update/:file', async (req, res) => {
   }
 })
 
+// Login do app com e-mail e senha (alternativa ao login pelo navegador).
+//   O formulário do site usa hCaptcha; o app não consegue exibir o captcha (roda fora do
+//   domínio do site), então a troca da senha por uma sessão acontece AQUI, com a chave de
+//   serviço (o Supabase dispensa o captcha para chamadas de servidor). Proteção contra força
+//   bruta: limite próprio em api/index.js (10 tentativas / 15 min por IP).
+//   Devolve uma sessão PRÓPRIA do app (separada da do navegador) + URL/anon key públicos do
+//   Supabase, que o app usa para renovar o token depois.
+router.post('/password', async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase()
+  const password = String(req.body?.password || '')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password || password.length > 200) {
+    return res.status(400).json({ error: 'bad_request', message: 'Informe e-mail e senha.' })
+  }
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const anon = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
+  if (!url || !service || !anon) return res.status(500).json({ error: 'not_configured', message: 'Login por senha não configurado no servidor.' })
+  try {
+    const r = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: service, Authorization: `Bearer ${service}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    const data = await r.json().catch(() => ({}))
+    if (!r.ok || !data.access_token) {
+      const msg = String(data.msg || data.error_description || data.message || '')
+      if (/email not confirmed/i.test(msg)) return res.status(403).json({ error: 'email_not_confirmed', message: 'Confirme seu e-mail antes de entrar (veja a caixa de entrada).' })
+      return res.status(401).json({ error: 'invalid_credentials', message: 'E-mail ou senha incorretos.' })
+    }
+    const user = data.user || {}
+    if (user.banned_until && new Date(user.banned_until) > new Date()) return res.status(403).json({ error: 'banned', message: 'Esta conta está suspensa.' })
+    const plan = planOf(user)
+    if ((RANK[plan] ?? 0) < RANK[minPlan()]) return res.status(403).json({ error: 'plan_required', message: `O Noctis Studio Desktop exige o plano ${minPlan()} ou superior.` })
+    res.json({ url, key: anon, session: { access_token: data.access_token, refresh_token: data.refresh_token, expires_in: data.expires_in, user } })
+  } catch (e) {
+    res.status(502).json({ error: 'auth_error', message: `Não foi possível entrar agora: ${e.message}` })
+  }
+})
+
 router.post('/session', async (req, res) => {
   const ctx = await requireMember(req, res)
   if (!ctx) return

@@ -31,6 +31,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/admin', rateLimit({ name: 'admin', windowMs: 60_000, max: 30 }))
 app.use('/api/ai', rateLimit({ name: 'ai', windowMs: 60_000, max: 30 }))
 app.use('/api/channels/upsert', rateLimit({ name: 'upsert', windowMs: 60_000, max: 20 }))
+app.use('/api/desktop/password', rateLimit({ name: 'desktop-password', windowMs: 15 * 60_000, max: 10 }))
 app.use('/api/desktop', rateLimit({ name: 'desktop', windowMs: 60_000, max: 20 }))
 // Teto geral de segurança para todo o resto.
 app.use('/api', rateLimit({ name: 'global', windowMs: 60_000, max: 240 }))

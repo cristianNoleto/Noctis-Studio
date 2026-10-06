@@ -40,6 +40,33 @@ function CloseDialog() {
   )
 }
 
+// Aviso global da atualização com o app aberto: contagem e reinício automático.
+function AvisoAtualizacao() {
+  const [a, setA] = useState(null)
+  const [resta, setResta] = useState(0)
+  useEvent('app:update', (e) => {
+    if (e.estado === 'reiniciando') { setA(e); setResta(e.segundos || 30) }
+    else if (e.estado === 'aguardando-fila') setA(e)
+  })
+  useEffect(() => {
+    if (!a || a.estado !== 'reiniciando') return undefined
+    const t = setInterval(() => setResta((r) => Math.max(0, r - 1)), 1000)
+    return () => clearInterval(t)
+  }, [a])
+  if (!a) return null
+  return (
+    <div className="fixed bottom-5 left-1/2 z-[90] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-cyan-500/30 bg-slate-900/95 px-5 py-3 shadow-2xl shadow-black/60 backdrop-blur">
+      <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
+      <p className="text-sm text-slate-200">
+        {a.estado === 'aguardando-fila'
+          ? <>Atualização <b className="text-cyan-300">{a.version}</b> pronta — o app reinicia assim que a geração em andamento terminar.</>
+          : <>Atualização <b className="text-cyan-300">{a.version}</b> baixada. Reiniciando para instalar em <b className="text-cyan-300">{resta}s</b>…</>}
+      </p>
+      <button className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400" onClick={() => call('app:update-install')}>Atualizar agora</button>
+    </div>
+  )
+}
+
 function Inner() {
   const [auth, setAuth] = useState({ status: 'checking' })
   const [page, setPage] = useState(() => {
@@ -51,6 +78,7 @@ function Inner() {
   useEffect(() => { call('auth:state').then(setAuth).catch(() => setAuth({ status: 'signed_out' })) }, [])
   useEvent('auth', setAuth)
   useEvent('creator:update', (d) => { if (d && d.queue) setQueue(d.queue) })
+  useEvent('app:navigate', (d) => { if (d?.chat) setChatOpen(true); else if (d?.page) go(d.page) })
   useEffect(() => {
     if (auth.status !== 'signed_in') return
     call('creator:queueStatus').then(setQueue).catch(() => {})
@@ -61,7 +89,7 @@ function Inner() {
     try { localStorage.setItem('noctis_page', p) } catch { /* sem storage */ }
   }
 
-  if (auth.status !== 'signed_in') return <Login auth={auth} />
+  if (auth.status !== 'signed_in') return <><Login auth={auth} /><AvisoAtualizacao /></>
 
   const [base, ...rest] = page.split('/')
   const Page = PAGES[base] || PAGES.dashboard
@@ -80,6 +108,7 @@ function Inner() {
         )}
       </div>
       <CloseDialog />
+      <AvisoAtualizacao />
     </Shell>
   )
 }
