@@ -94,15 +94,17 @@ jobs:
           SUBSTITUIR: ${{ inputs.substituir }}
         run: |
           TAG="desktop-v$V"
-          ARQ="release/NoctisStudio-Setup-$V.exe"
+          # Instalador + feed da atualização automática (electron-updater): latest.yml e .blockmap.
+          ARQS=("release/NoctisStudio-Setup-$V.exe" "release/latest.yml")
+          [ -f "release/NoctisStudio-Setup-$V.exe.blockmap" ] && ARQS+=("release/NoctisStudio-Setup-$V.exe.blockmap")
           if gh release view "$TAG" > /dev/null 2>&1; then
             if [ "$SUBSTITUIR" = "true" ]; then
-              gh release upload "$TAG" "$ARQ" --clobber
-              echo "Instalador da $TAG substituído."
+              gh release upload "$TAG" "${ARQS[@]}" --clobber
+              echo "Release $TAG substituída (instalador + feed de atualização)."
             else
               echo "::notice::A versão $V já está publicada. Aumente a versão em desktop/package.json para lançar outra."
             fi
           else
-            gh release create "$TAG" "$ARQ" --target "$GITHUB_SHA" --title "Noctis Studio $V" \
+            gh release create "$TAG" "${ARQS[@]}" --target "$GITHUB_SHA" --title "Noctis Studio $V" \
               --notes "Noctis Studio Desktop $V para Windows. Baixe pelo site: Noctis Studio → App Desktop (precisa estar logado)."
           fi

@@ -193,6 +193,24 @@ app.whenReady().then(async () => {
   });
   ctx.onAuth = [];
 
+  // Atualização automática: baixa em segundo plano e instala ao fechar; popup de novidades na Início.
+  let atualizador = null;
+  try {
+    const { autoUpdater } = require('electron-updater');
+    const { criarAtualizador } = require('./lib/atualizacao');
+    atualizador = criarAtualizador({ ctx, autoUpdater, app, isPackaged: app.isPackaged });
+    atualizador.init();
+    ctx.onAuth.push((s) => {
+      if (s.status === 'signed_in') {
+        atualizador.definirToken(ctx.auth.accessToken());
+        if (ctx.store.get().autoUpdate !== false) atualizador.checar();
+      }
+    });
+  } catch (e) { log.warn(`Atualização indisponível: ${e.message}`); }
+  handle('app:update-state', () => (atualizador ? atualizador.estado() : { baixada: null, novidades: null, versao: app.getVersion() }), { livre: true });
+  handle('app:update-install', () => (atualizador ? atualizador.instalar() : false), { livre: true });
+  handle('app:update-check', async () => { if (atualizador) await atualizador.checar(); return true; }, { livre: true });
+
   registerCore();
   for (const mod of ['renomeador', 'audio-atlas', 'creator', 'srt', 'chat']) {
     try { require(`./ipc/${mod}`)(ctx); } catch (e) { if (e.code !== 'MODULE_NOT_FOUND' || !String(e.message).includes(`ipc/${mod}`)) log.error(`Módulo ${mod}: ${e.message}`); }

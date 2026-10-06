@@ -12,7 +12,7 @@ App para Windows (pasta `desktop/`) que junta, com o visual e o logo do site:
 | **Renomeador** | Renomeação em lote com prévia, conflitos e desfazer |
 | **Contas** | Contas Google do Flow: conectar, conferir, diagnóstico, ritmo e distribuição |
 | **Logs / Configurações** | Logs exportáveis; Geral, Reescrita IA (chaves Gemini), Avançado, Conta |
-| **Chat IA** (botão no canto) | Claude Code dentro do app, com acesso às ferramentas do Noctis e aprovação na tela; Codex e Gemini em modo básico |
+| **Chat IA** (botão no canto) | Claude Code, Codex, Grok e Antigravity dentro do app, com acesso às ferramentas do Noctis e aprovação na tela. Instalar e entrar na conta são feitos pelo próprio app, sem terminal. Seletores de pasta, agente, modelo e esforço na barra inferior |
 
 ## Acesso privado
 
@@ -32,6 +32,16 @@ App para Windows (pasta `desktop/`) que junta, com o visual e o logo do site:
    workflow **Desktop (Windows)**, que gera o instalador e cria a release `desktop-v0.1.0`.
 
 Nada de SQL: o app não precisa de tabelas novas.
+
+## Atualização automática
+
+Ao abrir o app (em qualquer PC com internet), ele confere se há versão nova, baixa em segundo
+plano e instala quando você fecha — ou você clica em "Reiniciar e atualizar" no aviso da tela
+Início. Depois de atualizar, aparece um popup "O que mudou" com as novidades daquela versão.
+
+O feed de atualização passa pelo mesmo `GITHUB_RELEASES_TOKEN` do download (nada público): o app
+se identifica com a sua conta Noctis, então só quem tem acesso atualiza. Para o auto-update
+funcionar, cada release precisa ter o `latest.yml` junto do `.exe` — o workflow já publica os dois.
 
 ## Lançar uma versão nova
 

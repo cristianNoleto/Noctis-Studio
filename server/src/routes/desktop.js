@@ -132,6 +132,44 @@ router.get('/download', async (req, res) => {
   }
 })
 
+// Feed de atualização automática do app (electron-updater, provider "generic").
+//   O app pede /update/latest.yml e depois /update/<instalador>.exe (e .blockmap).
+//   Tudo passa pela conta Noctis (Authorization: Bearer). Para o .exe e o .blockmap
+//   devolvemos um redirect para a URL assinada do asset (não trafega 130 MB pelo servidor);
+//   o latest.yml é pequeno e vai no corpo.
+const ARQUIVO_UPDATE = /^[\w.-]+\.(ya?ml|exe|blockmap)$/i
+
+router.get('/update/:file', async (req, res) => {
+  const nome = req.params.file
+  if (!ARQUIVO_UPDATE.test(nome) || nome.includes('..')) {
+    return res.status(400).json({ error: 'bad_file' })
+  }
+  const ctx = await requireMember(req, res)
+  if (!ctx) return
+  const { repo, token } = releasesConfig()
+  if (!token) return res.status(503).json({ error: 'not_configured', message: 'Atualização não configurada: falta GITHUB_RELEASES_TOKEN na Vercel.' })
+  try {
+    const rel = await latestDesktopRelease(repo, token)
+    const asset = rel?.assets.find((a) => a.name.toLowerCase() === nome.toLowerCase())
+    if (!asset) return res.status(404).json({ error: 'not_found', message: `Arquivo ${nome} não está na release.` })
+    const r = await gh(`/repos/${repo}/releases/assets/${asset.id}`, token, {
+      headers: { Accept: 'application/octet-stream' },
+      redirect: 'manual',
+    })
+    const url = r.headers.get('location')
+    if (!url) throw new Error(`GitHub respondeu ${r.status} ao buscar ${nome}.`)
+    // .yml é pequeno: entrega o conteúdo direto (electron-updater lê o corpo).
+    if (/\.ya?ml$/i.test(nome)) {
+      const conteudo = await fetch(url).then((x) => x.text())
+      res.type('text/yaml').send(conteudo)
+      return
+    }
+    res.redirect(302, url) // .exe / .blockmap → URL assinada e temporária
+  } catch (e) {
+    res.status(502).json({ error: 'github_error', message: e.message })
+  }
+})
+
 router.post('/session', async (req, res) => {
   const ctx = await requireMember(req, res)
   if (!ctx) return

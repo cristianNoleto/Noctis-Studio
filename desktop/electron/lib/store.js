@@ -28,6 +28,8 @@ function defaults(documentsDir) {
     renomeador: { lastFolder: '' },
     srt: { cutMode: 'center', speedUp: true, minTarget: 7.5, slowDown: true, maxTarget: 11 },
     chat: { agent: 'claude', permissionMode: '', agentes: {} },
+    autoUpdate: true,
+    update: { lastVersion: '', pending: null },
   };
 }
 

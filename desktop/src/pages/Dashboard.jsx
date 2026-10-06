@@ -1,9 +1,45 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Clock, Loader2, CircleCheck, Coins, RefreshCw, Pause, Play, Images, Music, FolderPen, Film, Users } from 'lucide-react'
+import { Clock, Loader2, CircleCheck, Coins, RefreshCw, Pause, Play, Images, Music, FolderPen, Film, Users, Sparkles, Download, RotateCw } from 'lucide-react'
 import { call, useEvent } from '../lib/api'
 import { mediaUrl, isVideo } from '../lib/media'
 import { Mark } from '../components/Logo'
-import { btnGhost, Card, EmptyState } from '../components/ui'
+import { btnGhost, btnPrimary, Card, EmptyState, Modal } from '../components/ui'
+
+// Popup "O que mudou" (abre uma vez após uma atualização) e banner de atualização pronta.
+function Atualizacao() {
+  const [novidades, setNovidades] = useState(null)
+  const [baixada, setBaixada] = useState(null)
+  const [baixando, setBaixando] = useState(null)
+  useEffect(() => { call('app:update-state').then((s) => { if (s?.novidades) setNovidades(s.novidades); if (s?.baixada) setBaixada(s.baixada) }).catch(() => {}) }, [])
+  useEvent('app:update', (e) => {
+    if (e.estado === 'baixando') setBaixando(e.percent)
+    else if (e.estado === 'baixada') { setBaixando(null); setBaixada({ version: e.version, notes: e.notes }) }
+  })
+  return (
+    <>
+      {baixada && (
+        <Card className="flex items-center gap-3 border-cyan-500/30 bg-cyan-500/5 px-5 py-3">
+          <Download size={18} className="shrink-0 text-cyan-400" />
+          <p className="min-w-0 flex-1 text-sm text-slate-200">Atualização <b className="text-cyan-300">{baixada.version}</b> pronta. Ela será instalada quando você fechar o app.</p>
+          <button className={btnPrimary} onClick={() => call('app:update-install')}><RotateCw size={14} /> Reiniciar e atualizar</button>
+        </Card>
+      )}
+      {baixando != null && !baixada && (
+        <Card className="flex items-center gap-3 px-5 py-2.5"><Loader2 size={15} className="animate-spin text-cyan-400" /><p className="flex-1 text-[13px] text-slate-400">Baixando atualização… {baixando}%</p></Card>
+      )}
+      <Modal open={!!novidades} onClose={() => setNovidades(null)} title={`Novidades da versão ${novidades?.version || ''}`}>
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400"><Sparkles size={20} /></span>
+          <div className="min-w-0">
+            <p className="mb-2 text-sm text-slate-400">O Noctis Studio foi atualizado. O que mudou:</p>
+            <div className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-[13px] leading-relaxed text-slate-300">{novidades?.notes || 'Melhorias e correções.'}</div>
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end"><button className={btnPrimary} onClick={() => setNovidades(null)}>Entendi</button></div>
+      </Modal>
+    </>
+  )
+}
 
 function saudacao() {
   const h = new Date().getHours()
@@ -27,6 +63,7 @@ export default function Dashboard({ go }) {
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-5 px-8 py-7">
+      <Atualizacao />
       <Card className="relative overflow-hidden px-8 py-10 text-center">
         <div className="pointer-events-none absolute -top-32 left-1/2 h-[380px] w-[620px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(0,242,254,0.10),transparent_65%)]" />
         <div className="relative">

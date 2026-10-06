@@ -3,7 +3,7 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const PREFIXOS = ['app:', 'auth:', 'settings:', 'logs:', 'sys:', 'ren:', 'aa:', 'creator:', 'accounts:', 'srt:', 'chat:'];
-const EVENTOS = new Set(['log', 'auth', 'aa:progress', 'app:close-request', 'creator:update', 'accounts:update', 'srt:progress', 'chat:event', 'settings']);
+const EVENTOS = new Set(['log', 'auth', 'aa:progress', 'app:close-request', 'creator:update', 'accounts:update', 'srt:progress', 'chat:event', 'settings', 'app:update']);
 
 contextBridge.exposeInMainWorld('noctis', {
   platform: process.platform,
