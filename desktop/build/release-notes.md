@@ -1,0 +1,4 @@
+- Chat IA: tela "Agentes de IA" para instalar e conectar Claude Code, Codex, Grok e Antigravity sem terminal.
+- Chat IA: o seletor de agente mostra quem está instalado e tem o atalho "Configurar".
+- Creator: a tag Multi-prompt agora fica acima da caixa de texto, sem cobrir os prompts.
+- Versão do app aparece na barra lateral.

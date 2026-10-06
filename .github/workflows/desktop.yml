@@ -105,6 +105,8 @@ jobs:
               echo "::notice::A versão $V já está publicada. Aumente a versão em desktop/package.json para lançar outra."
             fi
           else
-            gh release create "$TAG" "${ARQS[@]}" --target "$GITHUB_SHA" --title "Noctis Studio $V" \
-              --notes "Noctis Studio Desktop $V para Windows. Baixe pelo site: Noctis Studio → App Desktop (precisa estar logado)."
+            # Notas: desktop/build/release-notes.md (o mesmo texto vai no latest.yml e aparece no
+            # popup "O que mudou" do app).
+            if [ -s build/release-notes.md ]; then NOTAS=(--notes-file build/release-notes.md); else NOTAS=(--notes "Noctis Studio Desktop $V."); fi
+            gh release create "$TAG" "${ARQS[@]}" --target "$GITHUB_SHA" --title "Noctis Studio $V" "${NOTAS[@]}"
           fi

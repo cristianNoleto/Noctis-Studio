@@ -96,15 +96,16 @@ export default function Composer({ projectId, characters = [], onEnviado, refsEx
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 flex flex-col items-center px-6">
-      <button onClick={() => setRecolhido(true)} className="pointer-events-auto mb-1.5 rounded-full border border-slate-700 bg-slate-900/90 p-1 text-slate-400 hover:text-slate-200" title="Recolher"><ChevronDown size={14} /></button>
+      <div className="mb-1.5 grid w-full max-w-[760px] grid-cols-3 items-center">
+        <div />
+        <button onClick={() => setRecolhido(true)} className="pointer-events-auto justify-self-center rounded-full border border-slate-700 bg-slate-900/90 p-1 text-slate-400 hover:text-slate-200" title="Recolher"><ChevronDown size={14} /></button>
+        {nPrompts > 1 ? (
+          <span className="pointer-events-auto justify-self-end inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-[#1a150c] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-amber-300" title={`${nPrompts} prompts (uma linha = um pedido)${cfg.outputs > 1 ? ` · ×${cfg.outputs} saídas = ~${nPrompts * cfg.outputs} gerações` : ''}`}>
+            <Flame size={12} className="text-amber-400" /> Multi-prompt ({nPrompts})
+          </span>
+        ) : <div />}
+      </div>
       <div className="pointer-events-auto relative w-full max-w-[760px] rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl shadow-black/60 backdrop-blur">
-        {nPrompts > 1 && (
-          <div className="pointer-events-none absolute -top-3 right-3 z-10">
-            <span className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-[#1a150c] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-300 shadow-lg" title={`${nPrompts} prompts na fila (uma linha = um pedido)${cfg.outputs > 1 ? ` · ×${cfg.outputs} saídas = ~${nPrompts * cfg.outputs} gerações` : ''}`}>
-              <Flame size={12} className="text-amber-400" /> Multi-prompt ({nPrompts})
-            </span>
-          </div>
-        )}
         {(video && cfg.videoMode === 'frames') ? (
           <div className="flex items-center gap-2 px-4 pt-3">
             {[['Ini', ini, setIni], ['Fim', fim, setFim]].map(([rot, val, setter], i) => (

@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   X, Plus, History, Settings2, Send, Square, Bot, Wrench, ChevronRight, ChevronDown, Brain, TriangleAlert, Check, ShieldQuestion,
-  FolderOpen, Download, LogIn, RefreshCw, ExternalLink, Trash2, Sparkles, TerminalSquare, FileText, Globe, Search, Copy, Folder, Cpu, Gauge,
+  FolderOpen, Download, LogIn, RefreshCw, ExternalLink, Trash2, Sparkles, TerminalSquare, FileText, Globe, Search, Copy, Folder, Cpu, Gauge, Rocket, Zap,
 } from 'lucide-react'
 import { call, useEvent, useSettings, useToast } from '../lib/api'
-import { btnGhost, btnPrimary, iconBtn, Spinner } from './ui'
+import { btnGhost, btnPrimary, iconBtn, Modal, Spinner } from './ui'
 
 const PERMISSOES = [
   { v: '', t: 'Perguntar', s: 'pede sua aprovação antes de mexer em algo' },
@@ -166,32 +166,30 @@ function Resposta({ msg, rodando, onPermissao }) {
 }
 
 // ------------------------------------------------------------- cartões de instalar / entrar
-function CartaoInstalar({ agente, onPronto, toast }) {
-  const [inst, setInst] = useState(null)
+const ICONE_AGENTE = { claude: Bot, codex: TerminalSquare, agy: Rocket, grok: Zap }
+
+function ProgressoInstalacao({ agente, inst }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+      <div className="mb-2 flex items-center justify-between text-[12px] text-slate-300"><span className="flex items-center gap-2"><Spinner size={12} /> Instalando… isso pode levar alguns minutos.</span><button className="text-slate-500 hover:text-slate-200" onClick={() => call('chat:installCancel', agente.id)}>Cancelar</button></div>
+      <div className="h-1 overflow-hidden rounded-full bg-slate-800"><div className="h-full w-1/3 animate-pulse bg-cyan-400" /></div>
+      <p className="mt-2 truncate font-mono text-[10.5px] text-slate-500">{inst.linhas.at(-1) || 'Baixando o instalador…'}</p>
+    </div>
+  )
+}
+
+function CartaoInstalar({ agente, inst, onInstalar, onPronto, onAbrirAgentes, toast }) {
   const [verComando, setVerComando] = useState(false)
   const [comando, setComando] = useState('')
-  useEvent('chat:event', (e) => {
-    if (e.tipo !== 'instalar' || e.agente !== agente.id) return
-    if (e.fim) { setInst(null); if (e.ok) onPronto(); else if (e.erro) toast(e.erro, 'error') }
-    else setInst((s) => ({ linhas: [...(s?.linhas || []), e.linha].slice(-6) }))
-  })
-  const instalar = async () => { setInst({ linhas: [] }); try { await call('chat:install', agente.id) } catch (err) { toast(err.message, 'error'); setInst(null) } }
   const mostrarComando = async () => { if (!comando) setComando(await call('chat:command', agente.id).catch(() => '')); setVerComando(!verComando) }
   return (
     <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
       <p className="mb-1 flex items-center gap-2 font-semibold text-slate-100"><Download size={15} className="text-cyan-400" /> {agente.nome} não está instalado</p>
       <p className="mb-3 text-[12.5px] text-slate-400">O app instala pra você, sem terminal. Leva alguns minutos e não precisa de Node instalado.</p>
-      {inst ? (
-        <div className="mb-3 rounded-xl border border-slate-800 bg-slate-950 p-3">
-          <div className="mb-2 flex items-center justify-between text-[12px] text-slate-300"><span className="flex items-center gap-2"><Spinner size={12} /> Instalando… isso pode levar alguns minutos.</span><button className="text-slate-500 hover:text-slate-200" onClick={() => call('chat:installCancel', agente.id)}>Cancelar</button></div>
-          <div className="h-1 overflow-hidden rounded-full bg-slate-800"><div className="h-full w-1/3 animate-pulse bg-cyan-400" /></div>
-          {inst.linhas.length > 0 && <p className="mt-2 truncate font-mono text-[10.5px] text-slate-500">{inst.linhas[inst.linhas.length - 1]}</p>}
-        </div>
-      ) : (
-        <button className={`${btnPrimary} mb-3`} onClick={instalar}><Download size={14} /> Instalar</button>
-      )}
+      <div className="mb-3">{inst ? <ProgressoInstalacao agente={agente} inst={inst} /> : <button className={btnPrimary} onClick={() => onInstalar(agente.id)}><Download size={14} /> Instalar</button>}</div>
       <div className="flex flex-wrap items-center gap-3 text-[12px] text-slate-400">
         <button className="flex items-center gap-1 hover:text-slate-200" onClick={onPronto}><RefreshCw size={12} /> Procurar de novo</button>
+        <button className="flex items-center gap-1 hover:text-slate-200" onClick={onAbrirAgentes}><Settings2 size={12} /> Abrir Agentes de IA</button>
         <button className="flex items-center gap-1 hover:text-slate-200" onClick={mostrarComando}><TerminalSquare size={12} /> {verComando ? 'ocultar comando' : 'ver comando'}</button>
         <button className="flex items-center gap-1 hover:text-slate-200" onClick={() => call('sys:openExternal', agente.doc)}><ExternalLink size={12} /> Documentação</button>
       </div>
@@ -202,6 +200,36 @@ function CartaoInstalar({ agente, onPronto, toast }) {
         </div>
       )}
     </div>
+  )
+}
+
+function AgentesModal({ open, onClose, agentes, inst, onInstalar, onEntrar, onVerificar, verificando }) {
+  return (
+    <Modal open={open} onClose={onClose} title="Agentes de IA" width="max-w-2xl">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-[12.5px] text-slate-400">Os CLIs de agente que você usa no chat. Instale e conecte — tudo sem terminal.</p>
+        <button className={`${btnGhost} shrink-0 whitespace-nowrap`} onClick={onVerificar}>{verificando ? <Spinner size={13} /> : <RefreshCw size={13} />} Verificar novamente</button>
+      </div>
+      <div className="divide-y divide-slate-800 rounded-xl border border-slate-800">
+        {(agentes || []).map((a) => {
+          const Icon = ICONE_AGENTE[a.id] || Bot
+          const i = inst[a.id]
+          return (
+            <div key={a.id} className="px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-800 bg-slate-950 text-slate-300"><Icon size={15} /></span>
+                <p className="min-w-0 flex-1 truncate text-[14px] font-semibold text-slate-100">{a.nome}{a.versao && <span className="ml-2 font-mono text-[10.5px] font-normal text-slate-500">{a.versao}</span>}</p>
+                {!a.instalado && !i && <button className={`${btnGhost} border-cyan-500/40 px-3 py-1.5 text-cyan-300`} onClick={() => onInstalar(a.id)}><Download size={13} /> Instalar</button>}
+                {a.instalado && a.logado === false && <button className={`${btnGhost} border-amber-500/40 px-3 py-1.5 text-amber-300`} onClick={() => onEntrar(a.id)}><LogIn size={13} /> Entrar</button>}
+                <button className={`${btnGhost} px-3 py-1.5`} onClick={() => call('sys:openExternal', a.doc)}><ExternalLink size={13} /> Docs</button>
+                <span className={`w-24 text-right text-[11.5px] font-semibold ${a.instalado ? (a.logado === false ? 'text-amber-300' : 'text-emerald-400') : 'text-slate-500'}`}>{i ? 'Instalando…' : !a.instalado ? 'Não instalado' : a.logado === false ? 'Sem login' : 'Pronto'}</span>
+              </div>
+              {i && <div className="mt-2"><ProgressoInstalacao agente={a} inst={i} /></div>}
+            </div>
+          )
+        })}
+      </div>
+    </Modal>
   )
 }
 
@@ -258,6 +286,8 @@ export default function ChatPanel({ onClose, go }) {
   const [verificando, setVerificando] = useState(false)
   const [modelosAg, setModelosAg] = useState({}) // agentId → {modelos, esforcos}
   const [menu, setMenu] = useState(null) // 'agente'|'modelo'|'esforco'|'pasta'
+  const [inst, setInst] = useState({}) // agente → { linhas } enquanto instala
+  const [verAgentes, setVerAgentes] = useState(false)
   const fimRef = useRef(null)
   const agenteId = conv?.agente || settings?.chat?.agent || 'claude'
   const agente = useMemo(() => agentes?.find((a) => a.id === agenteId), [agentes, agenteId])
@@ -282,6 +312,11 @@ export default function ChatPanel({ onClose, go }) {
 
   useEvent('chat:event', (e) => {
     if (e.tipo === 'navegar') { go(e.tela); return }
+    if (e.tipo === 'instalar') {
+      if (e.fim) { setInst((m) => { const n = { ...m }; delete n[e.agente]; return n }); if (e.ok) { toast('Instalado! Agora entre na sua conta.', 'success'); carregarAgentes(true) } else if (e.erro) toast(e.erro, 'error') }
+      else setInst((m) => ({ ...m, [e.agente]: { linhas: [...(m[e.agente]?.linhas || []), e.linha].slice(-6) } }))
+      return
+    }
     if (!e.conversa) return
     setConv((c) => {
       if (!c || c.id !== e.conversa) return c
@@ -290,6 +325,10 @@ export default function ChatPanel({ onClose, go }) {
     })
     if (e.tipo === 'fim') carregarLista()
   })
+
+  const instalar = (id) => { setInst((m) => ({ ...m, [id]: { linhas: [] } })); call('chat:install', id).catch((err) => { toast(err.message, 'error'); setInst((m) => { const n = { ...m }; delete n[id]; return n }) }) }
+  const entrar = async (id) => { setVerAgentes(false); if (id !== agenteId) await trocarAgente(id); call('chat:login', id).catch((err) => toast(err.message, 'error')) }
+  const nenhumInstalado = agentes && !agentes.some((a) => a.instalado)
 
   async function nova() { const c = await call('chat:new', { agente: settings?.chat?.agent || 'claude' }); setConv({ ...c, rodando: false }); setVerLista(false); carregarLista() }
   async function enviar(t = texto) {
@@ -337,6 +376,7 @@ export default function ChatPanel({ onClose, go }) {
         <button className={iconBtn} title="Fechar" onClick={onClose}><X size={16} /></button>
       </div>
 
+      <AgentesModal open={verAgentes} onClose={() => setVerAgentes(false)} agentes={agentes} inst={inst} onInstalar={instalar} onEntrar={entrar} onVerificar={() => carregarAgentes(true)} verificando={verificando} />
       {verConfig && (
         <div className="space-y-1.5 border-b border-slate-800 bg-slate-950/60 p-3">
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Permissões {agente && !agente.permissao && <span className="text-slate-600">(o {agente.nome} não pergunta antes)</span>}</p>
@@ -363,7 +403,15 @@ export default function ChatPanel({ onClose, go }) {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {agentes && agente && !agente.instalado && <CartaoInstalar agente={agente} toast={toast} onPronto={() => carregarAgentes(true)} />}
+          {nenhumInstalado && (
+            <div className="mb-6 mt-4 text-center">
+              <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400"><Bot size={22} /></span>
+              <p className="font-semibold text-slate-100">Conecte seu primeiro agente</p>
+              <p className="mx-auto mb-4 mt-1 max-w-[320px] text-[12.5px] text-slate-500">Nenhum CLI de agente está pronto nesta máquina. Instale ou conecte um — dá pra fazer tudo por aqui, sem terminal.</p>
+              <button className={btnPrimary} onClick={() => setVerAgentes(true)}><Sparkles size={14} /> Abrir Agentes de IA</button>
+            </div>
+          )}
+          {agentes && agente && !agente.instalado && <CartaoInstalar agente={agente} inst={inst[agente.id]} onInstalar={instalar} toast={toast} onPronto={() => carregarAgentes(true)} onAbrirAgentes={() => setVerAgentes(true)} />}
           {agente?.instalado && agente.logado === false && <CartaoLogin agente={agente} toast={toast} onPronto={() => carregarAgentes(true)} />}
 
           {(!conv || !conv.mensagens.length) && pronto && (
@@ -404,8 +452,20 @@ export default function ChatPanel({ onClose, go }) {
               </Menu>
             </div>
             <div className="relative"><Pill Icon={Bot} aberto={menu === 'agente'} onClick={() => setMenu(menu === 'agente' ? null : 'agente')}>{agente?.nome || 'Claude Code'}</Pill>
-              <Menu aberto={menu === 'agente'} onClose={() => setMenu(null)}>
-                {(agentes || []).map((a) => <Opcao key={a.id} ativo={a.id === agenteId} onClick={() => trocarAgente(a.id)}><span className="flex items-center gap-2">{a.nome}{!a.instalado && <span className="text-[10px] text-slate-500">não instalado</span>}</span></Opcao>)}
+              <Menu aberto={menu === 'agente'} onClose={() => setMenu(null)} largura="min-w-[330px]">
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Agente</p>
+                {(agentes || []).map((a) => (
+                  <div key={a.id} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${a.id === agenteId ? 'bg-cyan-500/10' : 'hover:bg-slate-800'}`}>
+                    <button className="flex min-w-0 flex-1 items-center gap-2 text-left text-[12.5px] text-slate-200" onClick={() => trocarAgente(a.id)}>
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${a.instalado ? (a.logado === false ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-slate-600'}`} />
+                      <span className="truncate">{a.nome}</span>
+                      {!a.instalado && <span className="shrink-0 text-[10px] italic text-slate-500">não instalado</span>}
+                      {a.instalado && a.logado === false && <span className="shrink-0 text-[10px] italic text-amber-400/80">sem login</span>}
+                    </button>
+                    {(!a.instalado || a.logado === false) && <button className="shrink-0 text-[11px] text-cyan-300 underline decoration-cyan-500/40 hover:text-cyan-200" onClick={() => { setMenu(null); setVerAgentes(true) }}>Configurar</button>}
+                    {a.id === agenteId && <Check size={13} className="shrink-0 text-cyan-400" />}
+                  </div>
+                ))}
               </Menu>
             </div>
             {modelos.length > 0 && (

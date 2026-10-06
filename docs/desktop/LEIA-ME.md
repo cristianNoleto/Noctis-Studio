@@ -45,7 +45,8 @@ funcionar, cada release precisa ter o `latest.yml` junto do `.exe` — o workflo
 
 ## Lançar uma versão nova
 
-Aumente `"version"` em `desktop/package.json` (ex.: `0.1.1`) e faça push na `main`. O workflow testa,
+Aumente `"version"` em `desktop/package.json` (ex.: `0.1.4`), escreva o que mudou em
+`desktop/build/release-notes.md` (esse texto aparece no popup "O que mudou" do app) e faça push na `main`. O workflow testa,
 gera `NoctisStudio-Setup-0.1.1.exe` e publica `desktop-v0.1.1`; a página do site passa a entregar
 essa versão. Em outras branches, coloque `[build]` na mensagem do commit para só gerar o instalador
 como artefato (sem publicar). O Windows pode mostrar o aviso do SmartScreen porque o instalador não
