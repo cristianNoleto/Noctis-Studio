@@ -1,0 +1,108 @@
+# Noctis Studio Desktop: testa, gera o instalador do Windows e publica a release privada
+# (tag desktop-v<versão>) que a página "App Desktop" do site entrega só para quem tem conta.
+#
+# • Push em qualquer branch mexendo em desktop/: só os testes (Linux, rápido).
+#   Com "[build]" na mensagem do commit também gera o instalador como artefato (para conferir).
+# • Push na main: testes + instalador + publica a release, se a versão de desktop/package.json
+#   ainda não existir. (O runner Windows gasta minutos em dobro no plano do GitHub.)
+#   Para lançar uma versão nova, aumente "version" em desktop/package.json.
+# • "Run workflow" manual: com "substituir" marcado, troca o instalador da versão atual.
+name: Desktop (Windows)
+
+on:
+  push:
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+    inputs:
+      substituir:
+        description: 'Substituir o instalador se esta versão já estiver publicada'
+        type: boolean
+        default: false
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Abre o app e tira prints das telas
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
+          npm run build
+          xvfb-run -a node scripts/screens.js telas
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: telas-do-app
+          path: desktop/telas/*.png
+          retention-days: 7
+          if-no-files-found: ignore
+
+  windows:
+    needs: testes
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build]')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - id: versao
+        run: echo "v=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run build
+      - name: Gera o instalador
+        run: npx electron-builder --win --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NoctisStudio-Setup-${{ steps.versao.outputs.v }}
+          path: desktop/release/NoctisStudio-Setup-*.exe
+          retention-days: 14
+      - name: Publica a release (só na main)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.versao.outputs.v }}
+          SUBSTITUIR: ${{ inputs.substituir }}
+        run: |
+          TAG="desktop-v$V"
+          ARQ="release/NoctisStudio-Setup-$V.exe"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            if [ "$SUBSTITUIR" = "true" ]; then
+              gh release upload "$TAG" "$ARQ" --clobber
+              echo "Instalador da $TAG substituído."
+            else
+              echo "::notice::A versão $V já está publicada. Aumente a versão em desktop/package.json para lançar outra."
+            fi
+          else
+            gh release create "$TAG" "$ARQ" --target "$GITHUB_SHA" --title "Noctis Studio $V" \
+              --notes "Noctis Studio Desktop $V para Windows. Baixe pelo site: Noctis Studio → App Desktop (precisa estar logado)."
+          fi
