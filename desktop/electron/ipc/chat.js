@@ -1,6 +1,7 @@
-// IPC do Chat IA (Claude Code e outros agentes de linha de comando).
+// IPC do Chat IA (Claude Code, Codex, Grok e Antigravity).
 const fs = require('fs');
 const path = require('path');
+const { shell } = require('electron');
 const agentes = require('../servicos/chat/agentes');
 const { criarChat } = require('../servicos/chat/chat');
 
@@ -14,28 +15,45 @@ function caminhoMcp() {
 module.exports = function registrar(ctx) {
   const chat = criarChat({ dir: path.join(ctx.dataDir, 'chat'), ctx, mcpScript: caminhoMcp() });
   let cacheAgentes = null;
+  const cacheModelos = new Map();
 
   ctx.handle('chat:agents', async (forcar) => {
     if (!forcar && cacheAgentes && Date.now() - cacheAgentes.em < 30000) return cacheAgentes.lista;
-    const lista = await Promise.all(Object.keys(agentes.AGENTES).map((id) => agentes.info(id).catch((e) => ({ id, nome: agentes.AGENTES[id].nome, instalado: false, erro: e.message }))));
+    const lista = await Promise.all(Object.keys(agentes.AGENTES).map((id) => agentes.info(id).catch((e) => ({ id, nome: agentes.AGENTES[id].rotulo, instalado: false, erro: e.message }))));
     cacheAgentes = { em: Date.now(), lista };
     return lista;
   });
-  ctx.handle('chat:install', (id) => {
-    const a = agentes.AGENTES[id];
-    if (!a) throw new Error('Agente desconhecido.');
-    cacheAgentes = null;
-    ctx.log.info(`Chat IA: abrindo terminal para instalar ${a.nome}`);
-    if (!agentes.abrirTerminal(a.instalar)) throw new Error(`Não consegui abrir o terminal. Rode manualmente: ${a.instalar}`);
-    return a.instalar;
+  ctx.handle('chat:models', async (id, forcar) => {
+    const k = agentes.resolverId(id);
+    const c = cacheModelos.get(k);
+    if (!forcar && c && Date.now() - c.em < 60 * 60 * 1000) return c.dados;
+    const dados = await agentes.modelos(k).catch(() => ({ modelos: [], esforcos: [], falhou: true }));
+    cacheModelos.set(k, { em: Date.now(), dados });
+    return dados;
   });
+  ctx.handle('chat:command', (id) => agentes.comandoInstalacao(id));
+  ctx.handle('chat:install', async (id) => {
+    cacheAgentes = null;
+    ctx.log.info(`Chat IA: instalando ${agentes.AGENTES[agentes.resolverId(id)]?.rotulo || id}`);
+    const r = await agentes.instalar(id, { onLinha: (linha) => ctx.send('chat:event', { tipo: 'instalar', agente: agentes.resolverId(id), linha }) });
+    ctx.send('chat:event', { tipo: 'instalar', agente: agentes.resolverId(id), fim: true, ok: r.ok, erro: r.erro });
+    if (!r.ok && r.erro) throw new Error(r.erro);
+    ctx.log.success(`Chat IA: ${agentes.AGENTES[agentes.resolverId(id)]?.rotulo} instalado`);
+    return r;
+  });
+  ctx.handle('chat:installCancel', (id) => agentes.cancelarInstalacao(id));
   ctx.handle('chat:login', (id) => {
-    const a = agentes.AGENTES[id];
-    if (!a) throw new Error('Agente desconhecido.');
     cacheAgentes = null;
-    if (!agentes.abrirTerminal(a.entrar)) throw new Error(`Não consegui abrir o terminal. Rode manualmente: ${a.entrar}`);
-    return a.entrar;
+    const ag = agentes.resolverId(id);
+    agentes.iniciarLogin(id, {
+      onEvento: (e) => ctx.send('chat:event', { tipo: 'login', agente: ag, ...e }),
+      abrirLink: (url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); },
+    });
+    return true;
   });
+  ctx.handle('chat:loginInput', (id, texto) => agentes.enviarLoginInput(id, texto));
+  ctx.handle('chat:loginCancel', (id) => agentes.cancelarLogin(id));
+
   ctx.handle('chat:list', () => chat.listar());
   ctx.handle('chat:new', (opts) => chat.criar(opts));
   ctx.handle('chat:get', (id) => chat.obter(id));

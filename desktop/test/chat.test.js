@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { leitorClaude, argsClaude, comHistorico } = require('../electron/servicos/chat/agentes');
+const { leitorClaude, argsClaude } = require('../electron/servicos/chat/drivers/claude');
 const { criarChat } = require('../electron/servicos/chat/chat');
 
 const MCP = path.join(__dirname, '..', 'electron', 'servicos', 'chat', 'mcp-server.js');
@@ -22,29 +22,28 @@ function ctxFalso() {
   return {
     eventos, chamadas,
     pausada: () => pausada,
-    store: { get: () => ({ projectsRoot: os.tmpdir(), chat: { agent: 'claude', model: 'sonnet', effort: 'low', permissionMode: '' } }) },
+    store: { get: () => ({ projectsRoot: os.tmpdir(), chat: { agent: 'claude', permissionMode: '', agentes: { claude: { model: 'sonnet', effort: 'low' } } } }) },
     log: { info() {}, warn() {}, error() {}, success() {} },
     send: (evento, dados) => eventos.push({ evento, ...dados }),
     invocar: async (canal, ...a) => { chamadas.push(canal); if (!canais[canal]) throw new Error(`sem ${canal}`); return canais[canal](...a); },
   };
 }
 
-test('leitor do stream-json do Claude Code', () => {
+test('leitor do stream-json do Claude Code (vocabulário comum)', () => {
   const ev = [];
   const l = leitorClaude((e) => ev.push(e));
-  l(JSON.stringify({ type: 'system', subtype: 'init', session_id: 's1', model: 'opus', mcp_servers: [{ name: 'noctis', status: 'connected' }] }));
-  l(JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: { id: 'm' } } }));
-  l(JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'oi' } } }));
-  l(JSON.stringify({ type: 'stream_event', parent_tool_use_id: 'x', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'sub' } } }));
-  l(JSON.stringify({ type: 'assistant', message: { id: 'm', content: [{ type: 'text', text: 'oi' }, { type: 'tool_use', id: 't', name: 'Bash', input: { command: 'ls' } }] } }));
-  l(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: [{ type: 'text', text: 'a\nb' }] }] } }));
-  l(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: 's1', total_cost_usd: 0.5, result: 'oi' }));
-  l('lixo que não é json');
-  assert.deepStrictEqual(ev.map((e) => e.tipo), ['sessao', 'texto', 'mensagem', 'resultado', 'fim']);
-  assert.strictEqual(ev[1].delta, 'oi');
-  assert.strictEqual(ev[2].blocos[1].nome, 'Bash');
-  assert.strictEqual(ev[3].texto, 'a\nb');
-  assert.strictEqual(ev[4].custo, 0.5);
+  l({ type: 'system', subtype: 'init', session_id: 's1', model: 'opus', mcp_servers: [{ name: 'noctis', status: 'connected' }] });
+  l({ type: 'stream_event', event: { type: 'message_start', message: { id: 'm' } } });
+  l({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'oi' } } });
+  l({ type: 'stream_event', parent_tool_use_id: 'x', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'sub' } } });
+  l({ type: 'assistant', message: { id: 'm', content: [{ type: 'text', text: 'oi' }, { type: 'tool_use', id: 't', name: 'Bash', input: { command: 'ls' } }] } });
+  l({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: [{ type: 'text', text: 'a\nb' }] }] } });
+  l({ type: 'result', subtype: 'success', is_error: false, session_id: 's1', total_cost_usd: 0.5, result: 'oi' });
+  assert.deepStrictEqual(ev.map((e) => e.tipo), ['sessao', 'texto-delta', 'texto-final', 'ferramenta', 'ferramenta-resultado', 'resultado']);
+  assert.strictEqual(ev[1].texto, 'oi'); // delta (o do subagente foi ignorado)
+  assert.strictEqual(ev[3].nome, 'Bash');
+  assert.strictEqual(ev[4].texto, 'a\nb');
+  assert.strictEqual(ev[5].custoUsd, 0.5);
 });
 
 test('argumentos do Claude: nada de texto livre na linha de comando', () => {
@@ -54,7 +53,6 @@ test('argumentos do Claude: nada de texto livre na linha de comando', () => {
   assert.strictEqual(a[a.indexOf('--allowedTools') + 1], 'mcp__noctis__resumo,mcp__noctis__ver_projeto');
   const ruim = argsClaude({ sessao: 'x; rm -rf /', modelo: 'opus & calc', esforco: 'turbo', permissao: 'default' });
   assert.ok(!ruim.includes('--resume') && !ruim.includes('--model') && !ruim.includes('--effort') && !ruim.includes('--permission-mode'));
-  assert.match(comHistorico([{ papel: 'user', texto: 'a' }, { papel: 'assistant', texto: 'b' }], 'c'), /Usuário: a[\s\S]*Assistente: b[\s\S]*c$/);
 });
 
 test('turno completo com Claude falso: streaming, ferramentas do Noctis e permissão', { timeout: 30000 }, async () => {
@@ -66,7 +64,7 @@ test('turno completo com Claude falso: streaming, ferramentas do Noctis e permis
   fs.chmodSync(falso, 0o755);
   const ctx = ctxFalso();
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
-  const chat = criarChat({ dir: path.join(dir, 'dados'), ctx, mcpScript: MCP, envAgente: env, localizar: () => falso });
+  const chat = criarChat({ dir: path.join(dir, 'dados'), ctx, mcpScript: MCP, envAgente: env });
   try {
     // 1) usuário nega a permissão
     const c = chat.criar({ agente: 'claude' });
