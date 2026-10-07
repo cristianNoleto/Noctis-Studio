@@ -1,4 +1,3 @@
-- Contas Google: depois que você entra na conta no Chrome, o app detecta o login sozinho e fecha o Chrome (leva até ~30 s). Botão "Já entrei" se quiser concluir na hora.
-- Ao abrir o app, cada conta Google é conferida rapidinho (o Chrome abre e fecha) e a tela Contas mostra quem está logada e quem precisa reconectar.
-- Mensagens mais claras quando o login não é encontrado.
-- Renomeador: o "Desfazer" sempre desfaz a operação mais recente (antes, duas operações no mesmo instante podiam sair fora de ordem).
+- Contas Google: corrigido o login que não era reconhecido. O Chrome de cada conta agora abre sempre do mesmo jeito (no login e nas gerações), então a sessão feita no login continua valendo.
+- Depois que você entra na conta e o Flow aparece, o app confere e fecha o Chrome sozinho em poucos segundos.
+- Os Logs mostram quando o Flow está aberto mas ainda sem login (ex.: falta clicar em "Entrar" no Flow).

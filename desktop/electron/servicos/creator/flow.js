@@ -68,31 +68,37 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
     return pw;
   }
 
-  async function abrirPerfil(profileDir, { visivel, invisivel } = {}) {
-    const ex = sessoes.get(profileDir);
-    if (ex && !ex.fechado) return ex;
-    fs.mkdirSync(profileDir, { recursive: true });
-    const headless = invisivel ? true : visivel ? false : !!getSettings().dispatch?.headless;
-    // Sandbox ligado → sem --no-sandbox (o Chrome roda com a proteção normal). Só os testes em
-    // container como root desligam (NOCTIS_CHROME_ARGS=--no-sandbox).
-    const opts = { headless, viewport: null, acceptDownloads: true, chromiumSandbox: !process.env.NOCTIS_CHROME_ARGS?.includes('--no-sandbox'), args: ['--no-first-run', '--no-default-browser-check'] };
-    let ctx = null;
-    let ultimo = null;
-    const tentativas = executablePath ? [{ executablePath }] : [{ channel: 'chrome' }, { channel: 'msedge' }];
-    for (const t of tentativas) {
-      try { ctx = await playwright().chromium.launchPersistentContext(profileDir, { ...opts, ...t }); break; } catch (e) { ultimo = e; }
-    }
-    if (!ctx) throw Object.assign(new Error(`Não encontrei o Google Chrome instalado. Instale o Chrome e tente de novo. (${ultimo?.message?.split('\n')[0]})`), { cat: 'configuracao' });
-    const s = { ctx, page: ctx.pages()[0] || (await ctx.newPage()), fila: Promise.resolve(), fechado: false };
-    ctx.on('close', () => { s.fechado = true; sessoes.delete(profileDir); });
-    sessoes.set(profileDir, s);
-    return s;
-  }
+  // O Chrome de cada conta é SEMPRE aberto do mesmo jeito (o Chrome instalado, com porta de
+  // depuração local), tanto para o login quanto para gerar. Isso importa: no Windows o Chrome
+  // cifra os cookies de um jeito quando é aberto normalmente e de outro quando é aberto para
+  // automação — misturar os dois faz a conta "sumir" (o login feito num não aparece no outro).
+  const extraTeste = () => (process.env.NOCTIS_CHROME_ARGS ? process.env.NOCTIS_CHROME_ARGS.split(' ').filter(Boolean) : []);
 
-  // Login acontece no Chrome COMUM (sem automação). Enquanto ele está aberto, o app olha o
-  // arquivo de cookies do perfil (só lê uma CÓPIA, nunca altera) para saber quando a sessão do
-  // Flow apareceu; aí fecha o Chrome do jeito normal (como clicar no X) e confere a sessão.
-  let loginAtual = null; // { proc, profileDir, concluir() }
+  async function iniciarChrome(profileDir, { headless = false, automacao = true, url = 'about:blank' } = {}) {
+    const exe = executablePath || acharNavegador();
+    if (!exe) throw Object.assign(new Error('Não encontrei o Google Chrome instalado. Instale o Chrome e tente de novo.'), { cat: 'configuracao' });
+    fs.mkdirSync(profileDir, { recursive: true });
+    const portaArq = path.join(profileDir, 'DevToolsActivePort');
+    try { fs.unlinkSync(portaArq); } catch { /* não havia */ }
+    const args = [`--user-data-dir=${profileDir}`, '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check',
+      ...(headless ? ['--headless=new'] : []),
+      // Nas gerações o Chrome se identifica como controlado por automação (faixa no topo).
+      // No login não: o Google recusa entrar numa janela marcada assim.
+      ...(automacao ? ['--enable-automation'] : []),
+      ...extraTeste(), url];
+    const proc = spawn(exe, args, { stdio: 'ignore', windowsHide: headless });
+    const fim = Date.now() + 30000;
+    while (Date.now() < fim) {
+      if (proc.exitCode !== null) throw new Error('O Chrome fechou logo ao abrir (já está aberto com este perfil?). Feche as janelas do Chrome desta conta e tente de novo.');
+      try {
+        const porta = Number(fs.readFileSync(portaArq, 'utf8').split('\n')[0]);
+        if (porta) return { proc, porta };
+      } catch { /* ainda não */ }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    fecharNormal(proc);
+    throw new Error('O Chrome não respondeu ao abrir o perfil da conta.');
+  }
 
   function fecharNormal(proc) {
     if (!proc || proc.exitCode !== null) return;
@@ -101,56 +107,94 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
     setTimeout(() => { if (proc.exitCode === null) { try { proc.kill('SIGKILL'); } catch { /* já saiu */ } } }, 15000).unref?.();
   }
 
-  // Há cookie de sessão do Flow (next-auth) gravado no perfil? null = não deu para ler agora.
-  function temCookieSessao(profileDir) {
-    const host = new URL(flowUrl).hostname;
-    for (const rel of [path.join('Default', 'Network', 'Cookies'), path.join('Default', 'Cookies')]) {
-      const origem = path.join(profileDir, rel);
-      if (!fs.existsSync(origem)) continue;
-      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'noctis-ck-'));
-      try {
-        for (const suf of ['', '-wal', '-journal']) if (fs.existsSync(origem + suf)) fs.copyFileSync(origem + suf, path.join(tmp, 'c' + suf));
-        const { DatabaseSync } = require('node:sqlite');
-        const db = new DatabaseSync(path.join(tmp, 'c'), { readOnly: true });
-        try {
-          const r = db.prepare("SELECT COUNT(*) AS n FROM cookies WHERE (host_key = ? OR host_key = ? OR host_key LIKE ?) AND name LIKE '%session-token%'").get(host, `.${host}`, `%.${host}`);
-          return r.n > 0;
-        } finally { db.close(); }
-      } catch { return null; } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
-    }
-    return false;
+  // Fecha pelo próprio Chrome (grava cookies e sessão direitinho) e espera o processo sair.
+  async function fecharChrome(browser, proc) {
+    try { const cdp = await browser.newBrowserCDPSession(); await cdp.send('Browser.close').catch(() => {}); } catch { fecharNormal(proc); }
+    const fim = Date.now() + 15000;
+    while (proc.exitCode === null && Date.now() < fim) await new Promise((r) => setTimeout(r, 200));
+    if (proc.exitCode === null) fecharNormal(proc);
+    await new Promise((r) => setTimeout(r, 800)); // processos auxiliares soltam o perfil
   }
 
-  function chromeComum(profileDir, url, { timeoutMs, aoAbrir, detectar = false } = {}) {
-    const exe = executablePath || acharNavegador();
-    if (!exe) throw Object.assign(new Error('Não encontrei o Google Chrome instalado. Instale o Chrome e tente de novo.'), { cat: 'configuracao' });
-    fs.mkdirSync(profileDir, { recursive: true });
-    return new Promise((resolve, reject) => {
-      const extra = process.env.NOCTIS_CHROME_ARGS ? process.env.NOCTIS_CHROME_ARGS.split(' ').filter(Boolean) : []; // só testes
-      const p = spawn(exe, [`--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check', '--new-window', ...extra, url], { stdio: 'ignore', windowsHide: false });
-      let detectado = false;
-      const atual = { proc: p, profileDir, concluir: () => fecharNormal(p) };
-      if (detectar) loginAtual = atual;
-      const limite = setTimeout(() => fecharNormal(p), timeoutMs);
-      const olhar = detectar ? setInterval(() => {
-        if (temCookieSessao(profileDir)) { detectado = true; clearInterval(olhar); log.info('Flow: login detectado, fechando o Chrome…'); fecharNormal(p); }
-      }, 3000) : null;
-      p.on('error', (e) => { clearTimeout(limite); if (olhar) clearInterval(olhar); reject(e); });
-      p.on('exit', () => {
-        clearTimeout(limite); if (olhar) clearInterval(olhar);
-        if (loginAtual === atual) loginAtual = null;
-        // Processos auxiliares do Chrome soltam o perfil logo depois; espera um pouco.
-        setTimeout(() => resolve({ detectado }), 1500);
-      });
-      if (aoAbrir) aoAbrir(p);
+  async function abrirPerfil(profileDir, { visivel, invisivel } = {}) {
+    const ex = sessoes.get(profileDir);
+    if (ex && !ex.fechado) return ex;
+    const headless = invisivel ? true : visivel ? false : !!getSettings().dispatch?.headless;
+    const { proc, porta } = await iniciarChrome(profileDir, { headless, automacao: true });
+    let browser;
+    try { browser = await playwright().chromium.connectOverCDP(`http://127.0.0.1:${porta}`); } catch (e) { fecharNormal(proc); throw e; }
+    const ctx = browser.contexts()[0];
+    const s = { ctx, browser, proc, page: ctx.pages()[0] || (await ctx.newPage()), fila: Promise.resolve(), fechado: false };
+    s.fechar = async () => { if (s.fechado) return; s.fechado = true; sessoes.delete(profileDir); await fecharChrome(browser, proc); };
+    const marcar = () => { s.fechado = true; if (sessoes.get(profileDir) === s) sessoes.delete(profileDir); };
+    browser.on('disconnected', marcar);
+    proc.on('exit', marcar);
+    sessoes.set(profileDir, s);
+    return s;
+  }
+
+  // Login: abre o Chrome da conta SEM se conectar a ele (nada controla a página enquanto você
+  // entra no Google). De tempos em tempos o app só pergunta ao Chrome quais endereços estão
+  // abertos; quando você volta ao Flow, ele se conecta, confere a sessão e fecha o Chrome.
+  let loginAtual = null; // { concluir() }
+
+  function abasAbertas(porta) {
+    return new Promise((resolve) => {
+      require('http').get({ host: '127.0.0.1', port: porta, path: '/json/list', timeout: 3000 }, (res) => {
+        let t = '';
+        res.on('data', (c) => { t += c; });
+        res.on('end', () => { try { resolve(JSON.parse(t).filter((x) => x.type === 'page').map((x) => x.url)); } catch { resolve([]); } });
+      }).on('error', () => resolve([])).on('timeout', function () { this.destroy(); resolve([]); });
     });
+  }
+
+  async function sessaoNoChrome(porta) {
+    let browser = null;
+    try {
+      browser = await playwright().chromium.connectOverCDP(`http://127.0.0.1:${porta}`);
+      const r = await browser.contexts()[0].request.get(sessionUrl, { timeout: 20000 });
+      const d = await r.json().catch(() => ({}));
+      return { browser, user: d && d.user && d.user.email ? d.user : null };
+    } catch (e) {
+      if (browser) await browser.close().catch(() => {});
+      return { browser: null, user: null };
+    }
+  }
+
+  async function loginNoChrome(profileDir, { timeoutMs }) {
+    const { proc, porta } = await iniciarChrome(profileDir, { headless: false, automacao: false, url: flowUrl });
+    const origem = new URL(flowUrl).origin;
+    let user = null;
+    let agora = false;
+    loginAtual = { concluir: () => { agora = true; } };
+    const fim = Date.now() + timeoutMs;
+    let ultimaConferida = 0;
+    let avisou = false;
+    try {
+      while (proc.exitCode === null && Date.now() < fim) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const urls = await abasAbertas(porta);
+        const noFlow = urls.some((u) => u.startsWith(origem) && !/accounts\.google/.test(u));
+        if (!(agora || (noFlow && Date.now() - ultimaConferida > 5000))) continue;
+        ultimaConferida = Date.now();
+        const r = await sessaoNoChrome(porta);
+        if (r.user) { user = r.user; log.info('Flow: login detectado, fechando o Chrome…'); await fecharChrome(r.browser, proc); break; }
+        if (!avisou) { avisou = true; log.warn(`Flow: aba do Flow aberta, mas ainda sem sessão (${urls.find((u) => u.startsWith(origem)) || '?'}). Se o Flow mostrar "Entrar", clique para terminar o login.`); }
+        if (r.browser) await r.browser.close().catch(() => {}); // só desconecta; o Chrome continua aberto
+        if (agora) { await fecharNormal(proc); break; }
+      }
+    } finally {
+      loginAtual = null;
+      if (proc.exitCode === null && !user) fecharNormal(proc);
+    }
+    return user;
   }
 
   // Abre o perfil num Chrome rápido (sem janela; se não achar a sessão, tenta com janela),
   // lê a sessão do Flow e fecha — igual à conferência ao abrir o app.
   async function lerSessao(profileDir) {
     const ex = sessoes.get(profileDir);
-    if (ex) await ex.ctx.close().catch(() => {});
+    if (ex) await ex.fechar().catch(() => {});
     for (const modo of [{ invisivel: true }, { visivel: true }]) {
       let s = null;
       try {
@@ -160,7 +204,7 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
         if (u && u.email) return u;
         log.warn(`Flow: sessão não encontrada no perfil (${modo.invisivel ? 'sem janela' : 'com janela'}; página ${s.page.url().slice(0, 80)})`);
       } catch (e) { log.warn(`Flow: não consegui conferir o perfil: ${e.message.split('\n')[0]}`); }
-      finally { if (s) await s.ctx.close().catch(() => {}); }
+      finally { if (s) await s.fechar().catch(() => {}); }
     }
     return null;
   }
@@ -358,10 +402,9 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
 
     // Login de uma conta nova: abre o Chrome COMUM (sem automação) num perfil novo, no Flow.
     // A pessoa entra na conta Google e FECHA a janela; aí o app confere a sessão do perfil.
-    async conectar({ timeoutMs = 10 * 60000, aoAbrir } = {}) {
+    async conectar({ timeoutMs = 10 * 60000 } = {}) {
       const tmp = path.join(perfisDir, `novo-${Date.now()}`);
-      await chromeComum(tmp, flowUrl, { timeoutMs, aoAbrir, detectar: true });
-      const user = await lerSessao(tmp);
+      const user = (await loginNoChrome(tmp, { timeoutMs })) || (await lerSessao(tmp));
       if (!user || !user.email) {
         fs.rmSync(tmp, { recursive: true, force: true });
         throw new Error('Não encontrei a conta logada no Flow. No Chrome que abre, entre na conta Google e espere a página do Flow aparecer com a sua conta (se pedir, clique em "Criar com o Flow"/"Entrar"). O Chrome fecha sozinho quando o login for detectado.');
@@ -384,11 +427,10 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
     },
 
     // Refazer o login (conta em "reconectar"): mesmo caminho, no perfil da conta.
-    async reconectar(account, { timeoutMs = 10 * 60000, aoAbrir } = {}) {
+    async reconectar(account, { timeoutMs = 10 * 60000 } = {}) {
       const ex = sessoes.get(account.profile_dir);
-      if (ex) await ex.ctx.close().catch(() => {});
-      await chromeComum(account.profile_dir, flowUrl, { timeoutMs, aoAbrir, detectar: true });
-      const u = await lerSessao(account.profile_dir);
+      if (ex) await ex.fechar().catch(() => {});
+      const u = (await loginNoChrome(account.profile_dir, { timeoutMs })) || (await lerSessao(account.profile_dir));
       return !!(u && u.email && u.email.toLowerCase() === account.id.toLowerCase());
     },
 
@@ -407,7 +449,7 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
       const ex = sessoes.get(account.profile_dir);
       if (ex) { await ex.page.bringToFront().catch(() => {}); return true; }
       // Chrome comum: a pessoa pode olhar, ajustar e até entrar de novo na conta.
-      chromeComum(account.profile_dir, flowUrl, { timeoutMs: 6 * 3600000 }).catch((e) => log.warn(`Flow: ${e.message}`));
+      iniciarChrome(account.profile_dir, { headless: false, automacao: false, url: flowUrl }).catch((e) => log.warn(`Flow: ${e.message}`));
       return true;
     },
 
@@ -449,7 +491,7 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
     },
 
     async fecharTudo() {
-      for (const s of sessoes.values()) await s.ctx.close().catch(() => {});
+      for (const s of [...sessoes.values()]) await s.fechar().catch(() => {});
       sessoes.clear();
     },
   };

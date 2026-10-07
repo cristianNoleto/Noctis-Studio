@@ -69,7 +69,8 @@ function driver(extra = {}) {
 
 test('conectar: detecta o login, fecha o Chrome sozinho e guarda o perfil pelo e-mail', { timeout: 120000, skip: !temChromium && 'sem Chromium' }, async () => {
   const d = driver({ login: true });
-  // O login acontece num Chrome comum; o app detecta o cookie de sessão e fecha o Chrome sozinho.
+  // O login acontece no Chrome sem nada conectado; quando a aba está no Flow, o app confere a
+  // sessão e fecha o Chrome sozinho.
   const t0 = Date.now();
   const r = await d.conectar({ timeoutMs: 90000 });
   assert.ok(Date.now() - t0 < 85000, 'fechou por detecção, não por tempo esgotado');
