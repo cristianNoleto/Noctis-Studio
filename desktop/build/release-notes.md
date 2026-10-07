@@ -1,2 +1,3 @@
-- Contas Google: o Flow mudou de endereço (agora flow.google.com) e o app conferia a conta no endereço antigo — por isso o login não era reconhecido. Agora a conta é conferida direto no Google.
-- O Chrome do login fecha sozinho alguns segundos depois que você entra na conta e volta para o Flow.
+- Contas Google: o botão "Aguardando login" não fica mais carregando para sempre. Se o Chrome continuar aberto em segundo plano depois do login, o app encerra e confere a conta; cada etapa tem prazo máximo.
+- Os Logs mostram cada passo da conferência da conta.
+- Atualização: some o aviso amarelo "disableWebInstaller" dos Logs.

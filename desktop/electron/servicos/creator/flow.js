@@ -69,6 +69,15 @@ function acharNavegador() {
   return candidatos.find((c) => fs.existsSync(c)) || null;
 }
 
+// Nenhuma etapa com o Chrome pode travar a tela: cada uma tem prazo máximo.
+function prazo(promessa, ms, oque) {
+  let t;
+  return Promise.race([
+    promessa,
+    new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`${oque}: sem resposta em ${Math.round(ms / 1000)} s`)), ms); }),
+  ]).finally(() => clearTimeout(t));
+}
+
 function slugConta(email) {
   return crypto.createHash('sha1').update(String(email).toLowerCase()).digest('hex').slice(0, 16);
 }
@@ -124,7 +133,7 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
 
   // Fecha pelo próprio Chrome (grava cookies e sessão direitinho) e espera o processo sair.
   async function fecharChrome(browser, proc) {
-    try { const cdp = await browser.newBrowserCDPSession(); await cdp.send('Browser.close').catch(() => {}); } catch { fecharNormal(proc); }
+    try { const cdp = await prazo(browser.newBrowserCDPSession(), 5000, 'fechar o Chrome'); await prazo(cdp.send('Browser.close'), 5000, 'fechar o Chrome').catch(() => {}); } catch { fecharNormal(proc); }
     const fim = Date.now() + 15000;
     while (proc.exitCode === null && Date.now() < fim) await new Promise((r) => setTimeout(r, 200));
     if (proc.exitCode === null) fecharNormal(proc);
@@ -185,27 +194,45 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
   async function loginNoChrome(profileDir, { timeoutMs }) {
     const { proc } = await iniciarChrome(profileDir, { headless: false, automacao: false, depuracao: false, url: flowUrl });
     let leitura = 'nunca';
-    loginAtual = { concluir: () => fecharNormal(proc) };
+    let fechando = false; // o app pediu para fechar (login detectado ou "Já entrei")
+    loginAtual = { concluir: () => { fechando = true; fecharNormal(proc); } };
     const fim = Date.now() + timeoutMs;
     try {
       let passouPeloLogin = false;
-      while (proc.exitCode === null && Date.now() < fim) {
+      let semJanela = 0;
+      while (proc.exitCode === null && Date.now() < fim && !fechando) {
         await new Promise((r) => setTimeout(r, 2000));
         // Saiu da página de login do Google e voltou para o Flow → login feito.
         const titulo = await tituloJanela(proc.pid);
+        // Janela fechada mas o Chrome continua em segundo plano: conta como fechado.
+        if (titulo === '') { if (++semJanela >= 2) { fechando = true; break; } } else semJanela = 0;
         if (titulo && TITULO_LOGIN.test(titulo)) passouPeloLogin = true;
         else if (titulo && passouPeloLogin && /flow/i.test(titulo)) {
           log.info('Flow: login concluído (voltou para o Flow), fechando o Chrome…');
           await new Promise((r) => setTimeout(r, 3000)); // dá tempo de o Chrome gravar a sessão
+          fechando = true;
           fecharNormal(proc);
           break;
         }
         const r = temCookieSessao(profileDir);
         if (r === null) leitura = 'bloqueada';
         else if (leitura !== 'bloqueada') leitura = 'ok';
-        if (r) { log.info('Flow: login detectado, fechando o Chrome…'); fecharNormal(proc); break; }
+        if (r) { log.info('Flow: login detectado, fechando o Chrome…'); fechando = true; fecharNormal(proc); break; }
       }
-      while (proc.exitCode === null && Date.now() < fim) await new Promise((r) => setTimeout(r, 500));
+      // Pediu para fechar (ou a pessoa fechou): espera o Chrome sair, mas não para sempre —
+      // o Chrome pode continuar rodando em segundo plano sem janela.
+      let limite = fechando ? Date.now() + 15000 : fim;
+      while (proc.exitCode === null && Date.now() < limite) {
+        await new Promise((r) => setTimeout(r, 500));
+        if (fechando && limite === fim) limite = Date.now() + 15000; // "Já entrei" clicado agora
+      }
+      if (proc.exitCode === null && fechando) {
+        log.warn('Flow: o Chrome do login não fechou sozinho; encerrando.');
+        if (process.platform === 'win32') execFile('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { windowsHide: true }, () => {});
+        else { try { proc.kill('SIGKILL'); } catch { /* já saiu */ } }
+        const ate = Date.now() + 5000;
+        while (proc.exitCode === null && Date.now() < ate) await new Promise((r) => setTimeout(r, 250));
+      }
     } finally {
       loginAtual = null;
       if (proc.exitCode === null) fecharNormal(proc);
@@ -222,16 +249,20 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
     if (ex) await ex.fechar().catch(() => {});
     for (const modo of [{ invisivel: true }, { visivel: true }]) {
       let s = null;
+      const como = modo.invisivel ? 'sem janela' : 'com janela';
       try {
-        s = await abrirPerfil(profileDir, modo);
-        await s.page.goto(flowUrl, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
-        const u = await sessaoGoogle(s.page);
-        if (u && u.email) return u;
-        const ck = await s.ctx.cookies().catch(() => []);
+        log.info(`Flow: conferindo a conta (${como})…`);
+        s = await prazo(abrirPerfil(profileDir, modo), 60000, 'abrir o Chrome da conta');
+        await prazo(s.page.goto(flowUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }), 35000, 'abrir o Flow').catch((e) => log.warn(`Flow: ${e.message.split('\n')[0]}`));
+        const u = await prazo(sessaoGoogle(s.page), 25000, 'ler a conta logada');
+        if (u && u.email) { log.info(`Flow: conta encontrada (${como}).`); return u; }
+        const ck = await prazo(s.ctx.cookies(), 10000, 'ler cookies').catch(() => []);
         const conta = (re) => ck.filter((c) => re.test(c.domain)).length;
         log.warn(`Flow: sessão não encontrada no perfil (${modo.invisivel ? 'sem janela' : 'com janela'}; página ${s.page.url().slice(0, 80)}; cookies: labs.google=${conta(/labs\.google/)}, google.com=${conta(/google\.com$/)}, total=${ck.length}).`);
-      } catch (e) { log.warn(`Flow: não consegui conferir o perfil: ${e.message.split('\n')[0]}`); }
-      finally { if (s) await s.fechar().catch(() => {}); }
+      } catch (e) { log.warn(`Flow: não consegui conferir o perfil (${como}): ${e.message.split('\n')[0]}`); }
+      finally {
+        if (s) await prazo(s.fechar(), 25000, 'fechar o Chrome').catch(() => { if (s.proc) { try { s.proc.kill(); } catch { /* já saiu */ } } });
+      }
     }
     return null;
   }
