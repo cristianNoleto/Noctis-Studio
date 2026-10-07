@@ -51,12 +51,29 @@ module.exports = function registrar(ctx) {
     return arquivos;
   }
 
+  // Ao abrir o app (com a conta Noctis conectada): abre cada conta Google rapidinho, confere a
+  // sessão do Flow e fecha — a tela Contas mostra quem está logada e quem precisa reconectar.
+  let conferindo = false;
+  async function conferirContas() {
+    if (conferindo) return;
+    conferindo = true;
+    try {
+      for (const c of repo.contas().filter((x) => x.provider === 'flow' && x.enabled && fs.existsSync(x.profile_dir || ''))) {
+        const ok = await flow.verificar(c).catch(() => false);
+        if (!ok && c.status !== 'reconnect') { repo.atualizarConta(c.id, { status: 'reconnect', last_error: 'Sessão do Flow não encontrada: reconecte a conta.' }); ctx.log.warn(`[${mascarar(c.id)}] Precisa reconectar (sessão do Flow não encontrada)`); }
+        else if (ok && c.status === 'reconnect') repo.atualizarConta(c.id, { status: 'active', last_error: null });
+        if (ok) ctx.log.info(`[${mascarar(c.id)}] Conta logada e funcionando`);
+        ctx.send('accounts:update', {});
+      }
+    } finally { conferindo = false; }
+  }
+
   const fila = criarFila({ repo, driver, salvar, getSettings: settings, log: ctx.log, onUpdate: avisar, reescrever });
   // A fila só roda com a conta Noctis conectada.
   let travadaPelaConta = true;
   fila.pausar(true);
   ctx.onAuth.push((s) => {
-    if (s.status === 'signed_in' && travadaPelaConta) { travadaPelaConta = false; fila.retomar(true); }
+    if (s.status === 'signed_in' && travadaPelaConta) { travadaPelaConta = false; conferirContas().finally(() => fila.retomar(true)); }
     else if (s.status === 'signed_out' && !travadaPelaConta) { travadaPelaConta = true; fila.pausar(true); }
   });
   if (ctx.auth.isSignedIn()) { travadaPelaConta = false; fila.retomar(true); }
@@ -232,9 +249,10 @@ module.exports = function registrar(ctx) {
     ctx.send('accounts:update', {});
     return ok;
   });
+  h('accounts:loginDone', () => flow.concluirLogin());
   h('accounts:check', async (id) => {
     const c = repo.getConta(id);
-    const ok = await flow.conferir(c);
+    const ok = await flow.verificar(c);
     if (!ok) repo.atualizarConta(id, { status: 'reconnect' });
     else if (c.status === 'reconnect') repo.atualizarConta(id, { status: 'active' });
     ctx.send('accounts:update', {});

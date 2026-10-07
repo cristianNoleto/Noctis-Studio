@@ -18,7 +18,7 @@ const PNG = Buffer.from(
 
 const PAGINA_INICIAL = `<!doctype html><html><body>
 <h1>Flow</h1><button onclick="location.href='/fx/pt/tools/flow/project/p1'">Novo projeto</button>
-<script>if (location.search.includes('login')) setTimeout(() => { document.cookie = 'logado=1; path=/; max-age=3600' }, 800)</script>
+<script>if (location.search.includes('login')) setTimeout(() => { document.cookie = 'logado=1; path=/; max-age=3600'; document.cookie = 'next-auth.session-token=abc; path=/; max-age=3600' }, 800)</script>
 </body></html>`;
 const PAGINA_PROJETO = `<!doctype html><html><body>
 <div role="tablist"><button role="tab">Criar imagem</button><button role="tab">Frames para vídeo</button></div>
@@ -67,10 +67,12 @@ function driver(extra = {}) {
   });
 }
 
-test('conectar: detecta o login e guarda o perfil pelo e-mail', { skip: !temChromium && 'sem Chromium' }, async () => {
+test('conectar: detecta o login, fecha o Chrome sozinho e guarda o perfil pelo e-mail', { timeout: 120000, skip: !temChromium && 'sem Chromium' }, async () => {
   const d = driver({ login: true });
-  // O login acontece num Chrome comum; aqui o teste "fecha a janela" sozinho depois do login.
-  const r = await d.conectar({ timeoutMs: 30000, aoAbrir: (p) => setTimeout(() => p.kill('SIGTERM'), 4000) });
+  // O login acontece num Chrome comum; o app detecta o cookie de sessão e fecha o Chrome sozinho.
+  const t0 = Date.now();
+  const r = await d.conectar({ timeoutMs: 90000 });
+  assert.ok(Date.now() - t0 < 85000, 'fechou por detecção, não por tempo esgotado');
   assert.strictEqual(r.email, 'teste@gmail.com');
   assert.ok(fs.existsSync(r.profile_dir));
   await d.fecharTudo();

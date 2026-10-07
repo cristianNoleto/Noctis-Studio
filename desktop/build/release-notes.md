@@ -1,3 +1,3 @@
-- Contas Google: o login agora abre o Chrome comum (sem automação). Entre na conta e feche a janela do Chrome ao terminar — resolve o erro "Esse navegador ou app pode não ser seguro".
-- O Chrome usado nas gerações não roda mais com --no-sandbox.
-- "Conectar IA" saiu da barra lateral: agora fica em Configurações → IAs.
+- Contas Google: depois que você entra na conta no Chrome, o app detecta o login sozinho e fecha o Chrome (leva até ~30 s). Botão "Já entrei" se quiser concluir na hora.
+- Ao abrir o app, cada conta Google é conferida rapidinho (o Chrome abre e fecha) e a tela Contas mostra quem está logada e quem precisa reconectar.
+- Mensagens mais claras quando o login não é encontrado.

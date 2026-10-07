@@ -88,7 +88,7 @@ function CardConta({ c, onChange, toast }) {
       {c.status === 'reconnect' && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-300">
           <TriangleAlert size={13} /> <span className="flex-1">O Google pediu para entrar de novo nesta conta.</span>
-          <button className="font-semibold underline" disabled={ocupado} onClick={() => { toast('Entre na conta no Chrome que vai abrir e feche a janela ao terminar.', 'info'); faz(() => call('accounts:reconnect', c.id), 'Conta reconectada.') }}>Reconectar</button>
+          <button className="font-semibold underline" disabled={ocupado} onClick={() => { toast('Entre na conta no Chrome que vai abrir; ele fecha sozinho quando o login for detectado.', 'info'); faz(() => call('accounts:reconnect', c.id), 'Conta reconectada.') }}>Reconectar</button>
         </div>
       )}
       <div className="mt-3 flex items-center gap-1.5">
@@ -120,7 +120,6 @@ export default function Contas() {
   const mudarDist = (v) => (v === 'parallel' ? setRisco(true) : save({ dispatch: { distribution: v } }))
   async function conectar() {
     setConectando(true)
-    toast('O Chrome vai abrir no Flow: entre na sua conta Google e, quando o Flow aparecer logado, feche a janela do Chrome.', 'info')
     try {
       const c = await call('accounts:connect', 'flow')
       toast(`Conta ${c.id} conectada.`, 'success')
@@ -137,12 +136,14 @@ export default function Contas() {
         <span className="text-xs text-slate-500">Distribuição:</span>
         <Segmented value={dist} onChange={mudarDist} options={DIST} />
         <div className="flex-1" />
-        <button className={btnPrimary} disabled={conectando} onClick={conectar}>{conectando ? <Spinner size={15} /> : <Plus size={15} />}{conectando ? 'Entre no Chrome e feche a janela ao terminar…' : 'Adicionar conta'}</button>
+        <button className={btnPrimary} disabled={conectando} onClick={conectar}>{conectando ? <Spinner size={15} /> : <Plus size={15} />}{conectando ? 'Aguardando login no Chrome…' : 'Adicionar conta'}</button>
       </div>
       <p className="mb-5 text-sm text-slate-500">{DIST_TXT[dist]}</p>
       {conectando && (
         <div className="mb-5 flex items-center gap-3 rounded-xl border border-cyan-500/25 bg-cyan-500/5 px-4 py-3 text-sm text-cyan-200">
-          <LogIn size={16} /> Uma janela do Chrome abriu no Flow. Entre na sua conta Google por lá — o app detecta sozinho quando terminar.
+          <LogIn size={16} className="shrink-0" />
+          <span className="flex-1">Uma janela do Chrome abriu no Flow. Entre na sua conta Google por lá (se o Flow pedir, clique em "Entrar"). Quando o login for detectado, o Chrome <b>fecha sozinho</b> e a conta aparece aqui — pode levar até 30 s.</span>
+          <button className="shrink-0 rounded-lg border border-cyan-500/40 px-3 py-1.5 text-xs font-semibold hover:bg-cyan-500/10" onClick={() => call('accounts:loginDone').catch(() => {})}>Já entrei</button>
         </div>
       )}
       {contas && flow.length === 0 && (
