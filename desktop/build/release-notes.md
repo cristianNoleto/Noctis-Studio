@@ -1,3 +1,4 @@
 - Contas Google: depois que você entra na conta no Chrome, o app detecta o login sozinho e fecha o Chrome (leva até ~30 s). Botão "Já entrei" se quiser concluir na hora.
 - Ao abrir o app, cada conta Google é conferida rapidinho (o Chrome abre e fecha) e a tela Contas mostra quem está logada e quem precisa reconectar.
 - Mensagens mais claras quando o login não é encontrado.
+- Renomeador: o "Desfazer" sempre desfaz a operação mais recente (antes, duas operações no mesmo instante podiam sair fora de ordem).

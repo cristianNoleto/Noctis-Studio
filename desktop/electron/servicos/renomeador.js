@@ -239,7 +239,18 @@ function renomear(pares) {
 
 const pad = (n, w = 2) => String(n).padStart(w, '0');
 function carimbo(d) {
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${pad(d.getMilliseconds(), 3)}${pad(Math.floor(Math.random() * 1000), 3)}`;
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${pad(d.getMilliseconds(), 3)}000`;
+}
+// Nome do log SEMPRE depois do último (o "Desfazer" pega o mais recente pela ordem do nome):
+// duas operações no mesmo milissegundo, ou relógio que voltou, ganham o número seguinte.
+function proximoNome(agora) {
+  let nome = carimbo(agora);
+  const ultimo = fs.readdirSync(HIST).filter((n) => /^\d{8}-\d{6}-\d{6}\.json$/.test(n)).sort().pop();
+  if (ultimo && `${nome}.json` <= ultimo) {
+    const base = ultimo.slice(0, 16);
+    nome = base + pad(Number(ultimo.slice(16, 22)) + 1, 6);
+  }
+  return nome;
 }
 function isoLocal(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
@@ -251,7 +262,7 @@ function aplicar(linhas, pasta) {
   fs.mkdirSync(HIST, { recursive: true });
   const agora = new Date();
   const log = { data: isoLocal(agora), pasta, desfeito: false, arquivos: pares.map(([de, para]) => ({ de, para })) };
-  fs.writeFileSync(path.join(HIST, `${carimbo(agora)}.json`), JSON.stringify(log, null, 2));
+  fs.writeFileSync(path.join(HIST, `${proximoNome(agora)}.json`), JSON.stringify(log, null, 2));
   return pares.length;
 }
 
