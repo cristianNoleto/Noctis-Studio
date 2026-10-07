@@ -12,6 +12,11 @@ let win = null;
 let lastRequest = 0;
 let queue = Promise.resolve();
 let intervalMs = 1500;
+// Limitador entre processos (app aberto + MCP sem janela) e estimativa de fila para o 429.
+let limitadorCompartilhado = null;
+let pendentes = 0;
+const ESPERA_MAX_MS = 45000;
+const setLimitador = (fn) => { limitadorCompartilhado = fn; };
 
 const setInterval_ = ms => { intervalMs = Math.max(500, Number(ms) || 1500); };
 // SAF_DEBUG=<file> logs each step; handy when Pixabay changes something.
@@ -33,13 +38,20 @@ function getWin() {
 
 // Serializes every Pixabay hit and keeps the polite gap between them.
 function polite(fn) {
+  // Fila longa demais: devolve "tente de novo em N s" em vez de deixar a IA esperando minutos.
+  const estimativa = (pendentes + 1) * intervalMs;
+  if (estimativa > ESPERA_MAX_MS) {
+    return Promise.reject(Object.assign(new Error('Muitas buscas ao Pixabay na fila. Tente de novo em instantes.'), { code: 'RATE_LIMITED', retryAfter: Math.ceil(estimativa / 1000) }));
+  }
+  pendentes++;
   const run = queue.then(async () => {
     const wait = lastRequest + intervalMs - Date.now();
     if (wait > 0) await sleep(wait);
+    if (limitadorCompartilhado) await limitadorCompartilhado(intervalMs);
     try { return await fn(); } finally { lastRequest = Date.now(); }
   });
   queue = run.catch(() => {});
-  return run;
+  return run.finally(() => { pendentes--; });
 }
 
 function err(code, message) { const e = new Error(message); e.code = code; return e; }
@@ -122,4 +134,4 @@ async function getItem(id, type = 'music') {
   });
 }
 
-module.exports = { search, getItem, polite, userAgent, setInterval: setInterval_, searchUrl, err };
+module.exports = { search, getItem, polite, userAgent, setInterval: setInterval_, setLimitador, searchUrl, err };

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { suggest } = require('./categorize');
+const { travaSync } = require('../ia/trava');
 
 // No Noctis Studio a pasta raiz vem das Configurações do app (nada fixo no código).
 const DEFAULT_ROOT = '';
@@ -165,9 +166,14 @@ async function download(item, category, { userAgent, onProgress, throttle = fn =
     tags: item.tags || [], duration: item.duration, pageUrl: item.pageUrl, localPath: file,
     downloadedAt: new Date().toISOString(), license: LICENSE,
   };
-  const catalog = readCatalog().filter(e => String(e.id) !== entry.id);
-  catalog.push(entry);
-  try { writeCatalog(catalog); } catch (e) { throw friendlyFsError(e); }
+  // Leitura + escrita do catálogo sob trava: o app e o MCP podem baixar ao mesmo tempo.
+  try {
+    travaSync(catalogPath(), () => {
+      const catalog = readCatalog().filter(e => String(e.id) !== entry.id);
+      catalog.push(entry);
+      writeCatalog(catalog);
+    });
+  } catch (e) { throw e.code === 'LOCKED' ? e : friendlyFsError(e); }
   return { duplicate: false, path: file, entry, newFolder };
 }
 
