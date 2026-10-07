@@ -14,6 +14,7 @@ on:
     paths:
       - 'desktop/**'
       - '.github/workflows/desktop.yml'
+      - 'NOCTIS-STUDIO-PARA-IAS.md'
   workflow_dispatch:
     inputs:
       substituir:
