@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Globe, Sparkles, Zap, User, Settings, FolderOpen, Eye, EyeOff, Download, LogOut, RefreshCw } from 'lucide-react'
+import { Globe, Sparkles, Zap, User, Settings, FolderOpen, Eye, EyeOff, Download, LogOut, RefreshCw, Plug } from 'lucide-react'
 import { call, useSettings, useToast } from '../lib/api'
 import { btnDanger, btnGhost, btnPrimary, Field, inputCls, Toggle } from '../components/ui'
 import { avaliarRitmo } from '../lib/ritmo'
+import ConectarIA from './ConectarIA'
 
 const TABS = [
   { key: 'geral', label: 'Geral', Icon: Globe },
   { key: 'reescrita', label: 'Reescrita IA', Icon: Sparkles },
   { key: 'avancado', label: 'Avançado', Icon: Zap },
+  { key: 'ia', label: 'IAs (MCP e API)', Icon: Plug },
   { key: 'conta', label: 'Conta', Icon: User },
 ]
+
+const CAMPOS = ['lang', 'projectsRoot', 'fileNamePattern', 'closeAction', 'rewrite.keys', 'rewrite.maxAttempts', 'rewrite.systemPrompt', 'rewrite.model',
+  'dispatch.delay', 'dispatch.maxConcurrentPerAccount', 'dispatch.dailyCapPerAccount', 'dispatch.headless']
 
 const get = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o)
 function set(o, p, v) {
@@ -35,11 +40,8 @@ export default function Configuracoes() {
 
   const mudou = useMemo(() => {
     if (!draft || !settings) return []
-    const campos = ['lang', 'projectsRoot', 'fileNamePattern', 'closeAction', 'rewrite.keys', 'rewrite.maxAttempts', 'rewrite.systemPrompt', 'rewrite.model',
-      'dispatch.delay', 'dispatch.maxConcurrentPerAccount', 'dispatch.dailyCapPerAccount', 'dispatch.headless']
-    return campos.filter((c) => JSON.stringify(get(draft, c)) !== JSON.stringify(get(settings, c)))
+    return CAMPOS.filter((c) => JSON.stringify(get(draft, c)) !== JSON.stringify(get(settings, c)))
   }, [draft, settings])
-
   if (!draft) return null
   const upd = (p, v) => setDraft((d) => set(d, p, v))
   const dot = (p) => mudou.includes(p) && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-cyan-400" />
@@ -49,7 +51,10 @@ export default function Configuracoes() {
     if (!ritmo.valido) return toast(ritmo.erro, 'error')
     try {
       const keys = (Array.isArray(draft.rewrite.keys) ? draft.rewrite.keys : String(draft.rewrite.keys).split('\n')).map((k) => k.trim()).filter(Boolean)
-      const novo = await save({ ...draft, rewrite: { ...draft.rewrite, keys, maxAttempts: Math.max(0, Math.min(10, Number(draft.rewrite.maxAttempts) || 0)) } })
+      // Só os campos desta tela: não sobrescreve o que outras telas (Conectar IA, Audio Atlas) mudaram.
+      const final = { ...draft, rewrite: { ...draft.rewrite, keys, maxAttempts: Math.max(0, Math.min(10, Number(draft.rewrite.maxAttempts) || 0)) } }
+      const patch = CAMPOS.reduce((acc, c) => set(acc, c, get(final, c)), {})
+      const novo = await save(patch)
       setDraft(novo)
       toast('Configurações salvas.', 'success')
     } catch (e) { toast(e.message, 'error') }
@@ -78,6 +83,7 @@ export default function Configuracoes() {
         </div>
 
         <div className="min-w-0 flex-1 space-y-6">
+          {tab === 'ia' && <div className="-mx-8 -my-7"><ConectarIA /></div>}
           {tab === 'geral' && (
             <>
               <Header title="Geral" sub="Preferências do aplicativo" />

@@ -12,6 +12,7 @@ const PAGES = {
   narracao: lazy(() => import('./pages/Narracao')),
   'audio-atlas': lazy(() => import('./pages/AudioAtlas')),
   renomeador: lazy(() => import('./pages/Renomeador')),
+  'conectar-ia': lazy(() => import('./pages/ConectarIA')),
   contas: lazy(() => import('./pages/Contas')),
   logs: lazy(() => import('./pages/Logs')),
   config: lazy(() => import('./pages/Configuracoes')),

@@ -57,7 +57,7 @@ function criarNucleo({ lib, pixabay, translate, ren, config, dataDir, documentsD
       raiz = pastaPadrao();
       fs.mkdirSync(raiz, { recursive: true });
       config.set({ audioAtlas: { root: raiz } });
-      notice = `Ainda não havia uma pasta de banco de sons escolhida neste computador, então criei "${raiz}" (na pasta Documentos) para guardar os áudios. Avise o usuário. Para usar outra pasta: Noctis Studio > Configurações > Audio Atlas, ou peça ao usuário e use set_sound_folder.`;
+      notice = `Ainda não havia uma pasta de banco de sons escolhida neste computador, então criei "${raiz}" (na pasta Documentos) para guardar os áudios. Avise o usuário. Para usar outra pasta: Noctis Studio > Conectar IA > Pastas, ou peça ao usuário e use set_sound_folder.`;
     }
     usarRaiz(raiz);
     return { root: raiz, notice };

@@ -28,6 +28,8 @@ function defaults(documentsDir) {
     renomeador: { lastFolder: '' },
     srt: { cutMode: 'center', speedUp: true, minTarget: 7.5, slowDown: true, maxTarget: 11 },
     chat: { agent: 'claude', permissionMode: '', agentes: {} },
+    // Conectar IA: API local (127.0.0.1), chave X-API-Key, pastas que IAs podem renomear.
+    ia: { porta: 47821, chave: '', pastasRenomear: [], iniciarComWindows: false },
     autoUpdate: true,
     update: { lastVersion: '', pending: null },
   };

@@ -94,6 +94,7 @@ function semJanela(nome, args) {
     const env = { ...process.env };
     delete env.ELECTRON_RUN_AS_NODE;
     const pre = env.NOCTIS_DEV_APP ? [env.NOCTIS_DEV_APP] : []; // dev: electron.exe <pasta do app>
+    if (env.NOCTIS_IA_ARGS) pre.push(...env.NOCTIS_IA_ARGS.split(' ').filter(Boolean)); // testes (ex.: --no-sandbox no Linux como root)
     const p = spawn(process.execPath, [...pre, '--noctis-ia', req, res], { env, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
     let erroTxt = '';
     p.stderr.on('data', (d) => { erroTxt = (erroTxt + d).slice(-2000); });

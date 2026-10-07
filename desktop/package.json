@@ -12,7 +12,7 @@
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5199 && cross-env NOCTIS_DEV_URL=http://localhost:5199 electron .\"",
     "build": "vite build",
     "start": "npm run build && electron .",
-    "test": "node --test --test-concurrency=1 test/renomeador.test.js test/auth.test.js test/tags.test.js test/fila.test.js test/srt.test.js test/chat.test.js test/drivers.test.js test/atualizacao.test.js test/ia-nucleo.test.js && node electron/servicos/audio-atlas/parser.js && node electron/servicos/audio-atlas/categorize.js && node electron/servicos/audio-atlas/library.js",
+    "test": "node --test --test-concurrency=1 test/renomeador.test.js test/auth.test.js test/tags.test.js test/fila.test.js test/srt.test.js test/chat.test.js test/drivers.test.js test/atualizacao.test.js test/ia-nucleo.test.js test/ia-api.test.js test/ia-mcp.test.js test/ia-migracao.test.js && node electron/servicos/audio-atlas/parser.js && node electron/servicos/audio-atlas/categorize.js && node electron/servicos/audio-atlas/library.js",
     "dist": "npm run build && electron-builder --win --publish never",
     "test:flow": "node --test test/flow-falso.test.js"
   },
@@ -64,7 +64,11 @@
     },
     "asarUnpack": [
       "node_modules/ffmpeg-static/**",
-      "electron/servicos/chat/mcp-server.js"
+      "electron/servicos/chat/mcp-server.js",
+      "electron/servicos/ia/**",
+      "electron/servicos/audio-atlas/**",
+      "electron/servicos/renomeador.js",
+      "electron/lib/store.js"
     ],
     "publish": [
       {
@@ -72,6 +76,12 @@
         "url": "https://noctis-studio.online/api/desktop/update/",
         "channel": "latest",
         "useMultipleRangeRequest": false
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "../NOCTIS-STUDIO-PARA-IAS.md",
+        "to": "NOCTIS-STUDIO-PARA-IAS.md"
       }
     ]
   }
