@@ -49,7 +49,9 @@ function Menu({ aberto, onClose, children, largura = 'min-w-[200px]' }) {
     return () => document.removeEventListener('mousedown', fora)
   }, [aberto, onClose])
   if (!aberto) return null
-  return <div ref={ref} className={`absolute bottom-full z-30 mb-1.5 max-h-72 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-1 shadow-2xl shadow-black/60 ${largura}`}>{children}</div>
+  // Alinha à barra inteira da caixa de texto (não ao botão), para nunca sair da tela.
+  void largura
+  return <div ref={ref} className="absolute bottom-full left-1 right-1 z-30 mb-1.5 max-h-72 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-1 shadow-2xl shadow-black/60">{children}</div>
 }
 function Pill({ Icon, children, onClick, aberto, titulo }) {
   return (
@@ -443,15 +445,15 @@ export default function ChatPanel({ onClose, go }) {
             disabled={!pronto}
             className="block w-full resize-none bg-transparent px-3 pt-2.5 text-[13px] text-slate-100 placeholder:text-slate-600 focus:outline-none disabled:opacity-50"
           />
-          <div className="flex items-center gap-0.5 px-1.5 pb-1.5">
-            <div className="relative"><Pill Icon={Folder} aberto={menu === 'pasta'} titulo={conv?.cwd} onClick={() => setMenu(menu === 'pasta' ? null : 'pasta')}>{nomePasta}</Pill>
+          <div className="relative flex min-w-0 items-center gap-0.5 px-1.5 pb-1.5">
+            <div className="min-w-0"><Pill Icon={Folder} aberto={menu === 'pasta'} titulo={conv?.cwd} onClick={() => setMenu(menu === 'pasta' ? null : 'pasta')}>{nomePasta}</Pill>
               <Menu aberto={menu === 'pasta'} onClose={() => setMenu(null)} largura="min-w-[240px]">
                 <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Pasta de trabalho</p>
                 {pastasRecentes().map((p) => <Opcao key={p} ativo={conv?.cwd === p} onClick={() => usarPasta(p)}><span className="truncate font-mono text-[11px]">{p.split(/[\\/]/).filter(Boolean).pop()}</span></Opcao>)}
                 <Opcao onClick={escolherPasta}><span className="flex items-center gap-2"><FolderOpen size={13} /> Escolher outra pasta…</span></Opcao>
               </Menu>
             </div>
-            <div className="relative"><Pill Icon={Bot} aberto={menu === 'agente'} onClick={() => setMenu(menu === 'agente' ? null : 'agente')}>{agente?.nome || 'Claude Code'}</Pill>
+            <div className="min-w-0"><Pill Icon={Bot} aberto={menu === 'agente'} onClick={() => setMenu(menu === 'agente' ? null : 'agente')}>{agente?.nome || 'Claude Code'}</Pill>
               <Menu aberto={menu === 'agente'} onClose={() => setMenu(null)} largura="min-w-[330px]">
                 <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Agente</p>
                 {(agentes || []).map((a) => (
@@ -469,14 +471,14 @@ export default function ChatPanel({ onClose, go }) {
               </Menu>
             </div>
             {modelos.length > 0 && (
-              <div className="relative"><Pill Icon={Cpu} aberto={menu === 'modelo'} onClick={() => setMenu(menu === 'modelo' ? null : 'modelo')}>{perAg.model || 'auto'}</Pill>
+              <div className="min-w-0"><Pill Icon={Cpu} aberto={menu === 'modelo'} onClick={() => setMenu(menu === 'modelo' ? null : 'modelo')}>{perAg.model || 'auto'}</Pill>
                 <Menu aberto={menu === 'modelo'} onClose={() => setMenu(null)}>
                   <Opcao ativo={!perAg.model} onClick={() => { setPerAg({ model: '' }); setMenu(null) }}>auto</Opcao>
                   {modelos.map((m) => <Opcao key={m.id} ativo={perAg.model === m.id} onClick={() => { setPerAg({ model: m.id }); setMenu(null) }}><span className="truncate">{m.rotulo || m.id}</span></Opcao>)}
                 </Menu>
               </div>
             )}
-            <div className="relative"><Pill Icon={Gauge} aberto={menu === 'esforco'} onClick={() => setMenu(menu === 'esforco' ? null : 'esforco')}>{ESF_ROTULO[perAg.effort || ''] || perAg.effort}</Pill>
+            <div className="min-w-0"><Pill Icon={Gauge} aberto={menu === 'esforco'} onClick={() => setMenu(menu === 'esforco' ? null : 'esforco')}>{ESF_ROTULO[perAg.effort || ''] || perAg.effort}</Pill>
               <Menu aberto={menu === 'esforco'} onClose={() => setMenu(null)}>
                 {esforcos.map((ef) => <Opcao key={ef || 'auto'} ativo={(perAg.effort || '') === ef} onClick={() => { setPerAg({ effort: ef }); setMenu(null) }}>{ESF_ROTULO[ef] || ef}</Opcao>)}
               </Menu>

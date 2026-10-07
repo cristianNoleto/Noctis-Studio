@@ -142,7 +142,7 @@ export default function Contas() {
       {conectando && (
         <div className="mb-5 flex items-center gap-3 rounded-xl border border-cyan-500/25 bg-cyan-500/5 px-4 py-3 text-sm text-cyan-200">
           <LogIn size={16} className="shrink-0" />
-          <span className="flex-1">Uma janela do Chrome abriu no Flow. Entre na sua conta Google por lá (se o Flow pedir, clique em "Entrar"). Quando o login for detectado, o Chrome <b>fecha sozinho</b> e a conta aparece aqui — pode levar até 30 s.</span>
+          <span className="flex-1">Uma janela do Chrome abriu no Flow. Entre na sua conta Google por lá (se o Flow pedir, clique em "Entrar"). Quando o Flow aparecer com a sua conta, clique em <b>Já entrei</b> (ou feche o Chrome). Às vezes ele fecha sozinho.</span>
           <button className="shrink-0 rounded-lg border border-cyan-500/40 px-3 py-1.5 text-xs font-semibold hover:bg-cyan-500/10" onClick={() => call('accounts:loginDone').catch(() => {})}>Já entrei</button>
         </div>
       )}

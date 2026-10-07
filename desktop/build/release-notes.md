@@ -1,3 +1,3 @@
-- Contas Google: corrigido o login que não era reconhecido. O Chrome de cada conta agora abre sempre do mesmo jeito (no login e nas gerações), então a sessão feita no login continua valendo.
-- Depois que você entra na conta e o Flow aparece, o app confere e fecha o Chrome sozinho em poucos segundos.
-- Os Logs mostram quando o Flow está aberto mas ainda sem login (ex.: falta clicar em "Entrar" no Flow).
+- Contas Google: o login volta a abrir um Chrome 100% comum (a 0.1.8 abria com um ajuste que o Google recusa). Quando o Flow aparecer com sua conta, clique em "Já entrei" ou feche o Chrome.
+- Logs mais detalhados da conferência da conta, para achar o problema se ainda não reconhecer o login.
+- Chat IA: menus de agente, modelo e pasta não ficam mais cortados.
