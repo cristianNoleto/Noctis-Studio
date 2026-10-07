@@ -77,12 +77,29 @@ async function gh(path, token, init = {}) {
   })
 }
 
+// Compara versões pelo número (0.1.10 > 0.1.9). O GitHub NÃO lista as releases em ordem de
+// versão (ordena a tag como texto, e "0.1.9" vem antes de "0.1.10").
+export function compararVersao(a, b) {
+  const pa = String(a).split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
+  const pb = String(b).split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0)
+    if (d) return d
+  }
+  return 0
+}
+
+export function escolherMaisNova(list) {
+  const validas = list.filter((rel) => !rel.draft && !rel.prerelease && /^desktop-v\d/.test(rel.tag_name) && rel.assets?.some((a) => /\.exe$/i.test(a.name)))
+  validas.sort((x, y) => compararVersao(y.tag_name.replace(/^desktop-v/, ''), x.tag_name.replace(/^desktop-v/, '')))
+  return validas[0] || null
+}
+
 // Release mais recente com tag desktop-v* (o repositório também pode ter outras releases).
 async function latestDesktopRelease(repo, token) {
-  const r = await gh(`/repos/${repo}/releases?per_page=30`, token, { headers: { Accept: 'application/vnd.github+json' } })
+  const r = await gh(`/repos/${repo}/releases?per_page=100`, token, { headers: { Accept: 'application/vnd.github+json' } })
   if (!r.ok) throw Object.assign(new Error(`GitHub respondeu ${r.status} ao listar releases.`), { status: r.status })
-  const list = await r.json()
-  return list.find((rel) => !rel.draft && /^desktop-v/.test(rel.tag_name) && rel.assets?.some((a) => /\.exe$/i.test(a.name))) || null
+  return escolherMaisNova(await r.json())
 }
 
 router.get('/info', async (req, res) => {
