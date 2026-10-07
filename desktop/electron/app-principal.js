@@ -1,4 +1,4 @@
-// Noctis Studio Desktop — processo principal.
+// Noctis Studio Desktop — processo principal do app (janela, bandeja, módulos, API local para IAs).
 const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage, safeStorage, Notification, protocol, net } = require('electron');
 const { pathToFileURL } = require('url');
 const path = require('path');
@@ -18,6 +18,8 @@ const ICON = path.join(ROOT, 'build', 'icon.png');
 let win = null;
 let tray = null;
 let quitting = false;
+// Aberto pelo Windows ao iniciar ("Iniciar com o Windows"): fica só na bandeja.
+const naBandeja = process.argv.includes('--bandeja');
 
 const ctx = {
   app,
@@ -69,7 +71,7 @@ function createWindow() {
     titleBarOverlay: { color: '#0d0e12', symbolColor: '#8b93a5', height: 40 },
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false },
   });
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => { if (!naBandeja) win.show(); });
   const dev = process.env.NOCTIS_DEV_URL;
   if (dev) win.loadURL(dev);
   else win.loadFile(path.join(ROOT, 'dist', 'index.html'));
@@ -252,7 +254,7 @@ app.whenReady().then(async () => {
   handle('app:update-check', async () => { if (atualizador) await atualizador.checar(); return true; }, { livre: true });
 
   registerCore();
-  for (const mod of ['renomeador', 'audio-atlas', 'creator', 'srt', 'chat']) {
+  for (const mod of ['renomeador', 'audio-atlas', 'creator', 'srt', 'chat', 'ia']) {
     try { require(`./ipc/${mod}`)(ctx); } catch (e) { if (e.code !== 'MODULE_NOT_FOUND' || !String(e.message).includes(`ipc/${mod}`)) log.error(`Módulo ${mod}: ${e.message}`); }
   }
 
