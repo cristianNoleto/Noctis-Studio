@@ -36,7 +36,7 @@ function paginaInicial(porta, versao) {
 <style>body{font:15px/1.55 system-ui,sans-serif;background:#0d0e12;color:#d6dae3;max-width:760px;margin:40px auto;padding:0 16px}h1{font-size:22px;color:#fff}code,pre{background:#161922;border:1px solid #262a36;border-radius:8px;padding:2px 6px;color:#7fe7f5}pre{padding:12px;overflow:auto}a{color:#00e5ff}</style></head>
 <body><h1>Noctis Studio — API local</h1>
 <p>Versão ${versao}. Esta API só aceita conexões deste computador (<code>127.0.0.1:${porta}</code>).</p>
-<p>Todas as rotas, exceto <code>/</code>, <code>/api/health</code> e <code>/api/guide</code>, exigem o cabeçalho <code>X-API-Key</code> (a chave fica em Noctis Studio &gt; Conectar IA).</p>
+<p>Todas as rotas, exceto <code>/</code>, <code>/api/health</code> e <code>/api/guide</code>, exigem o cabeçalho <code>X-API-Key</code> (a chave fica em Noctis Studio &gt; Configurações &gt; IAs).</p>
 <p>Guia completo para IAs: <a href="/api/guide">/api/guide</a></p>
 <pre>const r = await fetch('/api/categories', { headers: { 'X-API-Key': 'SUA_CHAVE' } });
 console.log(await r.json());</pre>
@@ -114,7 +114,7 @@ function criarApiLocal({ nucleo, getConfig, versao = '0', guia = () => '', acess
       return res.end(guia());
     }
 
-    if (!chaveIgual(req.headers['x-api-key'], getConfig().ia?.chave)) return falhar(res, 'UNAUTHORIZED', 'Chave ausente ou inválida. Envie o cabeçalho X-API-Key com a chave de Noctis Studio > Conectar IA.', cors);
+    if (!chaveIgual(req.headers['x-api-key'], getConfig().ia?.chave)) return falhar(res, 'UNAUTHORIZED', 'Chave ausente ou inválida. Envie o cabeçalho X-API-Key com a chave de Noctis Studio > Configurações > IAs.', cors);
     if (!acessoOk()) return falhar(res, 'NOT_SIGNED_IN', 'Entre na sua conta Noctis no app Noctis Studio para liberar as ferramentas.', cors);
 
     let nome = ROTAS.get(`${req.method} ${rota}`);
@@ -145,7 +145,7 @@ function criarApiLocal({ nucleo, getConfig, versao = '0', guia = () => '', acess
       s.requestTimeout = 10 * 60 * 1000; // download longo do Pixabay
       s.once('error', (e) => {
         estado = { ativa: false, porta, erro: e.code === 'EADDRINUSE' ? 'porta-ocupada' : e.message };
-        log.warn?.(e.code === 'EADDRINUSE' ? `API local: a porta ${porta} já está em uso por outro programa. Escolha outra em Conectar IA.` : `API local: ${e.message}`);
+        log.warn?.(e.code === 'EADDRINUSE' ? `API local: a porta ${porta} já está em uso por outro programa. Escolha outra em Configurações > IAs.` : `API local: ${e.message}`);
         resolve(estado);
       });
       s.listen(porta, '127.0.0.1', () => {

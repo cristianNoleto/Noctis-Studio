@@ -20,9 +20,9 @@ São dois jeitos de conectar, com as **mesmas ferramentas**:
 
 ### Claude Desktop (MCP)
 
-Jeito fácil: Noctis Studio → **Conectar IA** → **Adicionar automaticamente** (faz backup do arquivo, adiciona o `noctis-studio`, remove o `audio-atlas` antigo e não mexe em mais nada).
+Jeito fácil: Noctis Studio → **Configurações → IAs** → **Adicionar automaticamente** (faz backup do arquivo, adiciona o `noctis-studio`, remove o `audio-atlas` antigo e não mexe em mais nada).
 
-À mão: edite `%APPDATA%\Claude\claude_desktop_config.json` (Claude → Configurações → Desenvolvedor → Editar configuração). Apague o bloco `"audio-atlas"` se existir e coloque dentro de `"mcpServers"` o bloco que a tela **Conectar IA** mostra (ele já vem com os caminhos certos deste computador). O formato é:
+À mão: edite `%APPDATA%\Claude\claude_desktop_config.json` (Claude → Configurações → Desenvolvedor → Editar configuração). Apague o bloco `"audio-atlas"` se existir e coloque dentro de `"mcpServers"` o bloco que a tela **Configurações → IAs** mostra (ele já vem com os caminhos certos deste computador). O formato é:
 
 ```json
 {
@@ -44,13 +44,13 @@ Depois **feche o Claude por completo** (ícone na bandeja → Sair) e abra de no
 claude mcp add --transport stdio --scope user --env ELECTRON_RUN_AS_NODE=1 noctis-studio -- "C:\Users\SEU_USUARIO\AppData\Local\Programs\Noctis Studio\Noctis Studio.exe" "C:\Users\SEU_USUARIO\AppData\Local\Programs\Noctis Studio\resources\app.asar.unpacked\electron\servicos\ia\mcp.js"
 ```
 
-(O comando exato, com os seus caminhos, está na tela **Conectar IA**. Se havia o antigo: `claude mcp remove audio-atlas --scope user`.)
+(O comando exato, com os seus caminhos, está na tela **Configurações → IAs**. Se havia o antigo: `claude mcp remove audio-atlas --scope user`.)
 
 ### API local (qualquer IA ou script)
 
-- Endereço: `http://127.0.0.1:47821` (porta configurável em Conectar IA). Só aceita conexões do próprio computador.
-- Cabeçalho obrigatório: `X-API-Key: <chave>` (copie em Noctis Studio → Conectar IA). Exceções: `GET /`, `GET /api/health`, `GET /api/guide`.
-- A API fica ativa enquanto o Noctis Studio estiver aberto (inclusive só na bandeja). Opção "Iniciar com o Windows (na bandeja)" em Conectar IA.
+- Endereço: `http://127.0.0.1:47821` (porta configurável em Configurações → IAs). Só aceita conexões do próprio computador.
+- Cabeçalho obrigatório: `X-API-Key: <chave>` (copie em Noctis Studio → Configurações → IAs). Exceções: `GET /`, `GET /api/health`, `GET /api/guide`.
+- A API fica ativa enquanto o Noctis Studio estiver aberto (inclusive só na bandeja). Opção "Iniciar com o Windows (na bandeja)" em Configurações → IAs.
 
 **Navegador embutido do Claude:** abra `http://127.0.0.1:47821/` e rode `fetch` na própria página (mesma origem; outras origens são recusadas):
 
@@ -75,7 +75,7 @@ console.log(await r.json());
 
 ### Onde ficam os sons
 
-- Se o usuário escolheu uma pasta (Conectar IA ou Audio Atlas → Configurações), é ela.
+- Se o usuário escolheu uma pasta (Configurações → IAs ou Audio Atlas → Configurações), é ela.
 - Se não há pasta, na primeira chamada o Noctis Studio cria `Documentos\Noctis Studio\Banco de sons` e devolve um `notice` explicando onde e por quê.
 - Se a pasta está numa unidade que não está disponível (ex.: Google Drive `G:` fechado), a resposta é um erro `NO_ROOT` com explicação — **nada é criado em outro lugar**. Peça ao usuário para abrir o Google Drive.
 
@@ -137,7 +137,7 @@ Resposta: `{ ok, root, created, previousRoot, notice }` — API: `POST /api/soun
 
 ### `list_rename_folders` — pastas liberadas para renomear *(somente leitura)*
 
-Resposta: `{ folders: [{ path, exists }] }`. Se vier vazio, peça ao usuário para liberar uma pasta em Noctis Studio → Conectar IA → "Pastas liberadas para IAs". — API: `GET /api/rename/folders`.
+Resposta: `{ folders: [{ path, exists }] }`. Se vier vazio, peça ao usuário para liberar uma pasta em Noctis Studio → Configurações → IAs → "Pastas liberadas para IAs". — API: `GET /api/rename/folders`.
 
 ### `preview_rename` — prévia (não altera nada) *(somente leitura)*
 
@@ -218,12 +218,12 @@ Resposta: `{ ok, operationId, restored, folder }` — API: `POST /api/rename/und
 
 | Sintoma | O que fazer |
 |---|---|
-| As ferramentas não aparecem no Claude | Feche o Claude **por completo** (bandeja → Sair) e abra de novo. Veja o log: `%APPDATA%\Claude\logs\mcp-server-noctis-studio.log`. Em Noctis Studio → Conectar IA → **Testar conexão**. |
+| As ferramentas não aparecem no Claude | Feche o Claude **por completo** (bandeja → Sair) e abra de novo. Veja o log: `%APPDATA%\Claude\logs\mcp-server-noctis-studio.log`. Em Noctis Studio → Configurações → IAs → **Testar conexão**. |
 | Ainda aparece "audio-atlas" | Remova o bloco `"audio-atlas"` do `claude_desktop_config.json` (ou "Adicionar automaticamente") e reabra o Claude. |
 | `NOT_SIGNED_IN` | Abra o Noctis Studio e entre na conta Noctis. O acesso das IAs vale 7 dias após o último login. |
-| `401 UNAUTHORIZED` | Chave errada ou regenerada: copie de novo em Conectar IA. |
-| API não responde / porta ocupada | O app precisa estar aberto (pode ser na bandeja). Se a tela avisar "porta ocupada", escolha outra porta em Conectar IA (o app não troca sozinho). O MCP não depende da porta. |
+| `401 UNAUTHORIZED` | Chave errada ou regenerada: copie de novo em Configurações → IAs. |
+| API não responde / porta ocupada | O app precisa estar aberto (pode ser na bandeja). Se a tela avisar "porta ocupada", escolha outra porta em Configurações → IAs (o app não troca sozinho). O MCP não depende da porta. |
 | `NO_ROOT` com G: | O Google Drive não está montado. Abra o Google Drive e tente de novo; nada é salvo em outro lugar. |
 | `429 RATE_LIMITED` | Muitas buscas ao Pixabay em sequência. Espere o tempo de `Retry-After` e tente de novo. |
-| `FOLDER_NOT_ALLOWED` | A pasta não foi liberada. Peça ao usuário para liberar em Conectar IA → "Pastas liberadas para IAs". |
+| `FOLDER_NOT_ALLOWED` | A pasta não foi liberada. Peça ao usuário para liberar em Configurações → IAs → "Pastas liberadas para IAs". |
 | `PREVIEW_STALE` / `PREVIEW_EXPIRED` | Gere outra prévia e mostre de novo ao usuário. |

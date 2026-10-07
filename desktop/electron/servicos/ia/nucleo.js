@@ -57,7 +57,7 @@ function criarNucleo({ lib, pixabay, translate, ren, config, dataDir, documentsD
       raiz = pastaPadrao();
       fs.mkdirSync(raiz, { recursive: true });
       config.set({ audioAtlas: { root: raiz } });
-      notice = `Ainda não havia uma pasta de banco de sons escolhida neste computador, então criei "${raiz}" (na pasta Documentos) para guardar os áudios. Avise o usuário. Para usar outra pasta: Noctis Studio > Conectar IA > Pastas, ou peça ao usuário e use set_sound_folder.`;
+      notice = `Ainda não havia uma pasta de banco de sons escolhida neste computador, então criei "${raiz}" (na pasta Documentos) para guardar os áudios. Avise o usuário. Para usar outra pasta: Noctis Studio > Configurações > IAs, ou peça ao usuário e use set_sound_folder.`;
     }
     usarRaiz(raiz);
     return { root: raiz, notice };
@@ -163,7 +163,7 @@ function criarNucleo({ lib, pixabay, translate, ren, config, dataDir, documentsD
 
   function list_rename_folders() {
     const folders = pastasLiberadas().map((p) => ({ path: p, exists: fs.existsSync(p) }));
-    return folders.length ? { folders } : { folders, notice: 'Nenhuma pasta liberada para IAs. Peça ao usuário para liberar em Noctis Studio > Conectar IA > "Pastas liberadas para IAs" (ou Configurações).' };
+    return folders.length ? { folders } : { folders, notice: 'Nenhuma pasta liberada para IAs. Peça ao usuário para liberar em Noctis Studio > Configurações > IAs > "Pastas liberadas para IAs".' };
   }
 
   // A pasta tem de estar DENTRO de uma pasta liberada, sem "..", sem atalho/link.
@@ -177,7 +177,7 @@ function criarNucleo({ lib, pixabay, translate, ren, config, dataDir, documentsD
     if (!st.isDirectory()) throw erro('USAGE', '"folder" não é uma pasta.');
     const r = real(f);
     const ok = pastasLiberadas().some((lib_) => { const rl = real(lib_); return rl && r && dentro(r, rl); });
-    if (!ok) throw erro('FOLDER_NOT_ALLOWED', `A pasta "${f}" não está entre as "Pastas liberadas para IAs". Peça ao usuário para liberá-la no Noctis Studio (Conectar IA).`);
+    if (!ok) throw erro('FOLDER_NOT_ALLOWED', `A pasta "${f}" não está entre as "Pastas liberadas para IAs". Peça ao usuário para liberá-la no Noctis Studio (Configurações > IAs).`);
     return r;
   }
 

@@ -220,7 +220,7 @@ module.exports = function registrar(ctx) {
     let txt = lerGuia();
     const porta = estadoApi.porta || cfgIa().porta;
     const conexao = [`## Sua conexão (gerado pelo Noctis Studio ${versao})`, '', `- API local: \`http://127.0.0.1:${porta}\``,
-      incluirChave ? `- Chave (X-API-Key): \`${cfgIa().chave}\` — guarde em segredo; regenere em Conectar IA se vazar.` : '- Chave (X-API-Key): copie em Noctis Studio > Conectar IA (não incluída neste arquivo).',
+      incluirChave ? `- Chave (X-API-Key): \`${cfgIa().chave}\` — guarde em segredo; regenere em Configurações > IAs se vazar.` : '- Chave (X-API-Key): copie em Noctis Studio > Configurações > IAs (não incluída neste arquivo).',
       `- MCP (Claude Desktop):`, '', '```json', claude.jsonDesktop(bloco()), '```', ''].join('\n');
     txt = txt.replace(/\n## /, `\n${conexao}\n## `);
     fs.writeFileSync(r.filePath, txt);

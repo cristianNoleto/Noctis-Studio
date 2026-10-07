@@ -96,7 +96,7 @@ function createWindow() {
 }
 
 // Ícone na bandeja do Windows: aparece sempre que o app está aberto, com atalhos e o estado da fila.
-const TELAS = [['Início', 'dashboard'], ['Meus Projetos', 'projetos'], ['Sincronizador SRT', 'srt'], ['Audio Atlas', 'audio-atlas'], ['Renomeador', 'renomeador'], ['Conectar IA', 'conectar-ia'], ['Contas', 'contas'], ['Logs', 'logs'], ['Configurações', 'config']];
+const TELAS = [['Início', 'dashboard'], ['Meus Projetos', 'projetos'], ['Sincronizador SRT', 'srt'], ['Audio Atlas', 'audio-atlas'], ['Renomeador', 'renomeador'], ['Contas', 'contas'], ['Logs', 'logs'], ['Configurações', 'config']];
 function mostrarJanela() { if (!win) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 function irPara(dados) { mostrarJanela(); ctx.send('app:navigate', dados); }
 

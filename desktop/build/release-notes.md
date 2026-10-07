@@ -1,5 +1,3 @@
-- Novo: Conectar IA. O Claude (e qualquer IA) agora usa o Noctis Studio: buscar e baixar sons do Pixabay, procurar no banco de sons e renomear arquivos em massa com prévia.
-- MCP "noctis-studio" substitui o antigo "audio-atlas" (mesmas ferramentas) e funciona com o app aberto ou fechado. Botão "Adicionar automaticamente" configura o Claude Desktop.
-- API local em 127.0.0.1 com chave, para scripts e outras IAs, e guia completo para IAs (exportável).
-- Você escolhe a pasta do banco de sons e as pastas que as IAs podem renomear. Opção "Iniciar com o Windows (na bandeja)".
-- Importa automaticamente os dados do Audio Atlas e do Renomeador antigos (sem alterar os originais).
+- Contas Google: o login agora abre o Chrome comum (sem automação). Entre na conta e feche a janela do Chrome ao terminar — resolve o erro "Esse navegador ou app pode não ser seguro".
+- O Chrome usado nas gerações não roda mais com --no-sandbox.
+- "Conectar IA" saiu da barra lateral: agora fica em Configurações → IAs.

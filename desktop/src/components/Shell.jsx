@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  LayoutDashboard, Images, Film, AudioLines, Music, FolderPen, Users, Terminal, Settings, CircleHelp, ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, MessagesSquare, Plug,
+  LayoutDashboard, Images, Film, AudioLines, Music, FolderPen, Users, Terminal, Settings, CircleHelp, ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, MessagesSquare,
 } from 'lucide-react'
 import Logo from './Logo'
 import { call } from '../lib/api'
@@ -18,7 +18,6 @@ export const NAV = [
     group: 'ferramentas', label: 'Ferramentas', items: [
       { key: 'audio-atlas', label: 'Audio Atlas', Icon: Music },
       { key: 'renomeador', label: 'Renomeador', Icon: FolderPen },
-      { key: 'conectar-ia', label: 'Conectar IA', Icon: Plug },
     ],
   },
   {
