@@ -1,4 +1,5 @@
-- Login com e-mail e senha direto no app (além do login pelo navegador).
-- "Lembrar senha neste computador": a senha fica cifrada pelo Windows e o app entra sozinho ao abrir.
-- Ícone na bandeja do Windows sempre que o app está aberto, com atalhos (telas, Chat IA, pausar/retomar fila, atualizações).
-- Atualização com o app aberto: baixa sozinha e reinicia em 30 s para instalar (espera a geração em andamento terminar).
+- Novo: Conectar IA. O Claude (e qualquer IA) agora usa o Noctis Studio: buscar e baixar sons do Pixabay, procurar no banco de sons e renomear arquivos em massa com prévia.
+- MCP "noctis-studio" substitui o antigo "audio-atlas" (mesmas ferramentas) e funciona com o app aberto ou fechado. Botão "Adicionar automaticamente" configura o Claude Desktop.
+- API local em 127.0.0.1 com chave, para scripts e outras IAs, e guia completo para IAs (exportável).
+- Você escolhe a pasta do banco de sons e as pastas que as IAs podem renomear. Opção "Iniciar com o Windows (na bandeja)".
+- Importa automaticamente os dados do Audio Atlas e do Renomeador antigos (sem alterar os originais).
