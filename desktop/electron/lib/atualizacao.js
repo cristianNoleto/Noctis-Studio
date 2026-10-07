@@ -44,6 +44,7 @@ function criarAtualizador({ ctx, autoUpdater, app, isPackaged, intervaloMs = 30 
   function ligarEventos() {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.disableWebInstaller = true; // instalador completo (não o "web installer"); evita o aviso nos Logs
     autoUpdater.logger = { info: (m) => log.info(`Atualização: ${m}`), warn: (m) => log.warn(`Atualização: ${m}`), error: (m) => log.warn(`Atualização: ${m}`), debug: () => {} };
     autoUpdater.on('checking-for-update', () => { estado.checando = true; });
     autoUpdater.on('update-not-available', () => { estado.checando = false; });
