@@ -14,8 +14,22 @@ const crypto = require('crypto');
 const os = require('os');
 const { spawn, execFile } = require('child_process');
 
-const FLOW_URL = 'https://labs.google/fx/pt/tools/flow';
-const SESSION_URL = 'https://labs.google/fx/api/auth/session';
+// O Flow saiu de labs.google/fx e agora mora em flow.google.com, com o login da conta Google.
+const FLOW_URL = 'https://flow.google.com/';
+// "Quem está logado neste perfil": a mesma lista de contas que o próprio Chrome consulta.
+const SESSION_URL = 'https://accounts.google.com/ListAccounts?gpsia=1&source=ChromiumBrowser&json=standard';
+
+// Lê a resposta da conferência: { user } (formato antigo do Flow) ou a lista de contas do Google.
+function lerConta(txt) {
+  let d;
+  try { d = JSON.parse(String(txt || '').replace(/^\)\]\}'\s*/, '')); } catch { return null; }
+  if (d && d.user && d.user.email) return d.user;
+  if (Array.isArray(d) && Array.isArray(d[1])) {
+    const a = d[1].find((x) => Array.isArray(x) && typeof x[3] === 'string' && x[3].includes('@'));
+    if (a) return { email: a[3], name: typeof a[2] === 'string' ? a[2] : '' };
+  }
+  return null;
+}
 
 // Textos/rótulos que identificam os controles (PT e EN). Ajuste aqui quando o Flow mudar.
 const SEL = {
@@ -159,14 +173,33 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
     return false;
   }
 
+  // Título da janela do Chrome (só Windows; não mexe no Chrome, só lê o título que o Windows mostra).
+  function tituloJanela(pid) {
+    if (process.platform !== 'win32') return Promise.resolve(null);
+    return new Promise((resolve) => {
+      execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${Number(pid)} -ErrorAction SilentlyContinue).MainWindowTitle`], { windowsHide: true, timeout: 8000 }, (e, out) => resolve(e ? null : String(out || '').trim()));
+    });
+  }
+  const TITULO_LOGIN = /(contas do google|google accounts|fazer login|sign in|iniciar sess|verifica|2-step|duas etapas)/i;
+
   async function loginNoChrome(profileDir, { timeoutMs }) {
     const { proc } = await iniciarChrome(profileDir, { headless: false, automacao: false, depuracao: false, url: flowUrl });
     let leitura = 'nunca';
     loginAtual = { concluir: () => fecharNormal(proc) };
     const fim = Date.now() + timeoutMs;
     try {
+      let passouPeloLogin = false;
       while (proc.exitCode === null && Date.now() < fim) {
-        await new Promise((r) => setTimeout(r, 3000));
+        await new Promise((r) => setTimeout(r, 2000));
+        // Saiu da página de login do Google e voltou para o Flow → login feito.
+        const titulo = await tituloJanela(proc.pid);
+        if (titulo && TITULO_LOGIN.test(titulo)) passouPeloLogin = true;
+        else if (titulo && passouPeloLogin && /flow/i.test(titulo)) {
+          log.info('Flow: login concluído (voltou para o Flow), fechando o Chrome…');
+          await new Promise((r) => setTimeout(r, 3000)); // dá tempo de o Chrome gravar a sessão
+          fecharNormal(proc);
+          break;
+        }
         const r = temCookieSessao(profileDir);
         if (r === null) leitura = 'bloqueada';
         else if (leitura !== 'bloqueada') leitura = 'ok';
@@ -220,8 +253,7 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
   async function sessaoGoogle(page) {
     try {
       const r = await page.request.get(sessionUrl, { timeout: 20000 });
-      const d = await r.json().catch(() => ({}));
-      return d && d.user ? d.user : null;
+      return lerConta(await r.text().catch(() => ''));
     } catch { return null; }
   }
 
@@ -491,4 +523,4 @@ function criarFlowDriver({ perfisDir, diagDir, getSettings, log, flowUrl = FLOW_
   };
 }
 
-module.exports = { criarFlowDriver, FLOW_URL, slugConta, SEL, acharNavegador };
+module.exports = { criarFlowDriver, FLOW_URL, slugConta, SEL, acharNavegador, lerConta };

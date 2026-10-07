@@ -1,3 +1,2 @@
-- Contas Google: o login volta a abrir um Chrome 100% comum (a 0.1.8 abria com um ajuste que o Google recusa). Quando o Flow aparecer com sua conta, clique em "Já entrei" ou feche o Chrome.
-- Logs mais detalhados da conferência da conta, para achar o problema se ainda não reconhecer o login.
-- Chat IA: menus de agente, modelo e pasta não ficam mais cortados.
+- Contas Google: o Flow mudou de endereço (agora flow.google.com) e o app conferia a conta no endereço antigo — por isso o login não era reconhecido. Agora a conta é conferida direto no Google.
+- O Chrome do login fecha sozinho alguns segundos depois que você entra na conta e volta para o Flow.
