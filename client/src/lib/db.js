@@ -164,6 +164,27 @@ function writeLocal() {
 
 // Após migrado, cada mutação sobe o estado para o banco (debounce).
 // Se estiver num workspace de outro dono (colaborador), grava lá (owner).
+// Itens mudados aqui que o servidor ainda NÃO confirmou: coleção -> { id: carimbo }.
+// Ficam salvos no navegador; o snapshot do servidor nunca apaga um item pendente, e o
+// envio é repetido até o servidor confirmar (antes, se o envio falhasse, o próximo
+// carregamento sobrescrevia o item novo com a versão antiga do servidor e ele sumia).
+let pendentes = {}
+const chavePend = () => `${storageKey}::pendentes`
+function lerPendentes() { try { pendentes = JSON.parse(localStorage.getItem(chavePend())) || {} } catch { pendentes = {} } }
+function salvarPendentes() { try { localStorage.setItem(chavePend(), JSON.stringify(pendentes)) } catch { /* sem espaço */ } }
+function marcarPendente(col, id) {
+  if (!MANAGED.includes(col) || id == null) return
+  pendentes[col] = { ...(pendentes[col] || {}), [id]: Date.now() + Math.random() }
+  salvarPendentes()
+}
+const temPendentes = () => Object.values(pendentes).some((m) => m && Object.keys(m).length)
+// Coleções-pai que vão sempre junto (o servidor confere que o filho aponta para um pai do dono).
+const PAIS = ['channels', 'videos', 'boardColumns', 'boardCards', 'referenceFolders']
+function avisarSync(estado, mensagem) {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('noctis-sync', { detail: { estado, mensagem } }))
+}
+let espera = 0 // backoff entre tentativas que falharam
+
 let pushPending = false // há mutação aguardando o debounce
 let pushing = false // há um migrate em VOO agora
 let pushDirty = false // mudou algo enquanto um migrate estava em voo
@@ -176,13 +197,42 @@ async function doPush(keepalive = false) {
   pushing = true
   pushPending = false
   const owner = activeOwner || undefined
+  // Envia só as coleções com mudanças pendentes (+ os pais), não o estado inteiro: o estado
+  // completo pode passar do limite de tamanho do servidor e falhar sempre.
+  const enviados = {}
+  const dados = {}
+  for (const k of MANAGED) {
+    const pend = pendentes[k] && Object.keys(pendentes[k]).length
+    if (pend || PAIS.includes(k)) dados[k] = state[k] || []
+    if (pend) enviados[k] = { ...pendentes[k] }
+  }
+  let falhou = false
   try {
-    await api.workspace.migrate(state, owner, keepalive)
-  } catch {
-    pushDirty = true // falhou → tenta de novo
+    const r = await api.workspace.migrate(dados, owner, keepalive)
+    const falhas = r?.falhas || {}
+    for (const [k, ids] of Object.entries(enviados)) {
+      const ruins = new Set((falhas[k] || []).map((f) => f.id))
+      for (const [id, carimbo] of Object.entries(ids)) {
+        // Só sai da lista se o servidor gravou E não mudou de novo durante o envio.
+        if (!ruins.has(id) && pendentes[k]?.[id] === carimbo) delete pendentes[k][id]
+      }
+    }
+    salvarPendentes()
+    const primeira = Object.values(falhas).flat()[0]
+    if (primeira) { falhou = true; avisarSync('erro', `Alguns itens não foram salvos na nuvem: ${primeira.erro}`) }
+    else { espera = 0; avisarSync('ok') }
+  } catch (e) {
+    falhou = true
+    avisarSync('erro', e?.message && e.message !== 'request_failed' ? `Não foi possível salvar na nuvem (${e.message}). Tentando de novo…` : 'Não foi possível salvar na nuvem. Tentando de novo…')
   } finally {
     pushing = false
     if (pushDirty) { pushDirty = false; doPush() }
+    else if (falhou && temPendentes()) {
+      espera = Math.min(60000, espera ? espera * 2 : 3000) // tenta de novo sem martelar o servidor
+      clearTimeout(pushTimer)
+      pushPending = true
+      pushTimer = setTimeout(() => doPush(), espera)
+    }
   }
 }
 
@@ -230,7 +280,15 @@ async function pullSnapshot() {
       const foreign = !!activeOwner
       for (const k of MANAGED) {
         if (Array.isArray(snapshot[k])) {
-          if (foreign || snapshot[k].length) state[k] = snapshot[k]
+          if (foreign || snapshot[k].length) {
+            // Itens mudados aqui e ainda não confirmados pelo servidor prevalecem sobre o snapshot.
+            const pend = pendentes[k] || {}
+            const locais = (state[k] || []).filter((r) => r && pend[r.id] != null)
+            if (locais.length) {
+              const porId = new Map(locais.map((r) => [r.id, r]))
+              state[k] = [...snapshot[k].map((r) => porId.get(r.id) || r), ...locais.filter((r) => !snapshot[k].some((x) => x.id === r.id))]
+            } else state[k] = snapshot[k]
+          }
         } else if (foreign) {
           // Coleção AUSENTE no snapshot de outro dono = sem acesso agora (ex.: o
           // dono tirou o acesso a Vídeos). O servidor nem manda a chave, então
@@ -241,6 +299,7 @@ async function pullSnapshot() {
       }
       cloudActive = true
       writeLocal()
+      if (temPendentes()) schedulePush() // reenvia o que ficou pendente (ex.: falhou antes do refresh)
     }
   } catch {
     /* sem conexão → segue no cache local */
@@ -255,6 +314,7 @@ function wsStorageKey() {
 // Carrega o estado do workspace ativo (cache local) e puxa o snapshot.
 function loadWorkspace() {
   storageKey = wsStorageKey()
+  lerPendentes()
   cloudActive = false
   clearTimeout(pushTimer)
   pushPending = false
@@ -366,16 +426,19 @@ export const db = {
     // apaga o que ELE criou. Itens antigos sem createdBy = do dono.
     const record = { id: crypto.randomUUID(), createdAt: Date.now(), createdBy: selfEmail || undefined, ...row }
     state[col] = [...this.all(col), record]
+    marcarPendente(col, record.id)
     persist()
     return record
   },
   update(col, id, patch) {
     state[col] = this.all(col).map((r) => (r.id === id ? { ...r, ...patch, updatedAt: Date.now() } : r))
+    marcarPendente(col, id)
     persist()
     return this.get(col, id)
   },
   remove(col, id) {
     state[col] = this.all(col).filter((r) => r.id !== id)
+    if (pendentes[col]?.[id] != null) { delete pendentes[col][id]; salvarPendentes() }
     persist()
     // Exclusão PERSISTENTE no servidor (o migrate só faz upsert, nunca apaga).
     // O servidor valida a autoria. Filhos (roteiros, cards, refs…) caem por

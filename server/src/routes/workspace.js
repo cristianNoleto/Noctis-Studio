@@ -47,7 +47,9 @@ const CONFIG = [
     cols: { label: 'label', url: 'url', position: 'position' }, required: { label: '', url: '', position: 0 } },
   { key: 'videos', table: 'channel_videos', parent: { field: 'channelId', col: 'channel_id' }, author: true,
     cols: { title: 'title', description: 'description', tags: 'tags', thumbnailUrl: 'thumbnail_url', youtubeUrl: 'youtube_url', steps: 'steps', videoNumber: 'video_number', publishedAt: 'published_at', imported: 'imported', thumbnailConcept: 'thumbnail_concept', createdAt: 'created_at' },
-    required: { title: 'Sem título' } },
+    // imported/steps são NOT NULL: vídeo criado à mão não tem `imported` e, no lote com
+    // vídeos importados, iria NULL e derrubava a gravação de TODOS os vídeos (e roteiros).
+    required: { title: 'Sem título', imported: false, steps: {} } },
   { key: 'scripts', table: 'video_scripts', parent: { field: 'videoId', col: 'video_id' },
     cols: { content: 'content' }, hasExtra: false },
   { key: 'seoReports', table: 'video_seo_reports', parent: { field: 'videoId', col: 'video_id' },
@@ -146,6 +148,46 @@ function toRec(row, cfg) {
   return rec
 }
 
+// Grava as linhas sem que uma linha ruim derrube as outras:
+//  • agrupa por conjunto de colunas (no upsert em lote o supabase-js usa a UNIÃO das chaves e
+//    manda NULL onde a linha não tem a coluna — isso quebrava colunas NOT NULL);
+//  • se um grupo falhar, tenta linha a linha e devolve o erro de cada uma.
+async function gravarLote(supa, table, rows) {
+  const grupos = new Map()
+  for (const r of rows) {
+    const k = Object.keys(r).sort().join(',')
+    if (!grupos.has(k)) grupos.set(k, [])
+    grupos.get(k).push(r)
+  }
+  const erros = new Map()
+  for (const grupo of grupos.values()) {
+    const { error } = await supa.from(table).upsert(grupo, { onConflict: 'id' })
+    if (!error) continue
+    if (grupo.length === 1) { erros.set(grupo[0].id, error.message); continue }
+    for (const r of grupo) {
+      const { error: e1 } = await supa.from(table).upsert([r], { onConflict: 'id' })
+      if (e1) erros.set(r.id, e1.message)
+    }
+  }
+  return { ok: rows.length - erros.size, erros }
+}
+
+// Pais já gravados que pertencem ao dono (quando o client manda só o que mudou e o pai não
+// veio no lote). Mantém a regra: filho só entra se o pai for do dono do workspace.
+async function paisDoDono(supa, ptable, ownerId) {
+  const ids = async (q) => new Set(((await q).data || []).map((x) => x.id))
+  const canais = await ids(supa.from('channels').select('id').eq('owner_id', ownerId))
+  if (ptable === 'channels') return canais
+  if (ptable === 'channel_videos') return canais.size ? ids(supa.from('channel_videos').select('id').in('channel_id', [...canais])) : new Set()
+  if (ptable === 'board_columns') return ids(supa.from('board_columns').select('id').eq('user_id', ownerId))
+  if (ptable === 'board_cards') {
+    const cols = await ids(supa.from('board_columns').select('id').eq('user_id', ownerId))
+    return cols.size ? ids(supa.from('board_cards').select('id').in('column_id', [...cols])) : new Set()
+  }
+  if (ptable === 'reference_folders') return ids(supa.from('reference_folders').select('id').eq('user_id', ownerId))
+  return new Set()
+}
+
 // POST /workspace/migrate — sobe o estado local do client
 router.post('/migrate', async (req, res) => {
   const supa = requireSupabase(res)
@@ -210,9 +252,11 @@ router.post('/migrate', async (req, res) => {
   }
 
   const summary = {}
+  const falhas = {} // coleção -> [{ id, erro }] (o client mantém esses itens pendentes)
   for (const cfg of CONFIG) {
     if (writable && !writable.has(cfg.key)) continue // colaborador só grava o permitido
-    const list = Array.isArray(data[cfg.key]) ? data[cfg.key] : []
+    if (!Array.isArray(data[cfg.key])) continue // coleção não enviada (envio parcial) → nada a gravar
+    const list = data[cfg.key]
     let rows = list.map((rec) => toRow(rec, cfg, ownerId)).filter((r) => r.id)
     // Dedup por id: ids diferentes do client podem colidir no mesmo UUID (ex.: a
     // pasta padrão criada aqui vira o mesmo UUID de uma pasta já existente no lote).
@@ -224,7 +268,9 @@ router.post('/migrate', async (req, res) => {
     }
     // Descarta filhos cujo pai não está sendo inserido (evita erro de FK no lote).
     if (cfg.parent) {
-      const parentSet = inserted[PARENT_TABLE[cfg.parent.col]]
+      const ptable = PARENT_TABLE[cfg.parent.col]
+      if (!inserted[ptable] && access.self) inserted[ptable] = await paisDoDono(supa, ptable, ownerId)
+      const parentSet = inserted[ptable]
       const before = rows.length
       rows = rows.filter((r) => r[cfg.parent.col] && (!parentSet || parentSet.has(r[cfg.parent.col])))
       summary[`${cfg.key}_orfaos`] = before - rows.length || undefined
@@ -240,14 +286,18 @@ router.post('/migrate', async (req, res) => {
       const prevBy = new Map((existing || []).map((e) => [e.id, e.created_by]))
       for (const r of rows) r.created_by = prevBy.has(r.id) ? (prevBy.get(r.id) ?? null) : meEmail
     }
-    const { error } = await supa.from(cfg.table).upsert(rows, { onConflict: 'id' })
-    if (!error) for (const r of rows) prev.add(r.id)
+    const { ok, erros } = await gravarLote(supa, cfg.table, rows)
+    for (const r of rows) if (!erros.has(r.id)) prev.add(r.id)
     inserted[cfg.table] = prev
-    summary[cfg.key] = error ? `erro: ${error.message}` : rows.length
+    summary[cfg.key] = ok
+    if (erros.size) {
+      falhas[cfg.key] = [...erros].map(([id, msg]) => ({ id, erro: msg }))
+      console.error(`[migrate] ${cfg.table}: ${erros.size} linha(s) não gravada(s): ${[...erros.values()][0]}`)
+    }
   }
   // limpa chaves _orfaos vazias
   for (const k of Object.keys(summary)) if (summary[k] === undefined) delete summary[k]
-  res.json({ ok: true, owner: access.owner, self: access.self, summary })
+  res.json({ ok: true, owner: access.owner, self: access.self, summary, falhas })
 })
 
 // Coleções que podem ser apagadas via endpoint explícito. area = permissão

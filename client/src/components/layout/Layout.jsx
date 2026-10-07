@@ -9,6 +9,7 @@ import { UpgradeLock } from '../PlanGate'
 import WorkspaceInviteBanner from '../WorkspaceInviteBanner'
 import BackToTop from '../BackToTop'
 import AutoCrawlRunner from '../AutoCrawlRunner'
+import SyncAviso from '../SyncAviso'
 
 export default function Layout() {
   const { user, isFounder, isLocalMode } = useAuth()
@@ -33,6 +34,7 @@ export default function Layout() {
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950">
       <AutoCrawlRunner />
+      <SyncAviso />
       <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       {/* Fundo escuro atrás da gaveta (só no celular, quando aberta) */}
       {navOpen && (

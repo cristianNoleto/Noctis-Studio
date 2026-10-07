@@ -134,12 +134,15 @@ async function authRequest(path, { method = 'GET', body, keepalive = false } = {
   const token = data?.session?.access_token
   if (!token) throw new ApiError('unauthorized')
   let res
+  const corpo = body ? JSON.stringify(body) : undefined
   try {
     res = await fetch(`/api${path}`, {
       method,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: body ? JSON.stringify(body) : undefined,
-      keepalive, // permite que a requisição sobreviva ao fechamento/refresh da página
+      body: corpo,
+      // keepalive deixa a requisição sobreviver ao refresh, mas o navegador recusa corpo > 64 KB
+      // nesse modo; acima disso vai normal (e o item fica pendente se a página fechar antes).
+      keepalive: keepalive && (!corpo || corpo.length < 60000),
     })
   } catch {
     throw new ApiError('server_offline')
