@@ -11,7 +11,7 @@ export const NAV = [
     group: 'producao', label: 'Produção', items: [
       { key: 'projetos', label: 'Meus Projetos', Icon: Images },
       { key: 'srt', label: 'Sincronizador SRT', Icon: Film },
-      { key: 'narracao', label: 'Narração', Icon: AudioLines, badge: 'EM BREVE' },
+      { key: 'narracao', label: 'Narração', Icon: AudioLines },
     ],
   },
   {

@@ -256,7 +256,7 @@ app.whenReady().then(async () => {
   handle('app:update-check', async () => { if (atualizador) await atualizador.checar(); return true; }, { livre: true });
 
   registerCore();
-  for (const mod of ['renomeador', 'audio-atlas', 'creator', 'srt', 'chat', 'ia']) {
+  for (const mod of ['renomeador', 'audio-atlas', 'creator', 'srt', 'chat', 'ia', 'tts']) {
     try { require(`./ipc/${mod}`)(ctx); } catch (e) { if (e.code !== 'MODULE_NOT_FOUND' || !String(e.message).includes(`ipc/${mod}`)) log.error(`Módulo ${mod}: ${e.message}`); }
   }
 

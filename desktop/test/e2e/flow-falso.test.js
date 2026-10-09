@@ -7,7 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { criarFlowDriver } = require('../electron/servicos/creator/flow');
+const { criarFlowDriver } = require('../../electron/servicos/creator/flow');
 
 const CHROMIUM = process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const temChromium = fs.existsSync(CHROMIUM);

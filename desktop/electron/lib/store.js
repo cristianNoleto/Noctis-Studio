@@ -30,6 +30,8 @@ function defaults(documentsDir) {
     chat: { agent: 'claude', permissionMode: '', agentes: {} },
     // Conectar IA: API local (127.0.0.1), chave X-API-Key, pastas que IAs podem renomear.
     ia: { porta: 47821, chave: '', pastasRenomear: [], iniciarComWindows: false },
+    // Narração (Text to Speech com ElevenLabs). A chave da API NÃO fica aqui: vai cifrada em arquivo próprio.
+    tts: { modelId: 'eleven_multilingual_v2', outputFormat: 'mp3_44100_128', lastVoiceId: '', prefs: {} },
     autoUpdate: true,
     update: { lastVersion: '', pending: null },
   };
