@@ -22,7 +22,6 @@ import NicheDoubling from './pages/NicheDoubling'
 import MediaBank from './pages/MediaBank'
 import Transcription from './pages/Transcription'
 import Narracao from './pages/Narracao'
-import Estudio from './pages/Estudio'
 import TextTools from './pages/TextTools'
 import SilenceRemover from './pages/SilenceRemover'
 import AudioCombiner from './pages/AudioCombiner'
@@ -122,7 +121,6 @@ export default function App() {
         <Route path="/videos-imagens" element={<PlanGate><MediaBank /></PlanGate>} />
         <Route path="/transcricao" element={<PlanGate><Transcription /></PlanGate>} />
         <Route path="/narracao" element={<PlanGate><Narracao /></PlanGate>} />
-        <Route path="/estudio" element={<PlanGate><Estudio /></PlanGate>} />
         <Route path="/ferramentas-texto" element={<TextTools />} />
         <Route path="/remocao-silencio" element={<SilenceRemover />} />
         <Route path="/combinar-audios" element={<AudioCombiner />} />

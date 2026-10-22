@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { User, Shield, ShieldCheck, KeyRound, SlidersHorizontal, Wrench, Eye, EyeOff, Check, Camera, DownloadCloud, UploadCloud, AlertTriangle, Loader2, X, Plug, Cloud } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
-import { api } from '../lib/api'
+import { api, apiErrorMessage } from '../lib/api'
 import { inputCls, btnPrimary, btnGhost, ConfirmDialog } from '../components/ui'
 import { downloadFile } from '../lib/text'
 import { pushUserSettings } from '../lib/userSettings'
@@ -563,6 +563,7 @@ function TestButton({ label, persist, run }) {
 function ApisTab() {
   const { t } = useI18n()
   const db = useDb()
+  const { isAdmin } = useAuth()
   const [ytKeys, setYtKeys] = useState(() => {
     const saved = db.getSetting('ytKeys', [])
     return Array.from({ length: 5 }, (_, i) => saved[i] || '')
@@ -735,6 +736,9 @@ function ApisTab() {
         </div>
       </Card>
 
+      {/* Chaves CENTRAIS da plataforma — só o admin/fundador vê e edita. */}
+      {isAdmin && <PlatformKeysSection />}
+
       <div className="flex items-center justify-end gap-3">
         <SavedFlash show={saved} />
         <button className={btnPrimary} onClick={save}>
@@ -742,6 +746,132 @@ function ApisTab() {
         </button>
       </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Chaves da PLATAFORMA (do dono): ElevenLabs (Narração) e Google (Estúdio).
+// Valem para TODOS os usuários — a cobrança cai na conta do dono. Guardadas
+// cifradas no servidor; nunca voltam ao navegador. Só admin/fundador acessa.
+// (Os mesmos controles existem em Administração; aqui é o atalho em Perfil → APIs.)
+function PlatformKeysSection() {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+        <p className="text-xs font-semibold text-amber-300">Chaves da plataforma (só você, admin)</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-amber-300/80">
+          Estas chaves são <b>suas</b> e valem para todos os usuários — o custo cai na sua conta. Ficam cifradas no servidor; ninguém mais vê. Ajustes avançados (modelos, concorrência) também em Administração.
+        </p>
+      </div>
+      <PlatformKeyCard
+        title="Narração (ElevenLabs)"
+        subtitle="Voz com IA no site e no app. 1 geração = 1 áudio; cada voz extra = +1."
+        placeholder="Cole a chave do ElevenLabs (xi-...)"
+        getUrl="https://elevenlabs.io/app/settings/api-keys"
+        load={() => api.tts.adminConfig()}
+        test={(k) => api.tts.adminTest(k)}
+        buildSave={(cfg, apiKey) => {
+          const body = { enabled: cfg.enabled, dailyLimit: cfg.dailyLimit, minPlan: cfg.minPlan }
+          if (apiKey) body.apiKey = apiKey
+          return api.tts.adminSave(body)
+        }}
+        limits={[{ key: 'dailyLimit', label: 'Áudios/dia por usuário' }]}
+      />
+      <PlatformKeyCard
+        title="Estúdio (Google — imagem e vídeo)"
+        subtitle="Imagem (Imagen/Nano Banana) e vídeo (Veo) no app. Cada imagem = 1; cada vídeo = 1."
+        placeholder="Cole a chave do Google / Gemini API (AIza...)"
+        getUrl="https://aistudio.google.com/apikey"
+        load={() => api.mediaGen.adminConfig()}
+        test={(k) => api.mediaGen.adminTest(k)}
+        buildSave={(cfg, apiKey) => {
+          const body = { enabled: cfg.enabled, imageLimit: cfg.imageLimit, videoLimit: cfg.videoLimit, minPlan: cfg.minPlan }
+          if (apiKey) body.apiKey = apiKey
+          return api.mediaGen.adminSave(body)
+        }}
+        limits={[{ key: 'imageLimit', label: 'Imagens/dia por usuário' }, { key: 'videoLimit', label: 'Vídeos/dia por usuário' }]}
+      />
+    </div>
+  )
+}
+
+const PLAT_PLANS = ['FREE', 'BASIC', 'LITE', 'PRO']
+
+function PlatformKeyCard({ title, subtitle, placeholder, getUrl, load, test, buildSave, limits }) {
+  const [cfg, setCfg] = useState(null)
+  const [loadErr, setLoadErr] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  useEffect(() => {
+    load().then(setCfg).catch((e) => setLoadErr(apiErrorMessage(e)))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function doTest() {
+    setBusy(true); setMsg(null)
+    try { const r = await test(apiKey.trim() || undefined); setMsg({ ok: r.ok, text: r.message }) }
+    catch (e) { setMsg({ ok: false, text: apiErrorMessage(e) }) }
+    finally { setBusy(false) }
+  }
+  async function doSave() {
+    setBusy(true); setMsg(null)
+    try {
+      const res = await buildSave(cfg, apiKey.trim())
+      setCfg(res); setApiKey(''); setMsg({ ok: true, text: 'Salvo.' })
+    } catch (e) { setMsg({ ok: false, text: apiErrorMessage(e) }) }
+    finally { setBusy(false) }
+  }
+
+  if (loadErr) return <Card title={title}><p className="text-sm text-red-300">{loadErr}</p></Card>
+  if (!cfg) return <Card title={title}><div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 size={14} className="animate-spin" /> Carregando…</div></Card>
+
+  return (
+    <Card title={title} subtitle={subtitle}>
+      <div className="space-y-3">
+        <p className="text-xs text-slate-500">{cfg.configured ? `Chave configurada: ${cfg.keyHint || '••••'}` : 'Nenhuma chave configurada ainda.'}</p>
+        <input
+          className={`${inputCls} font-mono text-xs`}
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+        <p className="text-[11px] text-slate-500">
+          Deixe em branco para manter a chave atual. · <a href={getUrl} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">Pegar a chave</a>
+        </p>
+
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <input type="checkbox" checked={cfg.enabled} onChange={(e) => setCfg({ ...cfg, enabled: e.target.checked })} className="h-4 w-4 accent-cyan-500" />
+          Ativado para os usuários
+        </label>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {limits.map((lim) => (
+            <Field key={lim.key} label={lim.label}>
+              <input type="number" min={0} value={cfg[lim.key]} onChange={(e) => setCfg({ ...cfg, [lim.key]: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} className={inputCls} />
+            </Field>
+          ))}
+          <Field label="Plano mínimo">
+            <select value={cfg.minPlan} onChange={(e) => setCfg({ ...cfg, minPlan: e.target.value })} className={inputCls}>
+              {PLAT_PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        {msg && <p className={`rounded-lg border px-3 py-2 text-xs ${msg.ok ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-300' : 'border-red-500/30 bg-red-500/5 text-red-300'}`}>{msg.text}</p>}
+
+        <div className="flex flex-wrap gap-2">
+          <button onClick={doTest} disabled={busy} className={`${btnGhost} inline-flex items-center gap-2`}>
+            {busy ? <Loader2 size={14} className="animate-spin" /> : null} Testar chave
+          </button>
+          <button onClick={doSave} disabled={busy} className={`${btnPrimary} inline-flex items-center gap-2`}>
+            {busy ? <Loader2 size={14} className="animate-spin" /> : null} Salvar
+          </button>
+        </div>
+      </div>
+    </Card>
   )
 }
 

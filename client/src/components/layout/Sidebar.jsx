@@ -6,7 +6,6 @@ import {
   Sparkles,
   Heart,
   Image,
-  Clapperboard,
   Mic,
   AudioLines,
   FileText,
@@ -38,7 +37,6 @@ const groups = [
       { to: '/prompts', label: 'prompts', Icon: Sparkles },
       { to: '/referencias', label: 'references', Icon: Heart },
       { to: '/videos-imagens', label: 'mediaBank', Icon: Image },
-      { to: '/estudio', label: 'studio', Icon: Clapperboard },
     ],
   },
   {

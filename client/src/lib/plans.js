@@ -17,7 +17,6 @@ export const PAGE_GATE = {
   '/videos-imagens': { min: 'BASIC', feature: 'mediaBank' },
   '/transcricao': { min: 'BASIC', feature: 'transcription' },
   '/narracao': { min: 'BASIC', feature: 'narration' },
-  '/estudio': { min: 'BASIC', feature: 'studio' },
   '/quadro-ideias': { min: 'BASIC', feature: 'ideaBoard' },
   '/desenhos': { min: 'BASIC', feature: 'drawings' },
   '/niche-finder': { min: 'LITE', feature: 'nicheFinder' },
