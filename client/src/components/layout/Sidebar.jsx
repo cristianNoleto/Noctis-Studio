@@ -7,6 +7,7 @@ import {
   Heart,
   Image,
   Mic,
+  AudioLines,
   FileText,
   Scissors,
   Combine,
@@ -42,6 +43,7 @@ const groups = [
     key: 'tools',
     items: [
       { to: '/transcricao', label: 'transcription', Icon: Mic },
+      { to: '/narracao', label: 'narration', Icon: AudioLines },
       { to: '/remocao-silencio', label: 'silenceRemover', Icon: Scissors },
       { to: '/combinar-audios', label: 'audioCombiner', Icon: Combine },
       { to: '/ferramentas-texto', label: 'textTools', Icon: FileText },

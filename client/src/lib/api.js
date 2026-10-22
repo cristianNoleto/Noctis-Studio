@@ -175,6 +175,34 @@ async function authRequestOptional(path, { method = 'GET', body } = {}) {
   return json
 }
 
+// Narração (TTS): a geração devolve ÁUDIO (bytes), não JSON. Esta função manda o
+// token do Supabase (identidade = cota por usuário) e retorna o Blob + a cota
+// restante lida do header X-Tts-Remaining.
+async function ttsGenerate(body) {
+  if (!supabase) throw new ApiError('local_mode', 'A Narração só funciona no site publicado (com a sua conta).')
+  const { data } = await supabase.auth.getSession()
+  const token = data?.session?.access_token
+  if (!token) throw new ApiError('unauthorized', 'Faça login para gerar narração.')
+  let res
+  try {
+    res = await fetch('/api/tts/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    })
+  } catch {
+    throw new ApiError('server_offline')
+  }
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new ApiError(json.error || 'request_failed', json.message)
+  }
+  const blob = await res.blob()
+  const remainingHeader = res.headers.get('X-Tts-Remaining')
+  const unlimited = res.headers.get('X-Tts-Unlimited') === '1'
+  return { blob, remaining: unlimited ? null : remainingHeader != null ? Number(remainingHeader) : null, unlimited }
+}
+
 export const api = {
   youtube: {
     lookupChannel: (q) => request(`/youtube/channel?q=${encodeURIComponent(q)}`),
@@ -334,6 +362,17 @@ export const api = {
     setBan: (id, banned) => adminRequest(`/users/${id}/ban`, { method: 'POST', body: { banned } }),
     removeUser: (id) => adminRequest(`/users/${id}`, { method: 'DELETE' }),
   },
+  // Narração (ElevenLabs) — a chave é do dono, cota diária por usuário.
+  tts: {
+    status: () => authRequestOptional('/tts/status'),
+    voices: () => authRequest('/tts/voices'),
+    generate: (body) => ttsGenerate(body),
+    // Admin (fundador/ADMIN_EMAILS) — via /api/tts/admin (token do Supabase).
+    adminConfig: () => authRequest('/tts/admin/config'),
+    adminSave: (body) => authRequest('/tts/admin/config', { method: 'PUT', body }),
+    adminTest: (apiKey) => authRequest('/tts/admin/test', { method: 'POST', body: apiKey ? { apiKey } : {} }),
+    adminModels: () => authRequest('/tts/admin/models'),
+  },
 }
 
 // Mensagens amigáveis para códigos de erro conhecidos do backend.
@@ -353,8 +392,13 @@ export function apiErrorMessage(err) {
     channel_not_found: 'Canal não encontrado no YouTube. Confira a URL ou o handle.',
     invalid_key: 'A chave de API informada foi rejeitada pelo provedor. Confira em Perfil → APIs.',
     ai_limit_reached: 'Você atingiu o limite diário de IA do seu plano. Faça upgrade em Meu Plano para liberar mais usos por dia.',
+    tts_limit_reached: 'Você atingiu o limite diário de narração. O limite reseta amanhã.',
+    not_configured: 'A Narração ainda não foi ativada pelo administrador.',
+    disabled: 'A Narração está desativada no momento.',
+    plan_required: 'Seu plano não inclui a Narração. Faça upgrade em Meu Plano.',
+    invalid_key: 'A chave da API informada foi rejeitada pelo provedor.',
   }
   // Mensagens do servidor (ex.: limite com números) têm prioridade quando existem.
-  if (err?.code === 'ai_limit_reached' && err?.message) return err.message
+  if ((err?.code === 'ai_limit_reached' || err?.code === 'tts_limit_reached') && err?.message) return err.message
   return map[err?.code] || err?.message || 'Algo deu errado. Tente novamente.'
 }

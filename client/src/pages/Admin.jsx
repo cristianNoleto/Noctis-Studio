@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { ShieldCheck, Sparkles, Users, GraduationCap, ShieldAlert, Plus, Pencil, Trash2, Crown, X, Loader2, RefreshCw, Ban, Radar, Play, Pause, Database } from 'lucide-react'
+import { ShieldCheck, Sparkles, Users, GraduationCap, ShieldAlert, Plus, Pencil, Trash2, Crown, X, Loader2, RefreshCw, Ban, Radar, Play, Pause, Database, AudioLines } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { useDb } from '../lib/db'
 import { api, apiErrorMessage } from '../lib/api'
@@ -26,6 +26,7 @@ const TABS = [
   ['members', Users],
   ['academy', GraduationCap],
   ['removed', ShieldAlert],
+  ['tts', AudioLines],
 ]
 
 export default function Admin() {
@@ -69,7 +70,166 @@ export default function Admin() {
       {tab === 'members' && <MembersTab />}
       {tab === 'academy' && <AcademyTab />}
       {tab === 'removed' && <RemovedTab />}
+      {tab === 'tts' && <TtsTab />}
       {tab === 'crawl' && isFounder && <AutoCrawlTab />}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Narração (ElevenLabs) — a chave é do dono e vale para todos os usuários; o
+// custo é do dono, então há cota diária por usuário. A chave é guardada CIFRADA
+// no servidor (nunca volta ao navegador). Esta aba liga/desliga, define o limite
+// diário, o plano mínimo e salva/testa a chave.
+// ---------------------------------------------------------------------------
+const TTS_PLAN_OPTIONS = ['FREE', 'BASIC', 'LITE', 'PRO']
+
+function TtsTab() {
+  const { t } = useI18n()
+  const [cfg, setCfg] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [msg, setMsg] = useState(null) // { ok, text }
+  const [confirmRemove, setConfirmRemove] = useState(false)
+
+  const load = () => {
+    setLoading(true)
+    api.tts
+      .adminConfig()
+      .then((c) => setCfg(c))
+      .catch((e) => setLoadError(apiErrorMessage(e)))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  async function save(extra = {}) {
+    setSaving(true)
+    setMsg(null)
+    try {
+      const body = {
+        enabled: cfg.enabled,
+        dailyLimit: cfg.dailyLimit,
+        minPlan: cfg.minPlan,
+        modelId: cfg.modelId,
+        ...extra,
+      }
+      if (apiKey.trim() && !('clearKey' in extra)) body.apiKey = apiKey.trim()
+      const res = await api.tts.adminSave(body)
+      setCfg(res)
+      setApiKey('')
+      setMsg({ ok: true, text: extra.clearKey ? t('admin.tts.removed') : t('admin.tts.saved') })
+    } catch (e) {
+      setMsg({ ok: false, text: apiErrorMessage(e) })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function test() {
+    setTesting(true)
+    setMsg(null)
+    try {
+      const res = await api.tts.adminTest(apiKey.trim() || undefined)
+      setMsg({ ok: res.ok, text: res.message })
+    } catch (e) {
+      setMsg({ ok: false, text: apiErrorMessage(e) })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  if (loading) return <div className="flex h-40 items-center justify-center"><Loader2 className="animate-spin text-amber-400" /></div>
+  if (loadError) return <p className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-300">{loadError}</p>
+  if (!cfg) return null
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-5">
+      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-100"><AudioLines size={18} className="text-cyan-400" /> {t('admin.tts.title')}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-400">{t('admin.tts.intro')}</p>
+      </div>
+
+      {/* Chave */}
+      <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+        <label className="block text-sm font-semibold text-slate-200">{t('admin.tts.keyLabel')}</label>
+        <p className="text-xs text-slate-500">
+          {cfg.configured ? t('admin.tts.keyConfigured', { hint: cfg.keyHint || '••••' }) : t('admin.tts.keyNone')}
+        </p>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={t('admin.tts.keyPlaceholder')}
+          autoComplete="off"
+          className={inputCls}
+        />
+        <p className="text-[11px] text-slate-500">{t('admin.tts.keyKeep')} · <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">{t('admin.tts.getKey')}</a></p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <button onClick={test} disabled={testing || saving} className={`${btnGhost} inline-flex items-center gap-2`}>
+            {testing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+            {testing ? t('admin.tts.testing') : t('admin.tts.test')}
+          </button>
+          {cfg.configured && (
+            <button onClick={() => setConfirmRemove(true)} disabled={saving} className={`${btnGhost} inline-flex items-center gap-2 text-red-300 hover:text-red-200`}>
+              <Trash2 size={15} /> {t('admin.tts.removeKey')}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Opções */}
+      <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+        <label className="flex items-center justify-between gap-4">
+          <span>
+            <span className="block text-sm font-semibold text-slate-200">{t('admin.tts.enabled')}</span>
+            <span className="block text-xs text-slate-500">{t('admin.tts.enabledHint')}</span>
+          </span>
+          <input type="checkbox" checked={cfg.enabled} onChange={(e) => setCfg({ ...cfg, enabled: e.target.checked })} className="h-5 w-5 accent-cyan-500" />
+        </label>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-200">{t('admin.tts.dailyLimit')}</label>
+          <p className="mb-1.5 text-xs text-slate-500">{t('admin.tts.dailyLimitHint')}</p>
+          <input type="number" min={0} max={100000} value={cfg.dailyLimit} onChange={(e) => setCfg({ ...cfg, dailyLimit: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} className={`${inputCls} max-w-[160px]`} />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-semibold text-slate-200">{t('admin.tts.minPlan')}</label>
+          <select value={cfg.minPlan} onChange={(e) => setCfg({ ...cfg, minPlan: e.target.value })} className={`${inputCls} max-w-[200px]`}>
+            {TTS_PLAN_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-semibold text-slate-200">{t('admin.tts.model')}</label>
+          <select value={cfg.modelId} onChange={(e) => setCfg({ ...cfg, modelId: e.target.value })} className={`${inputCls} max-w-[280px]`}>
+            <option value="eleven_multilingual_v2">{t('admin.tts.modelAuto')}</option>
+            <option value="eleven_turbo_v2_5">Turbo v2.5 (rápido)</option>
+            <option value="eleven_flash_v2_5">Flash v2.5 (mais rápido)</option>
+          </select>
+        </div>
+      </div>
+
+      {msg && (
+        <p className={`rounded-lg border px-4 py-3 text-sm ${msg.ok ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-300' : 'border-red-500/30 bg-red-500/5 text-red-300'}`}>{msg.text}</p>
+      )}
+
+      <button onClick={() => save()} disabled={saving} className={`${btnPrimary} inline-flex items-center gap-2`}>
+        {saving ? <Loader2 size={16} className="animate-spin" /> : null}
+        {saving ? t('admin.tts.saving') : t('admin.tts.save')}
+      </button>
+
+      <ConfirmDialog
+        open={confirmRemove}
+        onClose={() => setConfirmRemove(false)}
+        onConfirm={() => { setConfirmRemove(false); save({ clearKey: true }) }}
+        title={t('admin.tts.removeKey')}
+        message={t('admin.tts.keyLabel')}
+        confirmLabel={t('admin.tts.removeKey')}
+      />
     </div>
   )
 }

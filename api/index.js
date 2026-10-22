@@ -30,6 +30,10 @@ app.get('/api/health', (_req, res) => {
 // Limites mais apertados nos pontos sensíveis/caros (best-effort por instância).
 app.use('/api/admin', rateLimit({ name: 'admin', windowMs: 60_000, max: 30 }))
 app.use('/api/ai', rateLimit({ name: 'ai', windowMs: 60_000, max: 30 }))
+// Narração (ElevenLabs): o teto real é a cota diária por usuário; este corte é
+// só anti-rajada (geração é cara). Admin do TTS cai no limiter /api/admin acima? Não:
+// as rotas de admin do TTS vivem em /api/tts/admin, então ficam neste limiter.
+app.use('/api/tts', rateLimit({ name: 'tts', windowMs: 60_000, max: 20 }))
 app.use('/api/channels/upsert', rateLimit({ name: 'upsert', windowMs: 60_000, max: 20 }))
 app.use('/api/desktop/password', rateLimit({ name: 'desktop-password', windowMs: 15 * 60_000, max: 10 }))
 app.use('/api/desktop', rateLimit({ name: 'desktop', windowMs: 60_000, max: 20 }))

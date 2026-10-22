@@ -16,6 +16,7 @@ export const COLLAB_MIN_PLAN = 'BASIC'
 export const PAGE_GATE = {
   '/videos-imagens': { min: 'BASIC', feature: 'mediaBank' },
   '/transcricao': { min: 'BASIC', feature: 'transcription' },
+  '/narracao': { min: 'BASIC', feature: 'narration' },
   '/quadro-ideias': { min: 'BASIC', feature: 'ideaBoard' },
   '/desenhos': { min: 'BASIC', feature: 'drawings' },
   '/niche-finder': { min: 'LITE', feature: 'nicheFinder' },

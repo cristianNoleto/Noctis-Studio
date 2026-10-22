@@ -12,6 +12,7 @@ import academyRouter from './academy.js'
 import driveRouter from './drive.js'
 import validationRouter from './validation.js'
 import desktopRouter from './desktop.js'
+import ttsRouter from './tts.js'
 
 const router = Router()
 
@@ -28,6 +29,7 @@ router.use('/academy', academyRouter)
 router.use('/drive', driveRouter)
 router.use('/validation', validationRouter)
 router.use('/desktop', desktopRouter)
+router.use('/tts', ttsRouter)
 // Transcrição não passa mais por aqui: o navegador fala direto com a
 // AssemblyAI (BYOK) — sem limite de upload em função serverless.
 
