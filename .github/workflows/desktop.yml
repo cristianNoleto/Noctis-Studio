@@ -49,8 +49,11 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
           npm run build
           xvfb-run -a node scripts/screens.js telas
+      # Screenshots são só para conferência: se o upload falhar (ex.: cota de
+      # artefatos do GitHub cheia), NÃO pode derrubar os testes nem bloquear a release.
       - uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: telas-do-app
           path: desktop/telas/*.png
@@ -82,7 +85,10 @@ jobs:
         run: npx electron-builder --win --x64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # O instalador também vai para a Release (abaixo), que NÃO usa a cota de
+      # artefatos. Este upload é um extra para conferência — não pode bloquear a release.
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: NoctisStudio-Setup-${{ steps.versao.outputs.v }}
           path: desktop/release/NoctisStudio-Setup-*.exe
