@@ -13,6 +13,7 @@ import driveRouter from './drive.js'
 import validationRouter from './validation.js'
 import desktopRouter from './desktop.js'
 import ttsRouter from './tts.js'
+import mediaGenRouter from './mediaGen.js'
 
 const router = Router()
 
@@ -30,6 +31,7 @@ router.use('/drive', driveRouter)
 router.use('/validation', validationRouter)
 router.use('/desktop', desktopRouter)
 router.use('/tts', ttsRouter)
+router.use('/media-gen', mediaGenRouter)
 // Transcrição não passa mais por aqui: o navegador fala direto com a
 // AssemblyAI (BYOK) — sem limite de upload em função serverless.
 

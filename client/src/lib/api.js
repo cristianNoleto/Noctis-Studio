@@ -203,6 +203,29 @@ async function ttsGenerate(body) {
   return { blob, remaining: unlimited ? null : remainingHeader != null ? Number(remainingHeader) : null, unlimited }
 }
 
+// Requisição autenticada que devolve BLOB (imagem/vídeo gerados) + headers.
+async function authBlob(path, { method = 'GET', body } = {}) {
+  if (!supabase) throw new ApiError('local_mode', 'A geração só funciona no site publicado (com a sua conta).')
+  const { data } = await supabase.auth.getSession()
+  const token = data?.session?.access_token
+  if (!token) throw new ApiError('unauthorized', 'Faça login para gerar mídia.')
+  let res
+  try {
+    res = await fetch(`/api${path}`, {
+      method,
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${token}` },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw new ApiError('server_offline')
+  }
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new ApiError(json.error || 'request_failed', json.message)
+  }
+  return { blob: await res.blob(), headers: res.headers }
+}
+
 export const api = {
   youtube: {
     lookupChannel: (q) => request(`/youtube/channel?q=${encodeURIComponent(q)}`),
@@ -373,6 +396,29 @@ export const api = {
     adminTest: (apiKey) => authRequest('/tts/admin/test', { method: 'POST', body: apiKey ? { apiKey } : {} }),
     adminModels: () => authRequest('/tts/admin/models'),
   },
+  // Geração de imagem/vídeo pela API oficial do Google (chave do dono, cota por usuário).
+  mediaGen: {
+    status: () => authRequestOptional('/media-gen/status'),
+    // Imagem (síncrona): devolve { blob, remaining, unlimited }.
+    async image(body) {
+      const { blob, headers } = await authBlob('/media-gen/image', { method: 'POST', body })
+      const rem = headers.get('X-Image-Remaining')
+      return { blob, remaining: headers.get('X-Unlimited') === '1' ? null : rem != null ? Number(rem) : null }
+    },
+    // Vídeo (assíncrono): cria o job, consulta o status e baixa o mp4.
+    videoStart: (body) => authRequest('/media-gen/video', { method: 'POST', body }),
+    videoStatus: (id) => authRequest(`/media-gen/video/${id}`),
+    async videoFile(id) {
+      const { blob } = await authBlob(`/media-gen/video/${id}/file`)
+      return blob
+    },
+    videos: () => authRequest('/media-gen/videos'),
+    // Admin
+    adminConfig: () => authRequest('/media-gen/admin/config'),
+    adminSave: (body) => authRequest('/media-gen/admin/config', { method: 'PUT', body }),
+    adminTest: (apiKey) => authRequest('/media-gen/admin/test', { method: 'POST', body: apiKey ? { apiKey } : {} }),
+    adminModels: () => authRequest('/media-gen/admin/models'),
+  },
 }
 
 // Mensagens amigáveis para códigos de erro conhecidos do backend.
@@ -397,8 +443,14 @@ export function apiErrorMessage(err) {
     disabled: 'A Narração está desativada no momento.',
     plan_required: 'Seu plano não inclui a Narração. Faça upgrade em Meu Plano.',
     invalid_key: 'A chave da API informada foi rejeitada pelo provedor.',
+    image_limit_reached: 'Você atingiu o limite diário de imagens. Reseta amanhã.',
+    video_limit_reached: 'Você atingiu o limite diário de vídeos. Reseta amanhã.',
+    too_many_active: 'Você já tem vídeos em andamento. Aguarde terminarem.',
+    blocked: 'A geração foi bloqueada por filtro de conteúdo. Ajuste o prompt.',
+    model_unavailable: 'O modelo configurado não está disponível para a chave. Ajuste na Administração.',
+    provider_rate_limited: 'Limite do provedor atingido no momento. Tente de novo em instantes.',
   }
   // Mensagens do servidor (ex.: limite com números) têm prioridade quando existem.
-  if ((err?.code === 'ai_limit_reached' || err?.code === 'tts_limit_reached') && err?.message) return err.message
+  if ((err?.code === 'ai_limit_reached' || err?.code === 'tts_limit_reached' || err?.code === 'image_limit_reached' || err?.code === 'video_limit_reached') && err?.message) return err.message
   return map[err?.code] || err?.message || 'Algo deu errado. Tente novamente.'
 }

@@ -14,6 +14,7 @@ app.post('/api/auth/email-hook', express.raw({ type: '*/*', limit: '1mb' }), aut
 app.use(express.json({ limit: '4mb' }))
 app.use('/api/ai', rateLimit({ name: 'ai', windowMs: 60_000, max: 30 }))
 app.use('/api/tts', rateLimit({ name: 'tts', windowMs: 60_000, max: 20 }))
+app.use('/api/media-gen', rateLimit({ name: 'media-gen', windowMs: 60_000, max: 60 }))
 app.use('/api', rateLimit({ name: 'global', windowMs: 60_000, max: 240 }))
 
 app.get('/api/health', (_req, res) => {
