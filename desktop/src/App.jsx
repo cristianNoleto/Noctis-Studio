@@ -10,6 +10,7 @@ const PAGES = {
   creator: lazy(() => import('./pages/Creator')),
   srt: lazy(() => import('./pages/Sincronizador')),
   narracao: lazy(() => import('./pages/Narracao')),
+  estudio: lazy(() => import('./pages/Estudio')),
   'audio-atlas': lazy(() => import('./pages/AudioAtlas')),
   renomeador: lazy(() => import('./pages/Renomeador')),
   contas: lazy(() => import('./pages/Contas')),

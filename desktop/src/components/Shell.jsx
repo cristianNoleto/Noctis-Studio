@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  LayoutDashboard, Images, Film, AudioLines, Music, FolderPen, Users, Terminal, Settings, CircleHelp, ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, MessagesSquare,
+  LayoutDashboard, Images, Film, AudioLines, Clapperboard, Music, FolderPen, Users, Terminal, Settings, CircleHelp, ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, MessagesSquare,
 } from 'lucide-react'
 import Logo from './Logo'
 import { call } from '../lib/api'
@@ -11,7 +11,8 @@ export const NAV = [
     group: 'producao', label: 'Produção', items: [
       { key: 'projetos', label: 'Meus Projetos', Icon: Images },
       { key: 'srt', label: 'Sincronizador SRT', Icon: Film },
-      { key: 'narracao', label: 'Narração', Icon: AudioLines, badge: 'EM BREVE' },
+      { key: 'narracao', label: 'Narração', Icon: AudioLines },
+      { key: 'estudio', label: 'Estúdio', Icon: Clapperboard },
     ],
   },
   {
