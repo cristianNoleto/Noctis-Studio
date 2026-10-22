@@ -48,22 +48,34 @@ function AvisoAtualizacao() {
   useEvent('app:update', (e) => {
     if (e.estado === 'reiniciando') { setA(e); setResta(e.segundos || 30) }
     else if (e.estado === 'aguardando-fila') setA(e)
+    else if (e.estado === 'atual' || e.estado === 'erro') setA(e) // feedback do "Verificar atualizações" (some sozinho)
   })
   useEffect(() => {
     if (!a || a.estado !== 'reiniciando') return undefined
     const t = setInterval(() => setResta((r) => Math.max(0, r - 1)), 1000)
     return () => clearInterval(t)
   }, [a])
+  // Avisos transitórios (já atualizado / erro) somem após alguns segundos.
+  useEffect(() => {
+    if (!a || (a.estado !== 'atual' && a.estado !== 'erro')) return undefined
+    const t = setTimeout(() => setA(null), 5000)
+    return () => clearTimeout(t)
+  }, [a])
   if (!a) return null
+  const transitorio = a.estado === 'atual' || a.estado === 'erro'
   return (
-    <div className="fixed bottom-5 left-1/2 z-[90] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-cyan-500/30 bg-slate-900/95 px-5 py-3 shadow-2xl shadow-black/60 backdrop-blur">
-      <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-400" />
+    <div className={`fixed bottom-5 left-1/2 z-[90] flex -translate-x-1/2 items-center gap-3 rounded-2xl border bg-slate-900/95 px-5 py-3 shadow-2xl shadow-black/60 backdrop-blur ${a.estado === 'erro' ? 'border-amber-500/40' : 'border-cyan-500/30'}`}>
+      {!transitorio && <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-400" />}
       <p className="text-sm text-slate-200">
-        {a.estado === 'aguardando-fila'
+        {a.estado === 'atual'
+          ? <>Você já está na versão mais nova (<b className="text-cyan-300">{a.version}</b>).</>
+          : a.estado === 'erro'
+          ? <>Não foi possível checar atualizações agora. Tente de novo em instantes.</>
+          : a.estado === 'aguardando-fila'
           ? <>Atualização <b className="text-cyan-300">{a.version}</b> pronta — o app reinicia assim que a geração em andamento terminar.</>
           : <>Atualização <b className="text-cyan-300">{a.version}</b> baixada. Reiniciando para instalar em <b className="text-cyan-300">{resta}s</b>…</>}
       </p>
-      <button className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400" onClick={() => call('app:update-install')}>Atualizar agora</button>
+      {!transitorio && <button className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400" onClick={() => call('app:update-install')}>Atualizar agora</button>}
     </div>
   )
 }

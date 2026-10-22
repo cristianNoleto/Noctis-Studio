@@ -47,7 +47,12 @@ function criarAtualizador({ ctx, autoUpdater, app, isPackaged, intervaloMs = 30 
     autoUpdater.disableWebInstaller = true; // instalador completo (não o "web installer"); evita o aviso nos Logs
     autoUpdater.logger = { info: (m) => log.info(`Atualização: ${m}`), warn: (m) => log.warn(`Atualização: ${m}`), error: (m) => log.warn(`Atualização: ${m}`), debug: () => {} };
     autoUpdater.on('checking-for-update', () => { estado.checando = true; });
-    autoUpdater.on('update-not-available', () => { estado.checando = false; });
+    autoUpdater.on('update-not-available', () => {
+      estado.checando = false;
+      // Só avisa na tela quando a checagem foi MANUAL (botão/menu) — a checagem
+      // automática a cada 30 min fica silenciosa.
+      if (estado._manual) { estado._manual = false; ctx.send('app:update', { estado: 'atual', version: estado.versaoApp }); }
+    });
     autoUpdater.on('update-available', (info) => { log.info(`Atualização ${info?.version} disponível; baixando…`); });
     autoUpdater.on('download-progress', (p) => { ctx.send('app:update', { estado: 'baixando', percent: Math.round(p?.percent || 0) }); });
     autoUpdater.on('update-downloaded', (info) => {
@@ -61,7 +66,11 @@ function criarAtualizador({ ctx, autoUpdater, app, isPackaged, intervaloMs = 30 
       agendarInstalacao(esperaMs);
       avisarMudanca();
     });
-    autoUpdater.on('error', (e) => { estado.checando = false; log.warn(`Atualização: ${e?.message || e}`); });
+    autoUpdater.on('error', (e) => {
+      estado.checando = false;
+      log.warn(`Atualização: ${e?.message || e}`);
+      if (estado._manual) { estado._manual = false; ctx.send('app:update', { estado: 'erro', message: String(e?.message || e || 'falha ao checar') }); }
+    });
   }
 
   // Com o app aberto: contagem regressiva e reinício automático (espera a fila, se estiver gerando).
@@ -93,11 +102,12 @@ function criarAtualizador({ ctx, autoUpdater, app, isPackaged, intervaloMs = 30 
     } catch (e) { log.warn(`Atualização: ${e?.message || e}`); return false; }
   }
 
-  async function checar() {
-    if (!isPackaged) { log.info('Atualização: pulada em desenvolvimento.'); return null; }
+  async function checar(manual = false) {
+    if (manual) estado._manual = true;
+    if (!isPackaged) { log.info('Atualização: pulada em desenvolvimento.'); if (manual) { estado._manual = false; ctx.send('app:update', { estado: 'atual', version: estado.versaoApp }); } return null; }
     if (!token) { log.info('Atualização: aguardando login para checar.'); return null; }
     aplicarToken();
-    try { return await autoUpdater.checkForUpdates(); } catch (e) { log.warn(`Atualização: ${e?.message || e}`); return null; }
+    try { return await autoUpdater.checkForUpdates(); } catch (e) { log.warn(`Atualização: ${e?.message || e}`); if (manual) { estado._manual = false; ctx.send('app:update', { estado: 'erro', message: String(e?.message || e) }); } return null; }
   }
 
   return {

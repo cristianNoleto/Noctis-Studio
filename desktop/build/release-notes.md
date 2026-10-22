@@ -1,3 +1,4 @@
-- Contas Google: o botão "Aguardando login" não fica mais carregando para sempre. Se o Chrome continuar aberto em segundo plano depois do login, o app encerra e confere a conta; cada etapa tem prazo máximo.
-- Os Logs mostram cada passo da conferência da conta.
-- Atualização: some o aviso amarelo "disableWebInstaller" dos Logs.
+- Narração: nova tela de voz com IA (ElevenLabs). Escreva o texto e gere o áudio direto no app. Vozes de personagem: escreva [Nome] no texto para trocar de voz e escolha a voz de cada um (até 3 vozes extras; cada voz a mais conta como +1 áudio do seu limite diário).
+- Estúdio: geração de imagem (Imagen/Nano Banana) e vídeo (Veo) pela IA oficial do Google, direto no app. O vídeo gera em segundo plano e aparece na fila quando fica pronto.
+- As chaves são configuradas uma vez pelo dono no site (Perfil → APIs); no app é só usar, com o limite diário da sua conta.
+- "Verificar atualizações" agora avisa quando você já está na versão mais nova (ou se deu algum erro ao checar).

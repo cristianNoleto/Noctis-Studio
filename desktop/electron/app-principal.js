@@ -121,7 +121,7 @@ async function montarBandeja() {
     { type: 'separator' },
     up.baixada
       ? { label: `Reiniciar e atualizar para ${up.baixada.version}`, click: () => ctx.atualizador.instalar() }
-      : { label: 'Verificar atualizações', enabled: !!ctx.atualizador && app.isPackaged, click: () => ctx.atualizador.checar() },
+      : { label: 'Verificar atualizações', enabled: !!ctx.atualizador && app.isPackaged, click: () => ctx.atualizador.checar(true) },
     { label: 'Abrir pasta de logs', click: () => shell.openPath(path.join(app.getPath('userData'), 'logs')) },
     { type: 'separator' },
     { label: 'Sair do Noctis Studio', click: () => { quitting = true; app.quit(); } },
@@ -253,7 +253,7 @@ app.whenReady().then(async () => {
   } catch (e) { log.warn(`Atualização indisponível: ${e.message}`); }
   handle('app:update-state', () => (atualizador ? atualizador.estado() : { baixada: null, novidades: null, versao: app.getVersion() }), { livre: true });
   handle('app:update-install', () => (atualizador ? atualizador.instalar() : false), { livre: true });
-  handle('app:update-check', async () => { if (atualizador) await atualizador.checar(); return true; }, { livre: true });
+  handle('app:update-check', async () => { if (atualizador) await atualizador.checar(true); return true; }, { livre: true });
 
   registerCore();
   for (const mod of ['renomeador', 'audio-atlas', 'creator', 'srt', 'chat', 'ia', 'studio']) {
