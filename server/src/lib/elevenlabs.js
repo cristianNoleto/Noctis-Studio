@@ -4,6 +4,8 @@
 // por /api/tts/generate como bytes (audio/mpeg).
 // ---------------------------------------------------------------------------
 
+import { Mp3Encoder } from '@breezystack/lamejs'
+
 const BASE = 'https://api.elevenlabs.io/v1'
 
 export class TtsError extends Error {
@@ -108,6 +110,42 @@ export function parseSpeakerSegments(text, defaultVoiceId, speakers = []) {
   buffer += text.slice(last)
   flush()
   return { segments, voices }
+}
+
+// Gera um trecho em PCM cru (s16le, mono). Usado para juntar vozes sem emenda:
+// concatenar PCM é sample-accurate (sem o gap de ~26 ms que o MP3 cria a cada
+// trecho). Depois o conjunto é reencodado num ÚNICO mp3. Nem toda conta do
+// ElevenLabs libera PCM (tiers): o chamador faz fallback para mp3 se falhar.
+export async function generatePcm({ apiKey, text, voiceId, modelId, voiceSettings, sampleRate = 44100 }) {
+  if (!text || !text.trim()) throw new TtsError('empty_text', 'Trecho vazio.')
+  const body = { text, model_id: modelId || 'eleven_multilingual_v2' }
+  if (voiceSettings && typeof voiceSettings === 'object') body.voice_settings = voiceSettings
+  const res = await fetch(`${BASE}/text-to-speech/${encodeURIComponent(voiceId)}?output_format=pcm_${sampleRate}`, {
+    method: 'POST',
+    headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw await readError(res)
+  return { buffer: Buffer.from(await res.arrayBuffer()), sampleRate }
+}
+
+// Reencoda PCM cru (s16le mono) num único mp3 (128 kbps) com o lamejs.
+export function encodePcmToMp3(pcm, sampleRate = 44100, kbps = 128) {
+  // Int16 alinhado: copia os bytes para um ArrayBuffer próprio (offset 0, par).
+  const n = Math.floor(pcm.byteLength / 2)
+  const ab = pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + n * 2)
+  const samples = new Int16Array(ab)
+  const enc = new Mp3Encoder(1, sampleRate, kbps)
+  const out = []
+  const BLOCK = 1152
+  for (let i = 0; i < samples.length; i += BLOCK) {
+    const chunk = samples.subarray(i, i + BLOCK)
+    const mp3 = enc.encodeBuffer(chunk)
+    if (mp3.length) out.push(Buffer.from(mp3))
+  }
+  const end = enc.flush()
+  if (end.length) out.push(Buffer.from(end))
+  return Buffer.concat(out)
 }
 
 // Gera o áudio. Retorna { buffer, contentType, characters }.

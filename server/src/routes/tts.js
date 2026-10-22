@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { requireAdmin } from '../lib/adminAuth.js'
 import { getSecret, setSecret, deleteSecret, setAppState } from '../lib/platformSecrets.js'
 import { getTtsConfig, checkTtsLimit, recordTtsUse } from '../lib/ttsLimit.js'
-import { ping, listVoices, listModels, generate, parseSpeakerSegments, TtsError } from '../lib/elevenlabs.js'
+import { ping, listVoices, listModels, generate, generatePcm, encodePcmToMp3, parseSpeakerSegments, TtsError } from '../lib/elevenlabs.js'
 
 // ---------------------------------------------------------------------------
 // Narração (Text-to-Speech via ElevenLabs).
@@ -165,13 +165,30 @@ router.post('/generate', async (req, res) => {
       })
     }
 
-    // Gera cada trecho com a sua voz e concatena (mp3 CBR concatena limpo).
-    const buffers = []
-    for (const seg of segments) {
-      const out = await generate({ apiKey, text: seg.text, voiceId: seg.voiceId, modelId, voiceSettings })
-      buffers.push(out.buffer)
+    // Monta o áudio. 1 trecho só = mp3 direto. Vários trechos (vozes diferentes) =
+    // junta SEM emenda: pega cada trecho em PCM, concatena e reencoda num único mp3.
+    // Se a conta não liberar PCM (tier), cai no fallback de concatenar mp3.
+    let buffer
+    if (segments.length === 1) {
+      buffer = (await generate({ apiKey, text: segments[0].text, voiceId: segments[0].voiceId, modelId, voiceSettings })).buffer
+    } else {
+      try {
+        const SR = 44100
+        const pcms = []
+        for (const seg of segments) {
+          const p = await generatePcm({ apiKey, text: seg.text, voiceId: seg.voiceId, modelId, voiceSettings, sampleRate: SR })
+          pcms.push(p.buffer)
+        }
+        buffer = encodePcmToMp3(Buffer.concat(pcms), SR)
+      } catch (e) {
+        // PCM indisponível (ou erro de encode) → fallback: concatena mp3 trecho a trecho.
+        const bufs = []
+        for (const seg of segments) {
+          bufs.push((await generate({ apiKey, text: seg.text, voiceId: seg.voiceId, modelId, voiceSettings })).buffer)
+        }
+        buffer = Buffer.concat(bufs)
+      }
     }
-    const buffer = Buffer.concat(buffers)
 
     let remaining = null
     if (gate.user && !gate.unlimited) {
