@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { requireAdmin } from '../lib/adminAuth.js'
 import { getSecret, setSecret, deleteSecret, setAppState } from '../lib/platformSecrets.js'
 import { getTtsConfig, checkTtsLimit, recordTtsUse } from '../lib/ttsLimit.js'
-import { ping, listVoices, listModels, generate, TtsError } from '../lib/elevenlabs.js'
+import { ping, listVoices, listModels, generate, parseSpeakerSegments, TtsError } from '../lib/elevenlabs.js'
 
 // ---------------------------------------------------------------------------
 // Narração (Text-to-Speech via ElevenLabs).
@@ -60,6 +60,7 @@ router.get('/status', async (req, res) => {
       minPlan: cfg.minPlan,
       dailyLimit: cfg.dailyLimit,
       modelId: cfg.modelId,
+      maxExtraVoices: cfg.maxExtraVoices,
     }
     if (gate.authRequired) return res.json({ ...base, authRequired: true, available: false })
     if (gate.banned) return res.json({ ...base, available: false, reason: 'banned' })
@@ -138,18 +139,50 @@ router.post('/generate', async (req, res) => {
       if (!Object.keys(voiceSettings).length) voiceSettings = undefined
     }
 
-    const { buffer, contentType } = await generate({ apiKey, text, voiceId, modelId, voiceSettings })
-
-    // Só conta DEPOIS de gerar com sucesso (gate.user existe quando há Supabase).
-    let remaining = null
-    if (gate.user && !gate.unlimited) {
-      await recordTtsUse(gate.user, gate.day)
-      remaining = Math.max(0, gate.limit - (gate.used + 1))
+    // Personagens = vozes EXTRAS por tag [Nome]. No máximo cfg.maxExtraVoices.
+    const rawSpeakers = Array.isArray(req.body?.speakers) ? req.body.speakers : []
+    const speakers = rawSpeakers
+      .filter((s) => s && String(s.tag || '').trim() && String(s.voiceId || '').trim())
+      .map((s) => ({ tag: String(s.tag).trim(), voiceId: String(s.voiceId).trim() }))
+    if (speakers.length > cfg.maxExtraVoices) {
+      return res.status(400).json({ error: 'too_many_voices', message: `No máximo ${cfg.maxExtraVoices} vozes extras por áudio.` })
     }
 
-    res.setHeader('Content-Type', contentType)
+    // Divide em trechos por voz. voices = conjunto de vozes realmente usadas.
+    const { segments, voices } = parseSpeakerSegments(text, voiceId, speakers)
+    if (!segments.length) return res.status(400).json({ error: 'empty_text', message: 'Escreva o texto da narração.' })
+    // CUSTO = nº de vozes distintas usadas (1 base + cada voz a mais = +1 áudio).
+    const cost = Math.max(1, voices.size)
+
+    // Cota considerando o custo total deste áudio.
+    if (!gate.unlimited && gate.used + cost > gate.limit) {
+      return res.status(429).json({
+        error: 'tts_limit_reached',
+        used: gate.used,
+        limit: gate.limit,
+        cost,
+        message: `Este áudio usa ${cost} voz(es) e conta como ${cost} da sua cota, mas você só tem ${Math.max(0, gate.limit - gate.used)} restante(s) hoje. Reduza as vozes ou tente amanhã.`,
+      })
+    }
+
+    // Gera cada trecho com a sua voz e concatena (mp3 CBR concatena limpo).
+    const buffers = []
+    for (const seg of segments) {
+      const out = await generate({ apiKey, text: seg.text, voiceId: seg.voiceId, modelId, voiceSettings })
+      buffers.push(out.buffer)
+    }
+    const buffer = Buffer.concat(buffers)
+
+    let remaining = null
+    if (gate.user && !gate.unlimited) {
+      await recordTtsUse(gate.user, gate.day, cost)
+      remaining = Math.max(0, gate.limit - (gate.used + cost))
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg')
     res.setHeader('Content-Disposition', 'inline; filename="narracao.mp3"')
     res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('X-Tts-Cost', String(cost))
     if (remaining !== null) res.setHeader('X-Tts-Remaining', String(remaining))
     res.setHeader('X-Tts-Unlimited', gate.unlimited ? '1' : '0')
     res.send(buffer)

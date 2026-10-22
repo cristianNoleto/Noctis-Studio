@@ -73,6 +73,43 @@ export async function listModels(apiKey) {
     .map((m) => ({ modelId: m.model_id, name: m.name || m.model_id, languages: (m.languages || []).map((l) => l.language_id) }))
 }
 
+// Divide um texto com tags de personagem em TRECHOS por voz. Ex.:
+//   "Oi. [João] Tudo bem? [Maria] Tudo!"  com default=V0, João=V1, Maria=V2
+//   → [{voiceId:V0,text:"Oi."},{voiceId:V1,text:"Tudo bem?"},{voiceId:V2,text:"Tudo!"}]
+// `speakers` = [{ tag, voiceId }]. Tags são comparadas sem diferenciar maiúsculas/
+// acentos triviais. Uma tag desconhecida fica como texto comum (não quebra a voz).
+// Retorna { segments, voices } onde voices = Set de voiceIds realmente usados.
+export function parseSpeakerSegments(text, defaultVoiceId, speakers = []) {
+  const norm = (s) => String(s || '').trim().toLowerCase()
+  const map = new Map(speakers.filter((s) => s?.tag && s?.voiceId).map((s) => [norm(s.tag), s.voiceId]))
+  const segments = []
+  const voices = new Set()
+  let currentVoice = defaultVoiceId
+  let buffer = ''
+  const flush = () => {
+    const t = buffer.trim()
+    if (t) { segments.push({ voiceId: currentVoice, text: t }); voices.add(currentVoice) }
+    buffer = ''
+  }
+  // Varre marcadores [Nome]. Só troca a voz quando o nome está no mapa.
+  const re = /\[([^\]\n]{1,60})\]/g
+  let last = 0
+  let m
+  while ((m = re.exec(text)) !== null) {
+    const name = norm(m[1])
+    if (map.has(name)) {
+      buffer += text.slice(last, m.index)
+      flush()
+      currentVoice = map.get(name)
+      last = m.index + m[0].length
+    }
+    // tag desconhecida: deixa o texto como está (não mexe em last/buffer aqui)
+  }
+  buffer += text.slice(last)
+  flush()
+  return { segments, voices }
+}
+
 // Gera o áudio. Retorna { buffer, contentType, characters }.
 export async function generate({ apiKey, text, voiceId, modelId, voiceSettings, outputFormat = 'mp3_44100_128' }) {
   if (!text || !text.trim()) throw new TtsError('empty_text', 'Escreva o texto da narração.')

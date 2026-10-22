@@ -10,7 +10,7 @@ import { founderEmails } from './adminAuth.js'
 // ---------------------------------------------------------------------------
 
 const RANK = { FREE: 0, BASIC: 1, LITE: 2, PRO: 3, MASTER: 4 }
-const DEFAULT_CONFIG = { enabled: false, dailyLimit: 30, minPlan: 'BASIC', modelId: 'eleven_multilingual_v2' }
+const DEFAULT_CONFIG = { enabled: false, dailyLimit: 30, minPlan: 'BASIC', modelId: 'eleven_multilingual_v2', maxExtraVoices: 3 }
 
 export async function getTtsConfig() {
   const raw = (await getAppState('tts_config', null)) || {}
@@ -19,6 +19,8 @@ export async function getTtsConfig() {
   cfg.minPlan = RANK[String(cfg.minPlan).toUpperCase()] !== undefined ? String(cfg.minPlan).toUpperCase() : 'BASIC'
   cfg.enabled = !!cfg.enabled
   cfg.modelId = cfg.modelId || 'eleven_multilingual_v2'
+  // Vozes EXTRAS (personagens) além da voz principal, por áudio. Padrão 3.
+  cfg.maxExtraVoices = Number.isFinite(Number(cfg.maxExtraVoices)) ? Math.max(0, Math.floor(Number(cfg.maxExtraVoices))) : 3
   return cfg
 }
 
@@ -68,12 +70,14 @@ export async function checkTtsLimit(req, cfg) {
   return { ok: true, user, day, used, limit, remaining: Math.max(0, limit - used), unlimited: false, plan }
 }
 
-// Soma 1 uso (após a geração dar certo).
-export async function recordTtsUse(user, day) {
+// Soma `amount` usos (após a geração dar certo). amount>1 quando o áudio usa
+// vozes extras (cada voz a mais conta como 1 áudio).
+export async function recordTtsUse(user, day, amount = 1) {
   const supa = supabaseAdmin()
   if (!supa || !user) return
   const d = day || today()
+  const add = Math.max(1, Math.floor(Number(amount) || 1))
   const { data: row } = await supa.from('tts_usage').select('count').eq('user_id', user.id).eq('day', d).maybeSingle()
-  const count = (Number(row?.count) || 0) + 1
+  const count = (Number(row?.count) || 0) + add
   await supa.from('tts_usage').upsert({ user_id: user.id, day: d, count, updated_at: new Date().toISOString() }, { onConflict: 'user_id,day' })
 }

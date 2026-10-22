@@ -11,6 +11,38 @@ import { inputCls, btnPrimary } from '../components/ui'
 // mostra o estado e chama /api/tts/* — nenhuma chave trafega pelo navegador.
 
 const MAX_CHARS = 5000
+const TAG_RE = /\[([^\]\n]{1,60})\]/g
+const norm = (s) => String(s || '').trim().toLowerCase()
+
+// Nomes [Tag] distintos escritos no texto (na ordem em que aparecem).
+function detectTags(text) {
+  const out = []
+  const seen = new Set()
+  const re = new RegExp(TAG_RE)
+  let m
+  while ((m = re.exec(text)) !== null) {
+    const name = m[1].trim()
+    if (name && !seen.has(norm(name))) { seen.add(norm(name)); out.push(name) }
+  }
+  return out
+}
+
+// Replica a contagem do servidor: nº de vozes DISTINTAS realmente usadas no texto.
+// speakerMap = { tagLower: voiceId }. É o custo em "áudios" deste texto.
+function estimateVoices(text, defaultVoiceId, speakerMap) {
+  const voices = new Set()
+  let cur = defaultVoiceId
+  let buf = ''
+  const flush = () => { if (buf.trim()) voices.add(cur); buf = '' }
+  const re = new RegExp(TAG_RE)
+  let last = 0, m
+  while ((m = re.exec(text)) !== null) {
+    const v = speakerMap[norm(m[1])]
+    if (v) { buf += text.slice(last, m.index); flush(); cur = v; last = m.index + m[0].length }
+  }
+  buf += text.slice(last); flush()
+  return voices.size || (text.trim() ? 1 : 0)
+}
 
 export default function Narracao() {
   const { t } = useI18n()
@@ -21,6 +53,7 @@ export default function Narracao() {
   const [voices, setVoices] = useState([])
   const [voicesError, setVoicesError] = useState('')
   const [voiceId, setVoiceId] = useState('')
+  const [speakerVoices, setSpeakerVoices] = useState({}) // tagLower -> voiceId
 
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -66,21 +99,32 @@ export default function Narracao() {
   useEffect(() => () => { if (lastUrl.current) URL.revokeObjectURL(lastUrl.current) }, [])
 
   const remaining = status?.unlimited ? null : status?.remaining
-  const canGenerate = status?.available && !!voiceId && text.trim().length > 0 && text.length <= MAX_CHARS && (status?.unlimited || (remaining ?? 0) > 0)
+  const maxExtra = status?.maxExtraVoices ?? 3
+  const detectedTags = useMemo(() => detectTags(text), [text])
+  // Map tagLower -> voiceId só para as tags que estão no texto E com voz escolhida.
+  const speakerMap = useMemo(() => {
+    const map = {}
+    for (const tag of detectedTags) { const v = speakerVoices[norm(tag)]; if (v) map[norm(tag)] = v }
+    return map
+  }, [detectedTags, speakerVoices])
+  const assignedCount = Object.keys(speakerMap).length
+  const cost = useMemo(() => estimateVoices(text, voiceId, speakerMap), [text, voiceId, speakerMap])
+  const canGenerate = status?.available && !!voiceId && text.trim().length > 0 && text.length <= MAX_CHARS && assignedCount <= maxExtra && (status?.unlimited || (remaining ?? 0) >= cost)
 
   async function handleGenerate() {
     if (!canGenerate || busy) return
     setBusy(true)
     setError('')
     try {
-      const { blob, remaining: rem, unlimited } = await api.tts.generate({ text: text.trim(), voiceId, modelId: status.modelId })
+      const speakers = detectedTags.map((tag) => ({ tag, voiceId: speakerVoices[norm(tag)] })).filter((s) => s.voiceId)
+      const { blob, remaining: rem, unlimited } = await api.tts.generate({ text: text.trim(), voiceId, modelId: status.modelId, speakers })
       if (lastUrl.current) URL.revokeObjectURL(lastUrl.current)
       const url = URL.createObjectURL(blob)
       lastUrl.current = url
       const voiceName = voices.find((v) => v.voiceId === voiceId)?.name || 'narracao'
       setAudio({ url, name: `${voiceName}-${Date.now()}.mp3` })
-      // Atualiza a cota exibida com o que o servidor devolveu.
-      setStatus((s) => (s ? { ...s, unlimited, remaining: unlimited ? null : rem, used: unlimited ? s.used : (s.used ?? 0) + 1, over: !unlimited && rem === 0 } : s))
+      // Atualiza a cota exibida com o que o servidor devolveu (rem já desconta o custo).
+      setStatus((s) => (s ? { ...s, unlimited, remaining: unlimited ? null : rem, used: unlimited ? s.used : (s.used ?? 0) + cost, over: !unlimited && rem === 0 } : s))
     } catch (e) {
       setError(apiErrorMessage(e))
       // Se o servidor disse que a cota acabou, reflete na tela.
@@ -185,7 +229,7 @@ export default function Narracao() {
               className={`${inputCls} resize-y leading-relaxed`}
             />
             <div className="mt-1 flex justify-between text-[11px] text-slate-500">
-              <span>{t('narration.oneAudioNote')}</span>
+              <span>{cost > 1 ? t('narration.costNote', { cost }) : t('narration.oneAudioNote')}</span>
               <span className={text.length >= MAX_CHARS ? 'text-amber-400' : ''}>{text.length}/{MAX_CHARS}</span>
             </div>
           </div>
@@ -228,6 +272,38 @@ export default function Narracao() {
             <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
               <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('narration.preview')}</p>
               <audio controls src={voices.find((v) => v.voiceId === voiceId).previewUrl} className="w-full" />
+            </div>
+          )}
+
+          {/* Personagens: vozes extras por tag [Nome]. Cada voz a mais conta +1 áudio. */}
+          {voices.length > 0 && maxExtra > 0 && (
+            <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('narration.charactersLabel')}</p>
+              <p className="text-[11px] leading-relaxed text-slate-500">{t('narration.charactersHint', { max: maxExtra })}</p>
+              {detectedTags.length === 0 ? (
+                <p className="text-xs text-slate-600">{t('narration.noTags')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {detectedTags.map((tag) => {
+                    const atCap = assignedCount >= maxExtra && !speakerVoices[norm(tag)]
+                    return (
+                      <div key={norm(tag)} className="space-y-1">
+                        <span className="inline-block rounded bg-cyan-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-cyan-300">[{tag}]</span>
+                        <select
+                          value={speakerVoices[norm(tag)] || ''}
+                          disabled={atCap}
+                          onChange={(e) => setSpeakerVoices((p) => { const n = { ...p }; if (e.target.value) n[norm(tag)] = e.target.value; else delete n[norm(tag)]; return n })}
+                          className={`${inputCls} text-sm ${atCap ? 'opacity-50' : ''}`}
+                        >
+                          <option value="">{t('narration.useMainVoice')}</option>
+                          {voices.map((v) => <option key={v.voiceId} value={v.voiceId}>{v.name}</option>)}
+                        </select>
+                      </div>
+                    )
+                  })}
+                  {assignedCount >= maxExtra && <p className="text-[11px] text-amber-400">{t('narration.tooManyVoices', { max: maxExtra })}</p>}
+                </div>
+              )}
             </div>
           )}
         </div>
